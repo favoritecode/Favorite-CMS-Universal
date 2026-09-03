@@ -36,7 +36,7 @@ The **Core** provides the general CMS foundation (users, roles, permissions, pos
 
 The standalone, installable WordPress-style distribution archive is prepared as:
 - **Package**: `Favorite-CMS-Universal.zip`
-- **Current Version**: `0.1.0-beta`
+- **Current Version**: `1.0.0-beta`
 
 When official GitHub Releases are published, end users can download the pre-packaged, zero-configuration distribution ZIP directly from the [GitHub Releases](https://github.com/favoritecode/Favorite-CMS-Universal/releases) page. The distribution package includes all required core classes, assets, themes, plugins, and bundled vendor dependencies—no git cloning, command line, or Composer installation is needed on shared hosting.
 
