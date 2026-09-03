@@ -1,0 +1,13 @@
+{
+    "id": "default",
+    "name": "Favorite Default",
+    "version": "1.0.0",
+    "author": "Favorite CMS Team",
+    "description": "The clean, fast, mobile-ready default presentation theme for Favorite CMS.",
+    "license": "MIT",
+    "menu_locations": {
+        "primary": "Primary Header Navigation",
+        "footer": "Footer Menu"
+    }
+}
+

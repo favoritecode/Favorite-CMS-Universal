@@ -1,0 +1,10 @@
+{
+    "id": "hello-favorite",
+    "name": "Hello Favorite",
+    "version": "1.0.0",
+    "description": "Official reference plugin demonstrating Favorite CMS public APIs: dynamic routes, admin pages, permissions, settings, hooks, templates, assets, and logging.",
+    "author": "Favorite CMS Team",
+    "requires_php": "8.1.0",
+    "dependencies": [],
+    "entry_point": "plugin.php"
+}

@@ -1,0 +1,241 @@
+<?php
+
+declare(strict_types=1);
+
+namespace FavoriteCMS\Http\Controllers\Admin;
+
+use FavoriteCMS\Core\Application;
+use FavoriteCMS\Core\Database;
+use FavoriteCMS\Core\Request;
+use FavoriteCMS\Core\Response;
+use FavoriteCMS\Models\Page;
+use FavoriteCMS\Models\Media;
+
+class PageController
+{
+    protected Application $app;
+
+    public function __construct(Application $app)
+    {
+        $this->app = $app;
+    }
+
+    public function index(Request $request): Response
+    {
+        $db = $this->app->make(Database::class);
+        $status = $request->get('status', 'all');
+        $search = trim((string)$request->get('s', ''));
+
+        $query = "SELECT * FROM `pages` WHERE 1=1";
+        $params = [];
+
+        if ($status !== 'all') {
+            $query .= " AND `status` = ?";
+            $params[] = $status;
+        } else {
+            $query .= " AND `status` != 'trash'";
+        }
+
+        if ($search !== '') {
+            $query .= " AND (`title` LIKE ? OR `content` LIKE ?)";
+            $params[] = "%{$search}%";
+            $params[] = "%{$search}%";
+        }
+
+        $query .= " ORDER BY `menu_order` ASC, `created_at` DESC";
+        $pages = array_map(fn($row) => new Page((array)$row), $db->select($query, $params));
+        $counts = Page::countByStatus();
+
+        $viewData = [
+            'pageTitle'   => 'Pages',
+            'activeMenu'  => 'pages',
+            'pages'       => $pages,
+            'counts'      => $counts,
+            'status'      => $status,
+            'search'      => $search,
+            'contentView' => APP_ROOT . '/resources/views/admin/pages/index.php',
+        ];
+
+        extract($viewData, EXTR_SKIP);
+        ob_start();
+        include APP_ROOT . '/resources/views/admin/layout.php';
+        return Response::make((string)ob_get_clean(), 200);
+    }
+
+    public function create(Request $request): Response
+    {
+        $allPages = Page::all();
+        $mediaItems = Media::all();
+
+        $viewData = [
+            'pageTitle'   => 'Add New Page',
+            'activeMenu'  => 'pages-new',
+            'page'        => null,
+            'allPages'    => $allPages,
+            'mediaItems'  => $mediaItems,
+            'contentView' => APP_ROOT . '/resources/views/admin/pages/edit.php',
+        ];
+
+        extract($viewData, EXTR_SKIP);
+        ob_start();
+        include APP_ROOT . '/resources/views/admin/layout.php';
+        return Response::make((string)ob_get_clean(), 200);
+    }
+
+    public function store(Request $request): Response
+    {
+        $title    = trim((string)$request->post('title', ''));
+        $content  = (string)$request->post('content', '');
+        $status   = (string)$request->post('status', 'draft');
+        $slug     = trim((string)$request->post('slug', ''));
+        $parentId = (int)$request->post('parent_id', 0);
+        $featImg  = (int)$request->post('featured_image_id', 0);
+        $order    = (int)$request->post('menu_order', 0);
+
+        if ($title === '') {
+            $_SESSION['flash_error'] = 'Page title cannot be empty.';
+            return Response::redirect('/admin/pages/new');
+        }
+
+        $pageModel = new Page();
+        $finalSlug = $slug !== '' ? str_slug($slug) : $pageModel->generateSlug($title);
+        $authorId = (int)($_SESSION['auth_user_id'] ?? 1);
+        $now = date('Y-m-d H:i:s');
+
+        $db = $this->app->make(Database::class);
+        $pageId = $db->insert('pages', [
+            'title'             => $title,
+            'slug'              => $finalSlug,
+            'content'           => $content,
+            'status'            => $status,
+            'parent_id'         => $parentId > 0 ? $parentId : null,
+            'author_id'         => $authorId,
+            'featured_image_id' => $featImg > 0 ? $featImg : null,
+            'menu_order'        => $order,
+            'created_at'        => $now,
+            'updated_at'        => $now,
+        ]);
+
+        $page = Page::find($pageId);
+        $page->saveSeoMeta([
+            'meta_title'       => trim((string)$request->post('meta_title', '')),
+            'meta_description' => trim((string)$request->post('meta_description', '')),
+            'og_title'         => trim((string)$request->post('og_title', '')),
+            'og_description'   => trim((string)$request->post('og_description', '')),
+        ]);
+
+        $_SESSION['flash_success'] = 'Page created successfully.';
+        return Response::redirect('/admin/pages/edit?id=' . $pageId);
+    }
+
+    public function edit(Request $request): Response
+    {
+        $id = (int)$request->get('id', 0);
+        $page = Page::find($id);
+        if (!$page) {
+            $_SESSION['flash_error'] = 'Page not found.';
+            return Response::redirect('/admin/pages');
+        }
+
+        $allPages = Page::all();
+        $mediaItems = Media::all();
+        $seo = $page->getSeoMeta();
+
+        $viewData = [
+            'pageTitle'   => 'Edit Page',
+            'activeMenu'  => 'pages',
+            'page'        => $page,
+            'allPages'    => $allPages,
+            'mediaItems'  => $mediaItems,
+            'seo'         => $seo,
+            'contentView' => APP_ROOT . '/resources/views/admin/pages/edit.php',
+        ];
+
+        extract($viewData, EXTR_SKIP);
+        ob_start();
+        include APP_ROOT . '/resources/views/admin/layout.php';
+        return Response::make((string)ob_get_clean(), 200);
+    }
+
+    public function update(Request $request): Response
+    {
+        $id = (int)$request->post('id', 0);
+        $page = Page::find($id);
+        if (!$page) {
+            $_SESSION['flash_error'] = 'Page not found.';
+            return Response::redirect('/admin/pages');
+        }
+
+        $title    = trim((string)$request->post('title', ''));
+        $content  = (string)$request->post('content', '');
+        $status   = (string)$request->post('status', 'draft');
+        $slug     = trim((string)$request->post('slug', ''));
+        $parentId = (int)$request->post('parent_id', 0);
+        $featImg  = (int)$request->post('featured_image_id', 0);
+        $order    = (int)$request->post('menu_order', 0);
+
+        if ($title === '') {
+            $_SESSION['flash_error'] = 'Page title cannot be empty.';
+            return Response::redirect('/admin/pages/edit?id=' . $id);
+        }
+
+        $finalSlug = $slug !== '' ? str_slug($slug) : $page->slug;
+
+        $page->update([
+            'title'             => $title,
+            'slug'              => $finalSlug,
+            'content'           => $content,
+            'status'            => $status,
+            'parent_id'         => $parentId > 0 && $parentId !== $id ? $parentId : null,
+            'featured_image_id' => $featImg > 0 ? $featImg : null,
+            'menu_order'        => $order,
+            'updated_at'        => date('Y-m-d H:i:s'),
+        ]);
+
+        $page->saveSeoMeta([
+            'meta_title'       => trim((string)$request->post('meta_title', '')),
+            'meta_description' => trim((string)$request->post('meta_description', '')),
+            'og_title'         => trim((string)$request->post('og_title', '')),
+            'og_description'   => trim((string)$request->post('og_description', '')),
+        ]);
+
+        $_SESSION['flash_success'] = 'Page updated successfully.';
+        return Response::redirect('/admin/pages/edit?id=' . $id);
+    }
+
+    public function trash(Request $request): Response
+    {
+        $id = (int)$request->get('id', 0);
+        $page = Page::find($id);
+        if ($page) {
+            $page->update(['status' => 'trash', 'updated_at' => date('Y-m-d H:i:s')]);
+            $_SESSION['flash_success'] = 'Page moved to trash.';
+        }
+        return Response::redirect('/admin/pages');
+    }
+
+    public function restore(Request $request): Response
+    {
+        $id = (int)$request->get('id', 0);
+        $page = Page::find($id);
+        if ($page) {
+            $page->update(['status' => 'draft', 'updated_at' => date('Y-m-d H:i:s')]);
+            $_SESSION['flash_success'] = 'Page restored from trash.';
+        }
+        return Response::redirect('/admin/pages?status=trash');
+    }
+
+    public function delete(Request $request): Response
+    {
+        $id = (int)$request->get('id', 0);
+        $page = Page::find($id);
+        if ($page) {
+            $db = $this->app->make(Database::class);
+            $db->execute("DELETE FROM `seo_meta` WHERE `object_type` = 'page' AND `object_id` = ?", [$id]);
+            $page->delete();
+            $_SESSION['flash_success'] = 'Page permanently deleted.';
+        }
+        return Response::redirect('/admin/pages?status=trash');
+    }
+}
+

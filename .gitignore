@@ -1,0 +1,38 @@
+# Composer dependencies
+/vendor/
+
+# Environment and secrets
+.env
+.env.backup
+.env.local
+
+# Installation lock files (local instance specific)
+storage/installed.lock
+storage/installed.lock.*
+storage/installed.lock.bak
+storage/installed.lock.testbak
+
+# Runtime logs and cache
+storage/logs/*.log
+storage/cache/*
+!storage/cache/.gitkeep
+!storage/logs/.gitkeep
+
+# User media uploads (local content)
+public/uploads/*
+!public/uploads/.gitkeep
+
+# Testing and tooling caches
+.phpunit.result.cache
+.phpunit.cache/
+
+# OS and IDE files
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+*.swp
+*~

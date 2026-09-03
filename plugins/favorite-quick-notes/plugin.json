@@ -1,0 +1,9 @@
+{
+    "id": "favorite-quick-notes",
+    "name": "Favorite Quick Notes",
+    "version": "1.0.0",
+    "author": "Favorite CMS Team",
+    "description": "A lightweight reference plugin demonstrating Favorite CMS extension architecture and hooks.",
+    "license": "MIT"
+}
+
