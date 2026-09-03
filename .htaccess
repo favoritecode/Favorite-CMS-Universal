@@ -1,0 +1,11 @@
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Prevent direct access to sensitive directories and configuration files
+    RewriteRule ^(app|config|database|resources|storage|tests)/ - [F,L,NC]
+    RewriteRule ^(\.env|composer\.(json|lock)|migrate\.php) - [F,L,NC]
+
+    # Forward all requests to the public/ directory
+    RewriteCond %{REQUEST_URI} !^/public/
+    RewriteRule ^(.*)$ public/$1 [L]
+</IfModule>
