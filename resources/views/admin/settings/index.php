@@ -38,6 +38,15 @@
             <span class="description">Choose a city in the same timezone as you (e.g. UTC, America/New_York).</span>
         </div>
 
+        <div class="form-group">
+            <label>Membership</label>
+            <label style="display: flex; align-items: center; gap: 8px; font-weight: normal; cursor: pointer; margin-top: 4px;">
+                <input type="checkbox" name="allow_registration" value="1" <?php echo !empty($settings['allow_registration']) ? 'checked' : ''; ?>>
+                Anyone can register for a normal user account
+            </label>
+            <span class="description">Allow visitors to register accounts from /register or /signup.</span>
+        </div>
+
         <h2 style="font-size: 16px; font-weight: 600; margin: 24px 0 16px; border-bottom: 1px solid var(--wp-border); padding-bottom: 8px;">
             Reading Settings
         </h2>
@@ -119,21 +128,31 @@
         <div class="form-group">
             <label for="max_upload_size_admin_mb">Administrator Upload Allowance (MB)</label>
             <?php
-            $adminBytes = (int)$settings['max_upload_size_admin'];
-            $adminMb = $adminBytes > 0 ? round($adminBytes / (1024 * 1024), 1) : 0;
+            $adminBytes = (int)($settings['max_upload_size_admin'] ?? 7516192768);
+            $adminMb = round($adminBytes / (1024 * 1024), 1);
             ?>
-            <input type="number" id="max_upload_size_admin_mb" name="max_upload_size_admin_mb" class="form-control" style="width: 140px;" value="<?php echo $adminMb; ?>" min="0" step="any">
-            <span class="description">Enter <strong>0</strong> to automatically grant administrators the maximum practical limit allowed by the hosting server (currently <?php echo htmlspecialchars($serverLimits['effective_server_formatted']); ?>).</span>
+            <input type="number" id="max_upload_size_admin_mb" name="max_upload_size_admin_mb" class="form-control" style="width: 140px;" value="<?php echo $adminMb; ?>" min="1" step="any">
+            <span class="description">Configured CMS allowance for administrators (default 7 GB / 7,168 MB). Effective server cap: <strong><?php echo htmlspecialchars($serverLimits['effective_server_formatted']); ?></strong>.</span>
+        </div>
+
+        <div class="form-group">
+            <label for="max_upload_size_moderator_mb">Moderator / Editor Upload Allowance (MB)</label>
+            <?php
+            $modBytes = (int)($settings['max_upload_size_moderator'] ?? 524288000);
+            $modMb = round($modBytes / (1024 * 1024), 1);
+            ?>
+            <input type="number" id="max_upload_size_moderator_mb" name="max_upload_size_moderator_mb" class="form-control" style="width: 140px;" value="<?php echo $modMb; ?>" min="1" step="any">
+            <span class="description">Configured CMS allowance for moderators and editors (default 500 MB). Strictly capped by server limits.</span>
         </div>
 
         <div class="form-group">
             <label for="max_upload_size_user_mb">Standard User Upload Limit (MB)</label>
             <?php
-            $userBytes = (int)$settings['max_upload_size_user'];
+            $userBytes = (int)($settings['max_upload_size_user'] ?? 209715200);
             $userMb = round($userBytes / (1024 * 1024), 1);
             ?>
             <input type="number" id="max_upload_size_user_mb" name="max_upload_size_user_mb" class="form-control" style="width: 140px;" value="<?php echo $userMb; ?>" min="1" step="any">
-            <span class="description">Maximum file size permitted for normal non-administrator users (strictly capped by server capability).</span>
+            <span class="description">Maximum file size permitted for normal non-administrator users (default 200 MB, strictly capped by server capability).</span>
         </div>
 
         <div style="margin-top: 24px;">

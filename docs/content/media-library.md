@@ -9,17 +9,22 @@ Favorite CMS features a robust, role-aware media management system engineered to
 Upload limits are calculated dynamically based on both user role permissions and the hosting server's real technical bottlenecks:
 
 1. **Server Bottleneck Detection**:
-   - The CMS inspects `upload_max_filesize`, `post_max_size`, and `memory_limit`.
-   - The effective server ceiling is `min(upload_max_filesize, post_max_size)`.
+   - The CMS inspects `upload_max_filesize`, `post_max_size`, `memory_limit`, and available disk space.
+   - The effective server ceiling is `min(upload_max_filesize, post_max_size, disk_free_space)`.
    - Early `post_max_size` overflow detection returns a friendly HTTP 413 response instead of silent POST data loss.
+   - The effective upload limit is strictly `min(configured_role_limit, effective_server_limit)`.
 
 2. **Administrators (`super-admin` & `admin`)**:
-   - Automatically granted the maximum practical limit allowed by the server environment (or configured custom admin cap).
-   - Allows uploading large movies, episodes, high-resolution media, and ZIP archives up to server limits.
+   - CMS Configured Allowance: **7 GB** (7,168 MB / 7,516,192,768 bytes).
+   - Allows uploading large video files, movies, episodes, and archives up to server limits.
 
-3. **Standard Users**:
-   - Governed by configurable limit settings (default 50 MB), strictly capped by server configuration.
-   - Configurable from **Admin Panel &rarr; Settings &rarr; Media & Upload Capabilities**.
+3. **Moderators & Editors (`moderator` & `editor`)**:
+   - CMS Configured Allowance: **500 MB** (524,288,000 bytes).
+   - Tailored for media-rich post editing and community content moderation.
+
+4. **Standard Users (`author`, `subscriber`, etc.)**:
+   - CMS Configured Allowance: **200 MB** (209,715,200 bytes).
+   - Fully configurable in **Admin Panel &rarr; Settings &rarr; Media & Upload Capabilities**.
 
 ---
 

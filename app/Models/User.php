@@ -102,5 +102,86 @@ class User extends BaseModel
             'role_id' => $roleId
         ]);
     }
+
+    public function isBanned(): bool
+    {
+        return ($this->status ?? 'active') === 'banned';
+    }
+
+    public function isSuspended(): bool
+    {
+        return ($this->status ?? 'active') === 'suspended';
+    }
+
+    public function isActive(): bool
+    {
+        return ($this->status ?? 'active') === 'active';
+    }
+
+    public function canCreatePosts(): bool
+    {
+        return $this->isActive();
+    }
+
+    public function canUploadMedia(): bool
+    {
+        return $this->isActive();
+    }
+
+    public function canDirectPublish(): bool
+    {
+        if (!$this->isActive()) {
+            return false;
+        }
+
+        return $this->hasRole('super-admin')
+            || $this->hasRole('admin')
+            || $this->hasRole('moderator')
+            || $this->hasRole('editor')
+            || $this->hasPermission('publish_direct')
+            || $this->hasPermission('publish_posts');
+    }
+
+    public function canModeratePosts(): bool
+    {
+        if (!$this->isActive()) {
+            return false;
+        }
+
+        return $this->hasRole('super-admin')
+            || $this->hasRole('admin')
+            || $this->hasRole('moderator')
+            || $this->hasRole('editor')
+            || $this->hasPermission('approve_posts');
+    }
+
+    public function canManageUsers(): bool
+    {
+        if (!$this->isActive()) {
+            return false;
+        }
+
+        return $this->hasRole('super-admin')
+            || $this->hasRole('admin')
+            || $this->hasPermission('manage_users');
+    }
+
+    public function getPostCount(): int
+    {
+        $row = $this->db->selectOne(
+            "SELECT COUNT(*) as cnt FROM `posts` WHERE `author_id` = ? AND `type` = 'post'",
+            [$this->id]
+        );
+        return (int)($row->cnt ?? 0);
+    }
+
+    public function getPrimaryRoleName(): string
+    {
+        $roles = $this->getRoles();
+        if (!empty($roles)) {
+            return $roles[0]->name ?? 'Subscriber';
+        }
+        return 'Subscriber';
+    }
 }
 

@@ -32,7 +32,15 @@ class Post extends BaseModel
     {
         $db = Container::getInstance()->get(Database::class);
         $rows = $db->select("SELECT `status`, COUNT(*) as cnt FROM `posts` WHERE `type` = 'post' GROUP BY `status`");
-        $counts = ['all' => 0, 'published' => 0, 'draft' => 0, 'trash' => 0, 'scheduled' => 0];
+        $counts = [
+            'all'       => 0,
+            'published' => 0,
+            'draft'     => 0,
+            'pending'   => 0,
+            'rejected'  => 0,
+            'trash'     => 0,
+            'scheduled' => 0
+        ];
         foreach ($rows as $row) {
             $counts[$row->status] = (int)$row->cnt;
             if ($row->status !== 'trash') {
@@ -40,6 +48,48 @@ class Post extends BaseModel
             }
         }
         return $counts;
+    }
+
+    public function isPending(): bool
+    {
+        return ($this->status ?? 'draft') === 'pending';
+    }
+
+    public function isPublished(): bool
+    {
+        return ($this->status ?? 'draft') === 'published';
+    }
+
+    public function isRejected(): bool
+    {
+        return ($this->status ?? 'draft') === 'rejected';
+    }
+
+    public function isDraft(): bool
+    {
+        return ($this->status ?? 'draft') === 'draft';
+    }
+
+    public function approve(): void
+    {
+        $now = date('Y-m-d H:i:s');
+        $this->update([
+            'status'       => 'published',
+            'published_at' => $now,
+            'updated_at'   => $now,
+        ]);
+        $this->status = 'published';
+        $this->published_at = $now;
+    }
+
+    public function reject(): void
+    {
+        $now = date('Y-m-d H:i:s');
+        $this->update([
+            'status'     => 'rejected',
+            'updated_at' => $now,
+        ]);
+        $this->status = 'rejected';
     }
 
     public function getAuthor(): ?User

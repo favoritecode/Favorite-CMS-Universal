@@ -245,19 +245,41 @@ $postId = (int)($post->id ?? 0);
                     Publish
                 </h3>
 
+                <?php if ($post?->status === 'pending'): ?>
+                    <div style="background: #fef3c7; color: #92400e; padding: 10px; border-radius: 4px; font-size: 12px; margin-bottom: 12px; border-left: 3px solid #f59e0b;">
+                        &#9888; <strong>Pending Moderation:</strong> This post is awaiting review and approval by a moderator.
+                    </div>
+                <?php elseif ($post?->status === 'rejected'): ?>
+                    <div style="background: #fee2e2; color: #991b1b; padding: 10px; border-radius: 4px; font-size: 12px; margin-bottom: 12px; border-left: 3px solid #ef4444;">
+                        &#10007; <strong>Rejected:</strong> This post was rejected during moderation. You may update and resubmit it.
+                    </div>
+                <?php endif; ?>
+
                 <div class="form-group">
                     <label for="status">Status</label>
                     <select id="status" name="status" class="form-control">
                         <option value="draft" <?php echo ($post?->status === 'draft' || empty($post)) ? 'selected' : ''; ?>>Draft</option>
-                        <option value="published" <?php echo ($post?->status === 'published') ? 'selected' : ''; ?>>Published</option>
+                        <?php if ($currentUser && $currentUser->canDirectPublish()): ?>
+                            <option value="published" <?php echo ($post?->status === 'published') ? 'selected' : ''; ?>>Published</option>
+                            <?php if ($post?->status === 'pending'): ?>
+                                <option value="pending" selected>Pending Review</option>
+                            <?php endif; ?>
+                            <?php if ($post?->status === 'rejected'): ?>
+                                <option value="rejected" selected>Rejected</option>
+                            <?php endif; ?>
+                        <?php else: ?>
+                            <option value="pending" <?php echo ($post?->status === 'pending' || empty($post) || $post?->status === 'published') ? 'selected' : ''; ?>>Submit for Review (Pending)</option>
+                        <?php endif; ?>
                     </select>
                 </div>
 
                 <div style="font-size: 12px; color: var(--wp-text-muted); margin-bottom: 14px;">
                     <?php if ($isEdit && $post->published_at): ?>
                         <span>Published on: <strong><?php echo date('M j, Y \a\t g:i a', strtotime($post->published_at)); ?></strong></span>
-                    <?php else: ?>
+                    <?php elseif ($currentUser && $currentUser->canDirectPublish()): ?>
                         <span>Publish immediately upon saving.</span>
+                    <?php else: ?>
+                        <span>Posts by normal users require moderator approval.</span>
                     <?php endif; ?>
                 </div>
 
@@ -266,15 +288,28 @@ $postId = (int)($post->id ?? 0);
                         Save Draft
                     </button>
                     <button type="button" id="publish-btn" class="btn btn-primary">
-                        <?php echo ($isEdit && $post->status === 'published') ? 'Update Post' : 'Publish'; ?>
+                        <?php
+                        if ($currentUser && $currentUser->canDirectPublish()) {
+                            echo ($isEdit && $post->status === 'published') ? 'Update Post' : 'Publish';
+                        } else {
+                            echo 'Submit for Review';
+                        }
+                        ?>
                     </button>
                 </div>
+
+                <?php if ($isEdit && $post?->status === 'pending' && $currentUser && $currentUser->canModeratePosts()): ?>
+                    <div style="display: flex; gap: 8px; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--wp-border);">
+                        <a href="/admin/posts/approve?id=<?php echo $postId; ?>" class="btn btn-primary" style="flex: 1; text-align: center; background: #00a32a; border-color: #00a32a; font-weight: 600;">&#10003; Approve Post</a>
+                        <a href="/admin/posts/reject?id=<?php echo $postId; ?>" class="btn btn-secondary" style="color: #d63638; font-weight: 600;">&#10007; Reject</a>
+                    </div>
+                <?php endif; ?>
 
                 <?php if ($isEdit): ?>
                     <div style="margin-top: 14px; text-align: right;">
                         <a href="/admin/posts/trash?id=<?php echo $postId; ?>" 
-                           onclick="return confirm('Move this post to trash?');" 
-                           style="color: var(--wp-danger); font-size: 12px;">
+                            onclick="return confirm('Move this post to trash?');" 
+                            style="color: var(--wp-danger); font-size: 12px;">
                             Move to Trash
                         </a>
                     </div>

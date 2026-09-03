@@ -212,15 +212,29 @@ class PostEditorAndMediaSystemTest extends TestCase
             'front_page_type'          => 'posts',
             'front_page_id'            => 0,
             'default_category'         => 1,
-            'max_upload_size_admin_mb' => 250,
-            'max_upload_size_user_mb'  => 35,
+            'max_upload_size_admin_mb'     => 7168,
+            'max_upload_size_moderator_mb' => 500,
+            'max_upload_size_user_mb'      => 200,
         ]);
 
         $response = $controller->update($request);
         $this->assertSame(302, $response->getStatusCode());
 
-        $this->assertSame(250 * 1024 * 1024, (int)Setting::get('media', 'max_upload_size_admin'));
-        $this->assertSame(35 * 1024 * 1024, (int)Setting::get('media', 'max_upload_size_user'));
+        $this->assertSame(7516192768, (int)Setting::get('media', 'max_upload_size_admin'));
+        $this->assertSame(524288000, (int)Setting::get('media', 'max_upload_size_moderator'));
+        $this->assertSame(209715200, (int)Setting::get('media', 'max_upload_size_user'));
+    }
+
+    public function testMediaServiceModeratorUploadLimit(): void
+    {
+        $capabilityService = new UploadCapabilityService(static::$app);
+        
+        $modUser = $this->createMock(User::class);
+        $modUser->method('hasRole')->willReturnCallback(fn($role) => $role === 'moderator');
+        $modUser->method('hasPermission')->willReturn(false);
+
+        $configuredLimit = $capabilityService->getConfiguredUserLimit($modUser);
+        $this->assertSame(524288000, $configuredLimit);
     }
 
     public function testMediaControllerCapabilitiesEndpointReturnsJson(): void

@@ -290,11 +290,29 @@ $activeMenu = $activeMenu ?? 'dashboard';
                 <li class="wp-menu-item <?php echo $activeMenu === 'dashboard' ? 'active' : ''; ?>">
                     <a href="/admin" class="wp-menu-link">📊 Dashboard</a>
                 </li>
+                <?php
+                $isAdmin = $user && ($user->hasRole('admin') || $user->hasRole('super-admin'));
+                $canModerate = $user && $user->canModeratePosts();
+                $canManageUsers = $user && $user->canManageUsers();
+                $pendingCount = (int)(\FavoriteCMS\Models\Post::countByStatus()['pending'] ?? 0);
+                ?>
                 <li class="wp-menu-item <?php echo in_array($activeMenu, ['posts', 'posts-new', 'categories', 'tags']) ? 'active' : ''; ?>">
-                    <a href="/admin/posts" class="wp-menu-link">📝 Posts</a>
+                    <a href="/admin/posts" class="wp-menu-link">
+                        📝 Posts
+                        <?php if ($canModerate && $pendingCount > 0): ?>
+                            <span style="background: #e5a00d; color: #fff; font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 10px; margin-left: 6px;"><?php echo $pendingCount; ?></span>
+                        <?php endif; ?>
+                    </a>
                     <ul class="wp-submenu">
                         <li><a href="/admin/posts" class="<?php echo $activeMenu === 'posts' ? 'active' : ''; ?>">All Posts</a></li>
                         <li><a href="/admin/posts/new" class="<?php echo $activeMenu === 'posts-new' ? 'active' : ''; ?>">Add New Post</a></li>
+                        <?php if ($canModerate): ?>
+                            <li>
+                                <a href="/admin/posts?status=pending" style="<?php echo $pendingCount > 0 ? 'font-weight: 700; color: #e5a00d;' : ''; ?>">
+                                    Pending Review <?php echo $pendingCount > 0 ? "({$pendingCount})" : ''; ?>
+                                </a>
+                            </li>
+                        <?php endif; ?>
                         <li><a href="/admin/taxonomies/categories" class="<?php echo $activeMenu === 'categories' ? 'active' : ''; ?>">Categories</a></li>
                         <li><a href="/admin/taxonomies/tags" class="<?php echo $activeMenu === 'tags' ? 'active' : ''; ?>">Tags</a></li>
                     </ul>
@@ -312,35 +330,44 @@ $activeMenu = $activeMenu ?? 'dashboard';
                 <li class="wp-menu-item <?php echo $activeMenu === 'comments' ? 'active' : ''; ?>">
                     <a href="/admin/comments" class="wp-menu-link">💬 Comments</a>
                 </li>
-                <li class="wp-menu-item <?php echo in_array($activeMenu, ['themes', 'widgets', 'customize', 'menus']) ? 'active' : ''; ?>">
-                    <a href="/admin/themes" class="wp-menu-link">🎨 Appearance</a>
-                    <ul class="wp-submenu">
-                        <li><a href="/admin/themes" class="<?php echo $activeMenu === 'themes' ? 'active' : ''; ?>">Themes</a></li>
-                        <li><a href="/admin/customize" class="<?php echo $activeMenu === 'customize' ? 'active' : ''; ?>">Customize</a></li>
-                        <li><a href="/admin/widgets" class="<?php echo $activeMenu === 'widgets' ? 'active' : ''; ?>">Widgets</a></li>
-                        <li><a href="/admin/menus" class="<?php echo $activeMenu === 'menus' ? 'active' : ''; ?>">Menus</a></li>
-                    </ul>
-                </li>
-                <li class="wp-menu-item <?php echo $activeMenu === 'plugins' ? 'active' : ''; ?>">
-                    <a href="/admin/plugins" class="wp-menu-link">🔌 Plugins</a>
-                </li>
+
+                <?php if ($isAdmin): ?>
+                    <li class="wp-menu-item <?php echo in_array($activeMenu, ['themes', 'widgets', 'customize', 'menus']) ? 'active' : ''; ?>">
+                        <a href="/admin/themes" class="wp-menu-link">🎨 Appearance</a>
+                        <ul class="wp-submenu">
+                            <li><a href="/admin/themes" class="<?php echo $activeMenu === 'themes' ? 'active' : ''; ?>">Themes</a></li>
+                            <li><a href="/admin/customize" class="<?php echo $activeMenu === 'customize' ? 'active' : ''; ?>">Customize</a></li>
+                            <li><a href="/admin/widgets" class="<?php echo $activeMenu === 'widgets' ? 'active' : ''; ?>">Widgets</a></li>
+                            <li><a href="/admin/menus" class="<?php echo $activeMenu === 'menus' ? 'active' : ''; ?>">Menus</a></li>
+                        </ul>
+                    </li>
+                    <li class="wp-menu-item <?php echo $activeMenu === 'plugins' ? 'active' : ''; ?>">
+                        <a href="/admin/plugins" class="wp-menu-link">🔌 Plugins</a>
+                    </li>
+                <?php endif; ?>
+
                 <li class="wp-menu-item <?php echo in_array($activeMenu, ['users', 'users-new', 'profile']) ? 'active' : ''; ?>">
-                    <a href="/admin/users" class="wp-menu-link">👥 Users</a>
+                    <a href="<?php echo $canManageUsers ? '/admin/users' : '/admin/users/profile'; ?>" class="wp-menu-link">👥 Users</a>
                     <ul class="wp-submenu">
-                        <li><a href="/admin/users" class="<?php echo $activeMenu === 'users' ? 'active' : ''; ?>">All Users</a></li>
-                        <li><a href="/admin/users/new" class="<?php echo $activeMenu === 'users-new' ? 'active' : ''; ?>">Add New</a></li>
+                        <?php if ($canManageUsers): ?>
+                            <li><a href="/admin/users" class="<?php echo $activeMenu === 'users' ? 'active' : ''; ?>">All Users</a></li>
+                            <li><a href="/admin/users/new" class="<?php echo $activeMenu === 'users-new' ? 'active' : ''; ?>">Add New</a></li>
+                        <?php endif; ?>
                         <li><a href="/admin/users/profile" class="<?php echo $activeMenu === 'profile' ? 'active' : ''; ?>">Profile</a></li>
                     </ul>
                 </li>
-                <li class="wp-menu-item <?php echo $activeMenu === 'settings' ? 'active' : ''; ?>">
-                    <a href="/admin/settings" class="wp-menu-link">⚙️ Settings</a>
-                </li>
-                <li class="wp-menu-item <?php echo $activeMenu === 'seo' ? 'active' : ''; ?>">
-                    <a href="/admin/seo" class="wp-menu-link">🔍 SEO</a>
-                </li>
-                <li class="wp-menu-item <?php echo $activeMenu === 'tools' ? 'active' : ''; ?>">
-                    <a href="/admin/tools" class="wp-menu-link">🛠️ Tools</a>
-                </li>
+
+                <?php if ($isAdmin): ?>
+                    <li class="wp-menu-item <?php echo $activeMenu === 'settings' ? 'active' : ''; ?>">
+                        <a href="/admin/settings" class="wp-menu-link">⚙️ Settings</a>
+                    </li>
+                    <li class="wp-menu-item <?php echo $activeMenu === 'seo' ? 'active' : ''; ?>">
+                        <a href="/admin/seo" class="wp-menu-link">🔍 SEO</a>
+                    </li>
+                    <li class="wp-menu-item <?php echo $activeMenu === 'tools' ? 'active' : ''; ?>">
+                        <a href="/admin/tools" class="wp-menu-link">🛠️ Tools</a>
+                    </li>
+                <?php endif; ?>
 
                 <?php
                 // Dynamic plugin admin menus

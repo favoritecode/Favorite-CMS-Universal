@@ -11,6 +11,7 @@ use FavoriteCMS\Core\Response;
 use FavoriteCMS\Models\Post;
 use FavoriteCMS\Models\Taxonomy;
 use FavoriteCMS\Models\Media;
+use FavoriteCMS\Models\User;
 use FavoriteCMS\Services\ContentSanitizer;
 
 class PostController
@@ -58,6 +59,7 @@ class PostController
         $queryParams = array_merge($params, [$perPage, $offset]);
         $posts = array_map(fn($row) => new Post((array)$row), $db->select($query, $queryParams));
         $counts = Post::countByStatus();
+        $currentUser = isset($_SESSION['auth_user_id']) ? User::find((int)$_SESSION['auth_user_id']) : null;
 
         $viewData = [
             'pageTitle'    => 'Posts',
@@ -69,6 +71,7 @@ class PostController
             'currentPage'  => $page,
             'totalPages'   => $totalPages,
             'totalItems'   => $totalItems,
+            'currentUser'  => $currentUser,
             'contentView'  => APP_ROOT . '/resources/views/admin/posts/index.php',
         ];
 
@@ -80,6 +83,12 @@ class PostController
 
     public function create(Request $request): Response
     {
+        $currentUser = isset($_SESSION['auth_user_id']) ? User::find((int)$_SESSION['auth_user_id']) : null;
+        if (!$currentUser || !$currentUser->canCreatePosts()) {
+            $_SESSION['flash_error'] = 'Your account is suspended and cannot create new posts.';
+            return Response::redirect('/admin/posts');
+        }
+
         $categories = Taxonomy::getByTaxonomy('category');
         $mediaItems = Media::all();
 
@@ -92,6 +101,7 @@ class PostController
             'tagsString'   => '',
             'mediaItems'   => $mediaItems,
             'seo'          => null,
+            'currentUser'  => $currentUser,
             'contentView'  => APP_ROOT . '/resources/views/admin/posts/edit.php',
         ];
 
@@ -103,6 +113,12 @@ class PostController
 
     public function store(Request $request): Response
     {
+        $currentUser = isset($_SESSION['auth_user_id']) ? User::find((int)$_SESSION['auth_user_id']) : null;
+        if (!$currentUser || !$currentUser->canCreatePosts()) {
+            $_SESSION['flash_error'] = 'Your account is suspended and cannot create new posts.';
+            return Response::redirect('/admin/posts');
+        }
+
         $title       = trim((string)$request->post('title', ''));
         $content     = (string)$request->post('content', '');
         $excerpt     = trim((string)$request->post('excerpt', ''));
@@ -119,6 +135,12 @@ class PostController
             $status = 'published';
         }
 
+        // Enforce moderation workflow for non-moderator/admin normal users
+        $canDirectPublish = $currentUser->canDirectPublish();
+        if (!$canDirectPublish && ($status === 'published' || $actionType === 'publish')) {
+            $status = 'pending';
+        }
+
         if ($title === '') {
             $_SESSION['flash_error'] = 'Post title cannot be empty.';
             return Response::redirect('/admin/posts/new');
@@ -129,7 +151,7 @@ class PostController
 
         $now = date('Y-m-d H:i:s');
         $publishedAt = ($status === 'published') ? $now : null;
-        $authorId = (int)($_SESSION['auth_user_id'] ?? 1);
+        $authorId = (int)$currentUser->id;
         $content = ContentSanitizer::clean($content, $authorId);
 
         $db = $this->app->make(Database::class);
@@ -160,16 +182,33 @@ class PostController
             'og_description'   => trim((string)$request->post('og_description', '')),
         ]);
 
-        $_SESSION['flash_success'] = ($status === 'published') ? 'Post published successfully!' : 'Draft saved successfully.';
+        if ($status === 'pending') {
+            $_SESSION['flash_success'] = 'Post submitted successfully and is awaiting review by a moderator.';
+        } elseif ($status === 'published') {
+            $_SESSION['flash_success'] = 'Post published successfully!';
+        } else {
+            $_SESSION['flash_success'] = 'Draft saved successfully.';
+        }
         return Response::redirect('/admin/posts/edit?id=' . $postId);
     }
 
     public function edit(Request $request): Response
     {
+        $currentUser = isset($_SESSION['auth_user_id']) ? User::find((int)$_SESSION['auth_user_id']) : null;
+        if (!$currentUser || !$currentUser->isActive()) {
+            $_SESSION['flash_error'] = 'Your account is inactive or suspended.';
+            return Response::redirect('/admin/posts');
+        }
+
         $id = (int)$request->get('id', 0);
         $post = Post::find($id);
         if (!$post) {
             $_SESSION['flash_error'] = 'Post not found.';
+            return Response::redirect('/admin/posts');
+        }
+
+        if (!$currentUser->canModeratePosts() && (int)$post->author_id !== (int)$currentUser->id) {
+            $_SESSION['flash_error'] = 'You do not have permission to edit this post.';
             return Response::redirect('/admin/posts');
         }
 
@@ -190,6 +229,7 @@ class PostController
             'tagsString'   => $tagsString,
             'mediaItems'   => $mediaItems,
             'seo'          => $seo,
+            'currentUser'  => $currentUser,
             'contentView'  => APP_ROOT . '/resources/views/admin/posts/edit.php',
         ];
 
@@ -201,10 +241,21 @@ class PostController
 
     public function update(Request $request): Response
     {
+        $currentUser = isset($_SESSION['auth_user_id']) ? User::find((int)$_SESSION['auth_user_id']) : null;
+        if (!$currentUser || !$currentUser->isActive()) {
+            $_SESSION['flash_error'] = 'Your account is inactive or suspended.';
+            return Response::redirect('/admin/posts');
+        }
+
         $id = (int)$request->post('id', 0);
         $post = Post::find($id);
         if (!$post) {
             $_SESSION['flash_error'] = 'Post not found.';
+            return Response::redirect('/admin/posts');
+        }
+
+        if (!$currentUser->canModeratePosts() && (int)$post->author_id !== (int)$currentUser->id) {
+            $_SESSION['flash_error'] = 'You do not have permission to edit this post.';
             return Response::redirect('/admin/posts');
         }
 
@@ -224,6 +275,12 @@ class PostController
             $status = 'published';
         }
 
+        // Enforce moderation workflow for non-moderator/admin normal users
+        $canDirectPublish = $currentUser->canDirectPublish();
+        if (!$canDirectPublish && ($status === 'published' || $actionType === 'publish')) {
+            $status = 'pending';
+        }
+
         if ($title === '') {
             $_SESSION['flash_error'] = 'Post title cannot be empty.';
             return Response::redirect('/admin/posts/edit?id=' . $id);
@@ -236,7 +293,7 @@ class PostController
             $publishedAt = $now;
         }
 
-        $authorId = (int)($_SESSION['auth_user_id'] ?? $post->author_id ?? 1);
+        $authorId = (int)($post->author_id ?: $currentUser->id);
         $content = ContentSanitizer::clean($content, $authorId);
 
         $post->update([
@@ -260,8 +317,54 @@ class PostController
             'og_description'   => trim((string)$request->post('og_description', '')),
         ]);
 
-        $_SESSION['flash_success'] = 'Post updated successfully.';
+        if ($status === 'pending') {
+            $_SESSION['flash_success'] = 'Post submitted successfully and is awaiting review by a moderator.';
+        } elseif ($status === 'published') {
+            $_SESSION['flash_success'] = 'Post published successfully!';
+        } else {
+            $_SESSION['flash_success'] = 'Post updated successfully.';
+        }
         return Response::redirect('/admin/posts/edit?id=' . $id);
+    }
+
+    public function approve(Request $request): Response
+    {
+        $currentUser = isset($_SESSION['auth_user_id']) ? User::find((int)$_SESSION['auth_user_id']) : null;
+        if (!$currentUser || !$currentUser->canModeratePosts()) {
+            $_SESSION['flash_error'] = 'You do not have permission to approve posts.';
+            return Response::redirect('/admin/posts');
+        }
+
+        $id = (int)$request->get('id', $request->post('id', 0));
+        $post = Post::find($id);
+        if (!$post) {
+            $_SESSION['flash_error'] = 'Post not found.';
+            return Response::redirect('/admin/posts');
+        }
+
+        $post->approve();
+        $_SESSION['flash_success'] = 'Post "' . htmlspecialchars($post->title, ENT_QUOTES, 'UTF-8') . '" approved and published successfully!';
+        return Response::redirect('/admin/posts?status=pending');
+    }
+
+    public function reject(Request $request): Response
+    {
+        $currentUser = isset($_SESSION['auth_user_id']) ? User::find((int)$_SESSION['auth_user_id']) : null;
+        if (!$currentUser || !$currentUser->canModeratePosts()) {
+            $_SESSION['flash_error'] = 'You do not have permission to reject posts.';
+            return Response::redirect('/admin/posts');
+        }
+
+        $id = (int)$request->get('id', $request->post('id', 0));
+        $post = Post::find($id);
+        if (!$post) {
+            $_SESSION['flash_error'] = 'Post not found.';
+            return Response::redirect('/admin/posts');
+        }
+
+        $post->reject();
+        $_SESSION['flash_success'] = 'Post "' . htmlspecialchars($post->title, ENT_QUOTES, 'UTF-8') . '" has been rejected.';
+        return Response::redirect('/admin/posts?status=pending');
     }
 
     public function preview(Request $request): Response
@@ -304,9 +407,14 @@ class PostController
 
     public function trash(Request $request): Response
     {
+        $currentUser = isset($_SESSION['auth_user_id']) ? User::find((int)$_SESSION['auth_user_id']) : null;
         $id = (int)$request->get('id', 0);
         $post = Post::find($id);
         if ($post) {
+            if (!$currentUser || (!$currentUser->canModeratePosts() && (int)$post->author_id !== (int)$currentUser->id)) {
+                $_SESSION['flash_error'] = 'You do not have permission to modify this post.';
+                return Response::redirect('/admin/posts');
+            }
             $post->update(['status' => 'trash', 'updated_at' => date('Y-m-d H:i:s')]);
             $_SESSION['flash_success'] = 'Post moved to trash.';
         }
@@ -315,9 +423,14 @@ class PostController
 
     public function restore(Request $request): Response
     {
+        $currentUser = isset($_SESSION['auth_user_id']) ? User::find((int)$_SESSION['auth_user_id']) : null;
         $id = (int)$request->get('id', 0);
         $post = Post::find($id);
         if ($post) {
+            if (!$currentUser || (!$currentUser->canModeratePosts() && (int)$post->author_id !== (int)$currentUser->id)) {
+                $_SESSION['flash_error'] = 'You do not have permission to modify this post.';
+                return Response::redirect('/admin/posts');
+            }
             $post->update(['status' => 'draft', 'updated_at' => date('Y-m-d H:i:s')]);
             $_SESSION['flash_success'] = 'Post restored from trash.';
         }
@@ -326,9 +439,14 @@ class PostController
 
     public function delete(Request $request): Response
     {
+        $currentUser = isset($_SESSION['auth_user_id']) ? User::find((int)$_SESSION['auth_user_id']) : null;
         $id = (int)$request->get('id', 0);
         $post = Post::find($id);
         if ($post) {
+            if (!$currentUser || (!$currentUser->canModeratePosts() && (int)$post->author_id !== (int)$currentUser->id)) {
+                $_SESSION['flash_error'] = 'You do not have permission to delete this post.';
+                return Response::redirect('/admin/posts');
+            }
             $db = $this->app->make(Database::class);
             $db->execute("DELETE FROM `post_taxonomies` WHERE `post_id` = ?", [$id]);
             $db->execute("DELETE FROM `seo_meta` WHERE `object_type` = 'post' AND `object_id` = ?", [$id]);
@@ -341,13 +459,19 @@ class PostController
 
     public function quickDraft(Request $request): Response
     {
+        $currentUser = isset($_SESSION['auth_user_id']) ? User::find((int)$_SESSION['auth_user_id']) : null;
+        if (!$currentUser || !$currentUser->canCreatePosts()) {
+            $_SESSION['flash_error'] = 'Your account is suspended and cannot create posts.';
+            return Response::redirect('/admin');
+        }
+
         $title = trim((string)$request->post('title', ''));
         $content = (string)$request->post('content', '');
 
         if ($title !== '') {
             $postModel = new Post();
             $slug = $postModel->generateSlug($title);
-            $authorId = (int)($_SESSION['auth_user_id'] ?? 1);
+            $authorId = (int)$currentUser->id;
 
             $db = $this->app->make(Database::class);
             $db->insert('posts', [

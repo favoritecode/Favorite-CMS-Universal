@@ -6,7 +6,9 @@
 <ul class="subsubsub">
     <li><a href="/admin/posts?status=all" class="<?php echo $status === 'all' ? 'current' : ''; ?>">All (<?php echo (int)($counts['all'] ?? 0); ?>)</a> |</li>
     <li><a href="/admin/posts?status=published" class="<?php echo $status === 'published' ? 'current' : ''; ?>">Published (<?php echo (int)($counts['published'] ?? 0); ?>)</a> |</li>
+    <li><a href="/admin/posts?status=pending" class="<?php echo $status === 'pending' ? 'current' : ''; ?>" style="<?php echo ($counts['pending'] ?? 0) > 0 ? 'font-weight: 700; color: #b45309;' : ''; ?>">Pending Review (<?php echo (int)($counts['pending'] ?? 0); ?>)</a> |</li>
     <li><a href="/admin/posts?status=draft" class="<?php echo $status === 'draft' ? 'current' : ''; ?>">Drafts (<?php echo (int)($counts['draft'] ?? 0); ?>)</a> |</li>
+    <li><a href="/admin/posts?status=rejected" class="<?php echo $status === 'rejected' ? 'current' : ''; ?>">Rejected (<?php echo (int)($counts['rejected'] ?? 0); ?>)</a> |</li>
     <li><a href="/admin/posts?status=trash" class="<?php echo $status === 'trash' ? 'current' : ''; ?>">Trash (<?php echo (int)($counts['trash'] ?? 0); ?>)</a></li>
 </ul>
 
@@ -71,6 +73,10 @@
                                     <a href="/admin/posts/restore?id=<?php echo (int)$post->id; ?>" style="color: var(--wp-blue);">Restore</a> |
                                     <a href="/admin/posts/delete?id=<?php echo (int)$post->id; ?>" onclick="return confirm('Permanently delete this post?');" style="color: var(--wp-danger);">Delete Permanently</a>
                                 <?php else: ?>
+                                    <?php if ($post->status === 'pending' && $currentUser && $currentUser->canModeratePosts()): ?>
+                                        <a href="/admin/posts/approve?id=<?php echo (int)$post->id; ?>" style="color: #00a32a; font-weight: 700;">&#10003; Approve</a> |
+                                        <a href="/admin/posts/reject?id=<?php echo (int)$post->id; ?>" style="color: #d63638; font-weight: 600;">&#10007; Reject</a> |
+                                    <?php endif; ?>
                                     <a href="/admin/posts/edit?id=<?php echo (int)$post->id; ?>">Edit</a> |
                                     <a href="/post/<?php echo htmlspecialchars($post->slug, ENT_QUOTES, 'UTF-8'); ?>" target="_blank">View Post</a> |
                                     <a href="/admin/posts/trash?id=<?php echo (int)$post->id; ?>" style="color: var(--wp-danger);">Trash</a>
@@ -106,8 +112,25 @@
                             </span>
                         </td>
                         <td>
-                            <span style="display: inline-block; padding: 2px 7px; border-radius: 3px; font-size: 11px; text-transform: uppercase; font-weight: 600; background: <?php echo $post->status === 'published' ? '#dcfce7; color: #15803d;' : ($post->status === 'trash' ? '#fee2e2; color: #991b1b;' : '#f1f5f9; color: #475569;'); ?>">
-                                <?php echo htmlspecialchars($post->status, ENT_QUOTES, 'UTF-8'); ?>
+                            <?php
+                            $badgeStyle = match ($post->status) {
+                                'published' => 'background: #dcfce7; color: #15803d;',
+                                'pending'   => 'background: #fef3c7; color: #92400e; font-weight: 700;',
+                                'rejected'  => 'background: #fee2e2; color: #991b1b;',
+                                'trash'     => 'background: #fee2e2; color: #991b1b;',
+                                default     => 'background: #f1f5f9; color: #475569;',
+                            };
+                            $badgeLabel = match ($post->status) {
+                                'pending'   => 'Pending Review',
+                                'published' => 'Published',
+                                'rejected'  => 'Rejected',
+                                'trash'     => 'Trash',
+                                'draft'     => 'Draft',
+                                default     => ucfirst((string)$post->status),
+                            };
+                            ?>
+                            <span style="display: inline-block; padding: 2px 8px; border-radius: 3px; font-size: 11px; text-transform: uppercase; font-weight: 600; <?php echo $badgeStyle; ?>">
+                                <?php echo htmlspecialchars($badgeLabel, ENT_QUOTES, 'UTF-8'); ?>
                             </span>
                         </td>
                         <td>

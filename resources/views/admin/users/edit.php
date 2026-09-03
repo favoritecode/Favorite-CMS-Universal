@@ -44,6 +44,18 @@ $action = $isEdit ? '/admin/users/update' : '/admin/users/store';
             <input type="password" id="password" name="password" class="form-control" <?php echo $isEdit ? '' : 'required'; ?> autocomplete="new-password">
         </div>
 
+        <?php if ($isEdit): ?>
+            <div class="form-group">
+                <label for="status">Account Status</label>
+                <select id="status" name="status" class="form-control">
+                    <option value="active" <?php echo ($user->status ?? 'active') === 'active' ? 'selected' : ''; ?>>Active</option>
+                    <option value="suspended" <?php echo ($user->status ?? '') === 'suspended' ? 'selected' : ''; ?>>Suspended</option>
+                    <option value="banned" <?php echo ($user->status ?? '') === 'banned' ? 'selected' : ''; ?>>Banned</option>
+                </select>
+                <span class="description">Suspended users cannot create posts or upload media. Banned users cannot log in.</span>
+            </div>
+        <?php endif; ?>
+
         <button type="submit" class="btn btn-primary"><?php echo $isEdit ? 'Update User' : 'Add New User'; ?></button>
     </form>
 </div>

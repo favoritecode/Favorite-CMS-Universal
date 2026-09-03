@@ -1,43 +1,24 @@
 # Favorite CMS Universal — Documentation Index
 
-Welcome to the official developer and administrator documentation for **Favorite CMS Universal**.
+Welcome to the official developer, administrator, and user documentation library for **Favorite CMS Universal**.
 
 > **"One CMS. Any Website."**  
-> Favorite CMS Universal is a lightweight, modular, standalone PHP CMS engineered for high speed, absolute stability, and effortless shared-hosting and local development deployment.
+> Favorite CMS Universal is a lightweight, modular, standalone PHP CMS engineered for high speed, dependable reliability, and straightforward shared-hosting and local development deployment.
 
 ---
 
-## 🧭 Navigation & Learning Paths
-
-Depending on your goal, follow the suggested path below:
+## 🧭 Complete Documentation Structure
 
 ```
-                  ┌───────────────────────────────┐
-                  │    Getting Started / Setup    │
-                  │ (Local XAMPP / Shared Hosting)│
-                  └───────────────┬───────────────┘
-                                  │
-                                  ▼
-                  ┌───────────────────────────────┐
-                  │     Core Architecture Tour    │
-                  │ (Lifecycle, Database, Routing)│
-                  └───────────────┬───────────────┘
-                                  │
-                 ┌────────────────┴────────────────┐
-                 ▼                                 ▼
-   ┌───────────────────────────┐     ┌───────────────────────────┐
-   │    Theme Development      │     │    Plugin Development     │
-   │  (Layouts, Hierarchy,     │     │ (Routes, Admin Pages,     │
-   │   Components & Assets)    │     │  Hooks, Settings & DB)    │
-   └─────────────┬─────────────┘     └─────────────┬─────────────┘
-                 │                                 │
-                 └────────────────┬────────────────┘
-                                  │
-                                  ▼
-                  ┌───────────────────────────────┐
-                  │ Deployment, Testing & Security│
-                  │ (Backup, Hardening, Packaging)│
-                  └───────────────────────────────┘
+docs/
+├── getting-started/      # System requirements and platform installations
+├── user-guide/           # Site administration, post editor, media, moderation
+├── architecture/         # System design, lifecycle, and security model
+├── plugins/              # Plugin development, manifests, and extension APIs
+├── themes/               # Theme development, customizer, and widget layout
+├── security/             # Multi-tier security defenses and hardening
+├── operations/           # Backup, migration, upgrades, and troubleshooting
+└── development/          # Local setup, automated testing, and release process
 ```
 
 ---
@@ -45,74 +26,65 @@ Depending on your goal, follow the suggested path below:
 ## 📚 Documentation Directory
 
 ### 1. Getting Started
+- [System Requirements](getting-started/requirements.md) — Production shared hosting and development environment specifications.
 - [Local XAMPP Installation](getting-started/installation-local.md) — Step-by-step installation on Windows with XAMPP.
 - [Shared Hosting Installation](getting-started/installation-shared-hosting.md) — Deploying to standard cPanel / LAMP shared hosting.
+- [Subdomain Installation](getting-started/installation-subdomain.md) — Running on subdomains (`blog.example.com`).
+- [Subdirectory Installation](getting-started/installation-subdirectory.md) — Running in nested folders (`example.com/blog/`).
 - [Environment Configuration](getting-started/configuration.md) — Setting up `.env` and database parameters.
 - [Creating Your First Website](getting-started/first-website.md) — Site identity, first article, navigation, and settings.
 
-### 2. Architecture & Core Concepts
-- [Architecture Overview](architecture/overview.md) — System layers, design philosophy, and technology stack.
-- [Application Lifecycle](architecture/application-lifecycle.md) — Bootstrap, front controller, middleware, and termination.
+### 2. User & Administration Guide
+- [Admin Dashboard](user-guide/dashboard.md) — Overview cards, quick draft, and recent activities.
+- [Posts Management](user-guide/posts.md) — Life cycle, post statuses, categories, tags, and trash.
+- [Dual-Mode Post Editor](user-guide/post-editor.md) — Visual WYSIWYG mode, Code mode, line numbers, table tools, and paste cleaning.
+- [Media Library & Uploads](user-guide/media.md) — Managing multimedia, formats, progress bars, and role-based limits (7 GB Admin, 500 MB Mod, 200 MB User).
+- [Users, Roles & Statuses](user-guide/users-and-roles.md) — RBAC permissions, public signup, Active, Suspended, and Banned states.
+- [Content Moderation Workflow](user-guide/moderation.md) — Contributor submissions, pending queue, approvals, rejections, and moderator direct publishing.
+- [Widgets & Layout](user-guide/widgets.md) — 10 built-in widgets, theme regions, multi-instance configuration, and 1-click theme defaults.
+- [Themes & Customizer](user-guide/themes.md) — Switching themes, sidebar layouts (Right, Left, Full Width), colors, and section reordering.
+- [Site Settings](user-guide/settings.md) — General site information, public registration toggle, reading options, and upload limits.
+
+### 3. Architecture & Core Concepts
+- [Architecture Overview](architecture/overview.md) — System layers, technology stack, and separation of concerns.
+- [Folder Structure](architecture/folder-structure.md) — Detailed directory breakdown and code visibility.
 - [Core Foundation](architecture/core.md) — Application container, service registration, and error handling.
 - [Database & Migrations](architecture/database.md) — PDO abstraction, migrations runner, and schema definitions.
-- [Routing Subsystem](architecture/routing.md) — Clean URL dispatching, static assets, and route resolution.
-- [Template Rendering](architecture/rendering.md) — Layout hierarchy and output evaluation.
-- [Themes Architecture](architecture/themes.md) — Presentation layer contracts and boundaries.
-- [Plugins Architecture](architecture/plugins.md) — Business extensibility, isolation, and lifecycle.
-- [Hooks & Events Subsystem](architecture/hooks-events.md) — Priority-based actions and filters.
-- [Security Architecture](architecture/security.md) — CSRF, input sanitization, output escaping, and session security.
-- [Performance Architecture](architecture/performance.md) — Zero-overhead boot, static asset caching, and query efficiency.
+- [HTTP Request Lifecycle](architecture/request-lifecycle.md) — From incoming request to controller dispatch and output.
+- [Security Model](architecture/security-model.md) — Threat model, defense-in-depth principles, and mitigations.
 
-### 3. Developer Standards
-- [Development Environment](developer/development-environment.md) — Recommended local tooling, PHP CLI, and Composer.
-- [Coding Guidelines](developer/coding-guidelines.md) — PSR-12 formatting, strict types, and naming conventions.
-- [Public Core APIs](developer/public-apis.md) — Stable global helpers and contracts available to extensions.
-- [Extension Lifecycle](developer/extension-lifecycle.md) — Discovery, activation, boot, and deactivation mechanics.
-- [Debugging & Diagnostics](developer/debugging.md) — Log files, error traces, and CLI utilities.
-- [Automated Testing](developer/testing.md) — Running PHPUnit suites and writing integration tests.
+### 4. Plugin Development
+- [Plugin Subsystem Overview](plugins/overview.md) — Plugin philosophy, lifecycle, and public extension points.
+- [Plugin Development Guide](plugins/plugin-development.md) — Building your first plugin step by step.
+- [Plugin Manifest Specification](plugins/plugin-manifest.md) — `plugin.json` schema, dependencies, and capabilities.
+- [Hooks, Events & Filters](plugins/hooks-events-filters.md) — Using `add_action()`, `do_action()`, `add_filter()`, and `apply_filters()`.
+- [Dynamic Routes & Admin Menus](plugins/routes-and-admin-panels.md) — Registering custom frontend URLs and admin panels.
+- [Plugin Best Practices](plugins/plugin-best-practices.md) — Do's and Don'ts, database prefixing, and theme overrides.
 
-### 4. Plugin Development Guide
-- [Getting Started with Plugins](plugins/getting-started.md) — Your first plugin in 5 minutes.
-- [Plugin Directory Structure](plugins/plugin-structure.md) — Directory conventions and required files.
-- [Plugin Manifest (`plugin.json`)](plugins/plugin-manifest.md) — Metadata, dependencies, and versioning schema.
-- [Dynamic Frontend Routes](plugins/routes.md) — Registering custom URLs with `add_route()`.
-- [Admin Menus & Custom Pages](plugins/admin-pages.md) — Adding sidebar items and admin controllers with `add_admin_menu()`.
-- [Permissions & Capabilities](plugins/permissions.md) — Securing plugin actions with `current_user_can()`.
-- [Plugin Settings Storage](plugins/settings.md) — Isolated key-value storage with `plugin_setting()`.
-- [Plugin Hooks & Events](plugins/hooks-events.md) — Listening to actions and filtering CMS data.
-- [Database & Schema Access](plugins/database.md) — Creating custom tables and executing prepared queries.
-- [File Storage & Media](plugins/storage.md) — Working with uploads and filesystem resources.
-- [Custom Templates & Overrides](plugins/templates.md) — Serving plugin views and hooking `template_include`.
-- [Plugin Security Guidelines](plugins/security.md) — Path traversal prevention, CSRF validation, and input sanitation.
-- [Testing Plugins](plugins/testing.md) — Isolating tests and mocking requests.
-- [Packaging & Distribution](plugins/packaging.md) — Creating production-ready ZIP archives.
-- [Complete Working Example](plugins/complete-example.md) — Full walk-through of the `hello-favorite` plugin.
+### 5. Theme Development
+- [Themes Subsystem Overview](themes/overview.md) — Presentation layer contracts and boundaries.
+- [Theme Development Guide](themes/theme-development.md) — Building custom themes, templates, headers, and footers.
+- [Theme Manifest Specification](themes/theme-manifest.md) — `theme.json` schema, declared regions, and feature flags.
+- [Widgets & Layout Architecture](themes/widgets-and-layout.md) — Region integration and customizer hooks.
+- [Template Overrides](themes/template-overrides.md) — Overriding plugin views and widget markup in themes.
 
-### 5. Theme Development Guide
-- [Getting Started with Themes](themes/getting-started.md) — Creating a new visual theme.
-- [Theme Directory Structure](themes/theme-structure.md) — Templates, assets, and metadata layout.
-- [Theme Manifest (`theme.json`)](themes/theme-manifest.md) — Theme declaration and navigation locations.
-- [Theme Templates](themes/templates.md) — Home, single post, page, search, and 404 views.
-- [Template Resolution Hierarchy](themes/template-hierarchy.md) — Precedence from Theme to Plugin to Core.
-- [Header, Sidebar & Footer Components](themes/components.md) — Reusable modular visual components.
-- [Layouts & Grid Systems](themes/layouts.md) — Content-first responsive layout design.
-- [Static Assets (CSS & JS)](themes/assets.md) — Performance tokens, caching, and delivery.
-- [Theme Customization](themes/customization.md) — Site branding, typography, and color tokens.
-- [Theme Security](themes/security.md) — Escaping attributes, sanitizing output, and XSS defense.
-- [Testing Themes](themes/testing.md) — Verifying responsive viewports and empty states.
-- [Complete Working Example](themes/complete-example.md) — Tour of the reference `default` theme.
+### 6. Security & Hardening
+- [Security Overview](security/overview.md) — Multi-tier security architecture and realistic expectations.
+- [Authentication & Sessions](security/authentication.md) — Password hashing, session storage, and instant ban termination.
+- [Authorization & RBAC](security/authorization.md) — Capability enforcement and server-side tamper-proofing.
+- [Upload Hardening](security/uploads.md) — Extension whitelists, MIME detection, and `.htaccess` execution blocks.
+- [Content Sanitization](security/content-sanitization.md) — XSS defense and HTML tag whitelisting.
+- [Deployment Security](security/deployment-security.md) — File permissions, HTTPS enforcement, and server headers.
 
-### 6. Deployment & Operations
-- [Shared Hosting Deployment](deployment/shared-hosting.md) — Upload, permissions, and Apache rewrite setup.
-- [Local XAMPP Deployment](deployment/local-xampp.md) — Virtual hosts, MySQL persistence, and Apache controls.
-- [Backup & Migration Guide](deployment/backup-migration.md) — Exporting database and files without re-triggering installer.
-- [Upgrade Guide](deployment/upgrade.md) — Safe core updates and database migration execution.
-- [Troubleshooting Common Issues](deployment/troubleshooting.md) — Resolving 404s, white screens, and permission blocks.
+### 7. Operations & Maintenance
+- [Backup & Disaster Recovery](operations/backup-restore.md) — Database exports and media file preservation.
+- [Site Migration](operations/migration.md) — Moving sites between hosting providers or local XAMPP to production.
+- [Upgrading Favorite CMS](operations/upgrade.md) — Safely applying newer releases without data loss.
+- [Troubleshooting Guide](operations/troubleshooting.md) — Solutions to common installation, routing, upload, and database errors.
+- [Performance & Optimization](operations/performance.md) — Browser caching, OPcache, and query efficiency.
 
-### 7. API & Technical Reference
-- [Plugin & Theme Manifest Reference](reference/manifest-reference.md) — Full JSON schema definitions.
-- [Hooks & Events Reference](reference/hooks-reference.md) — Exhaustive list of core actions and filters.
-- [Public Core API Reference](reference/api-reference.md) — Classes, functions, arguments, and return types.
-- [Permissions Reference](reference/permissions-reference.md) — Standard RBAC roles and capability slugs.
-- [Template Hierarchy Reference](reference/template-reference.md) — Fallback decision matrix.
-- [Configuration Reference](reference/configuration-reference.md) — All `.env` environment options.
+### 8. Development & Contributing
+- [Development Setup](development/development-setup.md) — Setting up a local development environment.
+- [Automated Testing](development/testing.md) — Running PHPUnit suites and quality assurance.
+- [Contributing Guidelines](development/contributing.md) — Coding standards (PSR-12, strict types) and pull request workflow.
+- [Release Process](development/release-process.md) — Packaging and verifying production distribution archives.

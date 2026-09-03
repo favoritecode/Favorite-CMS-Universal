@@ -113,6 +113,10 @@ class MediaService
             $user = User::find($uploaderId);
         }
 
+        if ($user && !$user->canUploadMedia()) {
+            throw new \SecurityException("Your account is suspended and cannot upload media files.");
+        }
+
         // 1. Role-aware upload size validation
         $maxAllowedBytes = $this->capabilityService->getEffectiveUserLimit($user);
         $fileSize = (int)$file['size'];

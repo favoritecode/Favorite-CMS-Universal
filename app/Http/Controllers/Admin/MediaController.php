@@ -67,6 +67,11 @@ class MediaController
         $userId = (int)($_SESSION['auth_user_id'] ?? 1);
         $user = User::find($userId);
 
+        if (!$user || !$user->canUploadMedia()) {
+            $_SESSION['flash_error'] = 'Your account is suspended and cannot upload media files.';
+            return Response::redirect('/admin/media');
+        }
+
         if (empty($_FILES['file'])) {
             $_SESSION['flash_error'] = 'No file was selected for upload.';
             return Response::redirect('/admin/media');
@@ -90,6 +95,13 @@ class MediaController
         $service = new MediaService($this->app);
         $userId = (int)($_SESSION['auth_user_id'] ?? 1);
         $user = User::find($userId);
+
+        if (!$user || !$user->canUploadMedia()) {
+            return Response::json([
+                'success' => false,
+                'message' => 'Your account is suspended and cannot upload media files.',
+            ], 403);
+        }
 
         if (empty($_FILES['file'])) {
             return Response::json([

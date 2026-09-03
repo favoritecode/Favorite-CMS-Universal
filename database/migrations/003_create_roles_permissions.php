@@ -58,6 +58,7 @@ class CreateRolesPermissions
             ['super-admin', 'Super Admin', 'Full system access', 1],
             ['admin',       'Admin',       'Administrative access', 1],
             ['editor',      'Editor',      'Can manage all content', 1],
+            ['moderator',   'Moderator',   'Can moderate comments and content', 1],
             ['author',      'Author',      'Can create and manage own content', 1],
             ['subscriber',  'Subscriber',  'Basic subscriber role', 1],
         ];
@@ -76,6 +77,8 @@ class CreateRolesPermissions
             ['publish_pages',   'Publish Pages',   'Publish and unpublish pages',    'content'],
             ['manage_media',       'Manage Media',       'Upload and manage media',                            'content'],
             ['upload_large_media', 'Upload Large Media', 'Allow uploading large media files up to server max', 'content'],
+            ['upload_moderator_media', 'Upload Moderator Media', 'Allow uploading media files up to moderator limit (500 MB)', 'content'],
+            ['approve_posts',      'Approve Posts',      'Review and approve submitted posts',                 'content'],
             ['manage_menus',       'Manage Menus',       'Create and edit menus',                              'content'],
             ['manage_taxonomy',    'Manage Taxonomy',    'Manage categories and tags',                         'content'],
             ['manage_users',       'Manage Users',       'Create and manage users',                            'users'],

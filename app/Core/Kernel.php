@@ -24,6 +24,8 @@ use FavoriteCMS\Http\Controllers\Admin\PluginController;
 use FavoriteCMS\Http\Controllers\Admin\SettingController;
 use FavoriteCMS\Http\Controllers\Admin\SeoController;
 use FavoriteCMS\Http\Controllers\Admin\ToolController;
+use FavoriteCMS\Models\Setting;
+use FavoriteCMS\Models\User;
 use FavoriteCMS\Rendering\Engine;
 
 class Kernel
@@ -103,6 +105,17 @@ class Kernel
     {
         $path   = $request->path();
         $method = $request->method();
+
+        // ---------------------------------------------------------------------
+        // Public Auth & Registration Routes
+        // ---------------------------------------------------------------------
+        if ($path === '/register' || $path === '/signup' || $path === '/admin/register') {
+            return $method === 'POST' ? $this->processRegister($request) : $this->showRegister($request);
+        }
+
+        if ($path === '/login') {
+            return Response::redirect('/admin/login');
+        }
 
         // ---------------------------------------------------------------------
         // Admin Routes
@@ -204,6 +217,14 @@ class Kernel
             return Response::redirect('/admin/login');
         }
 
+        $currentUser = User::find((int)$_SESSION['auth_user_id']);
+        if (!$currentUser || $currentUser->isBanned()) {
+            unset($_SESSION['auth_user_id'], $_SESSION['auth_user_name'], $_SESSION['auth_user_email']);
+            $_SESSION['login_flash'] = 'Your account has been permanently banned.';
+            $_SESSION['flash_error'] = 'Your account has been permanently banned.';
+            return Response::redirect('/admin/login');
+        }
+
         // Module 1: Dashboard
         if ($path === '/admin' || $path === '/admin/') {
             return (new DashboardController($this->app))->index($request);
@@ -224,6 +245,8 @@ class Kernel
                 '/admin/posts/edit'        => $ctrl->edit($request),
                 '/admin/posts/update'      => $ctrl->update($request),
                 '/admin/posts/preview'     => $ctrl->preview($request),
+                '/admin/posts/approve'     => $ctrl->approve($request),
+                '/admin/posts/reject'      => $ctrl->reject($request),
                 '/admin/posts/trash'       => $ctrl->trash($request),
                 '/admin/posts/restore'     => $ctrl->restore($request),
                 '/admin/posts/delete'      => $ctrl->delete($request),
@@ -292,21 +315,35 @@ class Kernel
         // Module 7: Users & Profile
         if (str_starts_with($path, '/admin/users')) {
             $ctrl = new UserController($this->app);
+            if ($path === '/admin/users/profile' || $path === '/admin/users/profile/update') {
+                return $method === 'POST' ? $ctrl->updateProfile($request) : $ctrl->profile($request);
+            }
+
+            if (!$currentUser->canManageUsers()) {
+                return Response::make('<h1>403 Access Denied</h1><p>You do not have permission to manage users.</p>', 403);
+            }
+
             return match ($path) {
                 '/admin/users'                => $ctrl->index($request),
                 '/admin/users/new'            => $ctrl->create($request),
                 '/admin/users/store'          => $ctrl->store($request),
                 '/admin/users/edit'           => $ctrl->edit($request),
                 '/admin/users/update'         => $ctrl->update($request),
-                '/admin/users/profile'        => $ctrl->profile($request),
-                '/admin/users/profile/update' => $ctrl->updateProfile($request),
+                '/admin/users/status'         => $ctrl->changeStatus($request),
+                '/admin/users/role'           => $ctrl->changeRole($request),
                 '/admin/users/delete'         => $ctrl->delete($request),
                 default                       => Response::redirect('/admin/users'),
             };
         }
 
+        // Admin-only modules protection (Themes, Plugins, Widgets, Customize, Settings, Tools)
+        $isAdmin = $currentUser->hasRole('admin') || $currentUser->hasRole('super-admin');
+
         // Module 8: Menus
         if (str_starts_with($path, '/admin/menus')) {
+            if (!$isAdmin) {
+                return Response::make('<h1>403 Access Denied</h1><p>You do not have permission to manage menus.</p>', 403);
+            }
             $ctrl = new MenuController($this->app);
             return match ($path) {
                 '/admin/menus'             => $ctrl->index($request),
@@ -321,6 +358,9 @@ class Kernel
 
         // Module 9: Themes
         if (str_starts_with($path, '/admin/themes')) {
+            if (!$isAdmin) {
+                return Response::make('<h1>403 Access Denied</h1><p>You do not have permission to manage themes.</p>', 403);
+            }
             $ctrl = new ThemeController($this->app);
             return match ($path) {
                 '/admin/themes'          => $ctrl->index($request),
@@ -333,6 +373,9 @@ class Kernel
 
         // Module 9b: Widgets
         if (str_starts_with($path, '/admin/widgets')) {
+            if (!$isAdmin) {
+                return Response::make('<h1>403 Access Denied</h1><p>You do not have permission to manage widgets.</p>', 403);
+            }
             $ctrl = new WidgetController($this->app);
             return match ($path) {
                 '/admin/widgets'           => $ctrl->index($request),
@@ -349,6 +392,9 @@ class Kernel
 
         // Module 9c: Customize Theme
         if (str_starts_with($path, '/admin/customize')) {
+            if (!$isAdmin) {
+                return Response::make('<h1>403 Access Denied</h1><p>You do not have permission to customize themes.</p>', 403);
+            }
             $ctrl = new CustomizeController($this->app);
             return match ($path) {
                 '/admin/customize'                  => $ctrl->index($request),
@@ -361,6 +407,9 @@ class Kernel
 
         // Module 10: Plugins
         if (str_starts_with($path, '/admin/plugins')) {
+            if (!$isAdmin) {
+                return Response::make('<h1>403 Access Denied</h1><p>You do not have permission to manage plugins.</p>', 403);
+            }
             $ctrl = new PluginController($this->app);
             return match ($path) {
                 '/admin/plugins'            => $ctrl->index($request),
@@ -374,6 +423,9 @@ class Kernel
 
         // Module 11: Settings
         if (str_starts_with($path, '/admin/settings')) {
+            if (!$isAdmin) {
+                return Response::make('<h1>403 Access Denied</h1><p>You do not have permission to access settings.</p>', 403);
+            }
             $ctrl = new SettingController($this->app);
             return match ($path) {
                 '/admin/settings'        => $ctrl->index($request),
@@ -384,6 +436,9 @@ class Kernel
 
         // Module 12: SEO
         if (str_starts_with($path, '/admin/seo')) {
+            if (!$isAdmin) {
+                return Response::make('<h1>403 Access Denied</h1><p>You do not have permission to access SEO settings.</p>', 403);
+            }
             $ctrl = new SeoController($this->app);
             return match ($path) {
                 '/admin/seo'        => $ctrl->index($request),
@@ -394,6 +449,9 @@ class Kernel
 
         // Module 13: Tools & Backup
         if (str_starts_with($path, '/admin/tools')) {
+            if (!$isAdmin) {
+                return Response::make('<h1>403 Access Denied</h1><p>You do not have permission to access tools.</p>', 403);
+            }
             $ctrl = new ToolController($this->app);
             return match ($path) {
                 '/admin/tools'        => $ctrl->index($request),
@@ -523,6 +581,9 @@ class Kernel
             </div>
             <button type="submit" class="btn-submit">Log In</button>
         </form>
+        <div style="margin-top: 16px; padding-top: 14px; border-top: 1px solid #e2e8f0; text-align: center; font-size: 13px;">
+            Don't have an account? <a href="/register" style="color: #2271b1; text-decoration: none; font-weight: 600;">Sign Up</a>
+        </div>
     </div>
     <div class="back-link">
         <a href="/">&larr; Go to $sn</a>
@@ -561,7 +622,12 @@ HTML;
             }
 
             if (($user->status ?? 'active') !== 'active') {
-                return $this->showLogin($request, 'Your account is currently inactive or suspended.');
+                $statusMsg = match ($user->status) {
+                    'banned'    => 'Your account has been permanently banned.',
+                    'suspended' => 'Your account is suspended. You cannot log in or submit content.',
+                    default     => 'Your account is currently inactive.',
+                };
+                return $this->showLogin($request, $statusMsg);
             }
 
             $_SESSION['auth_user_id']    = $user->id;
@@ -574,6 +640,227 @@ HTML;
 
         } catch (\Throwable $e) {
             return $this->showLogin($request, 'Authentication error: ' . $e->getMessage());
+        }
+    }
+
+    protected function showRegister(Request $request, ?string $error = null, array $old = []): Response
+    {
+        $regEnabled = (int)Setting::get('general', 'allow_registration', 1);
+        if (!$regEnabled && $error === null) {
+            $error = 'Public registration is currently disabled by the site administrator.';
+        }
+
+        if (empty($_SESSION['_token'])) {
+            $_SESSION['_token'] = bin2hex(random_bytes(32));
+        }
+        $token = htmlspecialchars($_SESSION['_token'], ENT_QUOTES, 'UTF-8');
+        $siteName = Setting::get('general', 'site_name', 'Favorite CMS');
+        $sn = htmlspecialchars($siteName, ENT_QUOTES, 'UTF-8');
+
+        $errorHtml = '';
+        if ($error) {
+            $errorHtml = '<div class="alert alert-error">' . htmlspecialchars($error, ENT_QUOTES, 'UTF-8') . '</div>';
+        }
+
+        $oldUsername = htmlspecialchars($old['username'] ?? '', ENT_QUOTES, 'UTF-8');
+        $oldName     = htmlspecialchars($old['name'] ?? '', ENT_QUOTES, 'UTF-8');
+        $oldEmail    = htmlspecialchars($old['email'] ?? '', ENT_QUOTES, 'UTF-8');
+
+        $formDisabled = !$regEnabled ? 'disabled' : '';
+
+        $html = <<<HTML
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign Up &lsaquo; $sn &mdash; Favorite CMS</title>
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
+            background: #f0f0f1;
+            color: #2c3338;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 1rem;
+        }
+        .register-box {
+            background: #fff;
+            border: 1px solid #c3c4c7;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+            padding: 26px 24px;
+            width: 100%;
+            max-width: 400px;
+            border-radius: 4px;
+        }
+        .header { text-align: center; margin-bottom: 20px; }
+        .header h1 { font-size: 22px; font-weight: 600; color: #1d2327; }
+        .header .star { color: #e5a00d; font-size: 26px; }
+        .alert { padding: 12px; border-left: 4px solid; margin-bottom: 16px; font-size: 13px; }
+        .alert-error { background: #fcf0f1; border-color: #d63638; color: #8a1f11; }
+        .form-group { margin-bottom: 14px; }
+        label { display: block; margin-bottom: 5px; font-weight: 500; color: #1d2327; font-size: 13px; }
+        input[type="text"], input[type="email"], input[type="password"] {
+            width: 100%;
+            padding: 8px 10px;
+            border: 1px solid #8c8f94;
+            border-radius: 4px;
+            font-size: 14px;
+            color: #2c3338;
+        }
+        input:focus { border-color: #2271b1; outline: 2px solid transparent; box-shadow: 0 0 0 1px #2271b1; }
+        .btn-submit {
+            width: 100%;
+            padding: 10px;
+            background: #2271b1;
+            border: 1px solid #2271b1;
+            border-radius: 4px;
+            color: #fff;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.15s;
+            margin-top: 6px;
+        }
+        .btn-submit:hover { background: #135e96; }
+        .btn-submit:disabled { background: #94a3b8; border-color: #94a3b8; cursor: not-allowed; }
+        .footer-links { margin-top: 18px; text-align: center; font-size: 13px; }
+        .footer-links a { color: #2271b1; text-decoration: none; }
+        .footer-links a:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1><span class="star">&#9733;</span> $sn</h1>
+    </div>
+    <div class="register-box">
+        $errorHtml
+        <form method="POST" action="/register">
+            <input type="hidden" name="_token" value="$token">
+            <div class="form-group">
+                <label for="username">Username (required)</label>
+                <input type="text" id="username" name="username" value="$oldUsername" required autofocus autocomplete="username" $formDisabled>
+            </div>
+            <div class="form-group">
+                <label for="name">Display Name (optional)</label>
+                <input type="text" id="name" name="name" value="$oldName" autocomplete="name" $formDisabled>
+            </div>
+            <div class="form-group">
+                <label for="email">Email Address (required)</label>
+                <input type="email" id="email" name="email" value="$oldEmail" required autocomplete="email" $formDisabled>
+            </div>
+            <div class="form-group">
+                <label for="password">Password (min 8 characters)</label>
+                <input type="password" id="password" name="password" required autocomplete="new-password" minlength="8" $formDisabled>
+            </div>
+            <div class="form-group">
+                <label for="password_confirmation">Confirm Password</label>
+                <input type="password" id="password_confirmation" name="password_confirmation" required autocomplete="new-password" minlength="8" $formDisabled>
+            </div>
+            <button type="submit" class="btn-submit" $formDisabled>Create Account</button>
+        </form>
+        <div style="margin-top: 16px; padding-top: 14px; border-top: 1px solid #e2e8f0; text-align: center; font-size: 13px;">
+            Already have an account? <a href="/admin/login" style="color: #2271b1; text-decoration: none; font-weight: 600;">Log In</a>
+        </div>
+    </div>
+    <div class="footer-links">
+        <a href="/">&larr; Go to $sn</a>
+    </div>
+</body>
+</html>
+HTML;
+
+        return Response::make($html, 200);
+    }
+
+    protected function processRegister(Request $request): Response
+    {
+        $token  = (string)$request->post('_token', '');
+        $stored = (string)($_SESSION['_token'] ?? '');
+        if ($stored === '' || !hash_equals($stored, $token)) {
+            return $this->showRegister($request, 'Invalid security token. Please try again.');
+        }
+
+        $regEnabled = (int)Setting::get('general', 'allow_registration', 1);
+        if (!$regEnabled) {
+            return $this->showRegister($request, 'Public registration is currently disabled by the site administrator.');
+        }
+
+        $username = trim((string)$request->post('username', ''));
+        $name     = trim((string)$request->post('name', ''));
+        $email    = trim((string)$request->post('email', ''));
+        $password = (string)$request->post('password', '');
+        $passwordConfirm = (string)$request->post('password_confirmation', '');
+
+        $old = ['username' => $username, 'name' => $name, 'email' => $email];
+
+        if ($username === '' || $email === '' || $password === '') {
+            return $this->showRegister($request, 'Please complete all required fields.', $old);
+        }
+
+        if (!preg_match('/^[a-zA-Z0-9_\-\.]{3,30}$/', $username)) {
+            return $this->showRegister($request, 'Username must be 3-30 alphanumeric characters, dots, dashes, or underscores.', $old);
+        }
+
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            return $this->showRegister($request, 'Please enter a valid email address.', $old);
+        }
+
+        if (strlen($password) < 8) {
+            return $this->showRegister($request, 'Password must be at least 8 characters long.', $old);
+        }
+
+        if ($password !== $passwordConfirm) {
+            return $this->showRegister($request, 'Passwords do not match.', $old);
+        }
+
+        try {
+            $db = $this->app->make(Database::class);
+
+            // Check if username or email already exists
+            $existing = $db->selectOne(
+                "SELECT id FROM `users` WHERE `email` = ? OR `username` = ? LIMIT 1",
+                [$email, $username]
+            );
+
+            if ($existing) {
+                return $this->showRegister($request, 'A user with this username or email already exists.', $old);
+            }
+
+            $now = date('Y-m-d H:i:s');
+            $hash = password_hash($password, PASSWORD_DEFAULT);
+
+            $userId = $db->insert('users', [
+                'username'          => $username,
+                'name'              => $name !== '' ? $name : $username,
+                'email'             => $email,
+                'password'          => $hash,
+                'status'            => 'active',
+                'email_verified_at' => $now,
+                'created_at'        => $now,
+                'updated_at'        => $now,
+            ]);
+
+            // Assign Normal User role ('subscriber')
+            $role = $db->selectOne("SELECT id FROM `roles` WHERE `slug` = 'subscriber' LIMIT 1");
+            if ($role) {
+                $db->execute("INSERT INTO `user_roles` (`user_id`, `role_id`) VALUES (?, ?)", [$userId, $role->id]);
+            }
+
+            // Automatically authenticate user
+            $_SESSION['auth_user_id']    = $userId;
+            $_SESSION['auth_user_name']  = $name !== '' ? $name : $username;
+            $_SESSION['auth_user_email'] = $email;
+
+            $_SESSION['flash_success'] = 'Welcome, ' . htmlspecialchars($username) . '! Your account has been registered successfully.';
+            return Response::redirect('/admin');
+
+        } catch (\Throwable $e) {
+            return $this->showRegister($request, 'Registration error: ' . $e->getMessage(), $old);
         }
     }
 

@@ -22,7 +22,7 @@ class CreateUsersTable
                 `password`          VARCHAR(255) NOT NULL,
                 `email_verified_at` DATETIME     NULL,
                 `remember_token`    VARCHAR(100) NULL,
-                `status`            ENUM(\'active\',\'inactive\',\'banned\') DEFAULT \'active\',
+                `status`            ENUM(\'active\',\'inactive\',\'suspended\',\'banned\') DEFAULT \'active\',
                 `avatar`            VARCHAR(500) NULL,
                 `bio`               TEXT         NULL,
                 `last_login_at`     DATETIME     NULL,

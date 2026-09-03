@@ -168,8 +168,91 @@ class UserController
             $db->execute("INSERT INTO `user_roles` (`user_id`, `role_id`) VALUES (?, ?)", [$id, $roleId]);
         }
 
+        $status = strtolower(trim((string)$request->post('status', '')));
+        if (in_array($status, ['active', 'suspended', 'banned'], true) && $id !== (int)($_SESSION['auth_user_id'] ?? 0)) {
+            $user->update(['status' => $status]);
+        }
+
         $_SESSION['flash_success'] = 'User updated successfully.';
         return Response::redirect('/admin/users/edit?id=' . $id);
+    }
+
+    public function changeStatus(Request $request): Response
+    {
+        $currentId = (int)($_SESSION['auth_user_id'] ?? 0);
+        $currentUser = User::find($currentId);
+        if (!$currentUser || !$currentUser->canManageUsers()) {
+            return Response::make('<h1>403 Access Denied</h1><p>You do not have permission to change user status.</p>', 403);
+        }
+
+        $id = (int)$request->get('id', $request->post('id', 0));
+        $status = strtolower(trim((string)$request->get('status', $request->post('status', ''))));
+
+        if ($id === $currentId) {
+            $_SESSION['flash_error'] = 'You cannot modify your own account status.';
+            return Response::redirect('/admin/users');
+        }
+
+        if (!in_array($status, ['active', 'suspended', 'banned'], true)) {
+            $_SESSION['flash_error'] = 'Invalid account status specified.';
+            return Response::redirect('/admin/users');
+        }
+
+        $targetUser = User::find($id);
+        if (!$targetUser) {
+            $_SESSION['flash_error'] = 'User not found.';
+            return Response::redirect('/admin/users');
+        }
+
+        $targetUser->update([
+            'status'     => $status,
+            'updated_at' => date('Y-m-d H:i:s'),
+        ]);
+
+        $statusLabel = match ($status) {
+            'suspended' => 'suspended',
+            'banned'    => 'banned',
+            default     => 'activated',
+        };
+
+        $_SESSION['flash_success'] = "User \"{$targetUser->username}\" has been {$statusLabel}.";
+        return Response::redirect('/admin/users');
+    }
+
+    public function changeRole(Request $request): Response
+    {
+        $currentId = (int)($_SESSION['auth_user_id'] ?? 0);
+        $currentUser = User::find($currentId);
+        if (!$currentUser || !$currentUser->canManageUsers()) {
+            return Response::make('<h1>403 Access Denied</h1><p>You do not have permission to change user roles.</p>', 403);
+        }
+
+        $id = (int)$request->post('id', 0);
+        $roleId = (int)$request->post('role_id', 0);
+
+        if ($id === $currentId) {
+            $_SESSION['flash_error'] = 'You cannot change your own role.';
+            return Response::redirect('/admin/users');
+        }
+
+        $targetUser = User::find($id);
+        if (!$targetUser) {
+            $_SESSION['flash_error'] = 'User not found.';
+            return Response::redirect('/admin/users');
+        }
+
+        $role = Role::find($roleId);
+        if (!$role) {
+            $_SESSION['flash_error'] = 'Selected role does not exist.';
+            return Response::redirect('/admin/users');
+        }
+
+        $db = $this->app->make(Database::class);
+        $db->execute("DELETE FROM `user_roles` WHERE `user_id` = ?", [$id]);
+        $db->execute("INSERT INTO `user_roles` (`user_id`, `role_id`) VALUES (?, ?)", [$id, $roleId]);
+
+        $_SESSION['flash_success'] = "Role for \"{$targetUser->username}\" changed to {$role->name}.";
+        return Response::redirect('/admin/users');
     }
 
     public function profile(Request $request): Response

@@ -1,9 +1,15 @@
 <div class="page-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
     <h1 class="page-title">Media Library</h1>
-    <div style="font-size: 13px; color: var(--wp-text-muted); background: #f1f5f9; padding: 6px 12px; border-radius: 6px; border: 1px solid var(--wp-border);">
-        <span>Your Upload Limit: <strong><?php echo htmlspecialchars($capabilities['user']['max_upload_formatted']); ?></strong></span>
-        <?php if (!empty($capabilities['server']['effective_server_formatted'])): ?>
-            <span style="margin-left: 8px; font-size: 11px; color: #64748b;">(Server Cap: <?php echo htmlspecialchars($capabilities['server']['effective_server_formatted']); ?>)</span>
+    <div style="font-size: 13px; color: var(--wp-text-muted); background: #f8fafc; padding: 8px 14px; border-radius: 6px; border: 1px solid var(--wp-border); text-align: right;">
+        <div>
+            <span>Role Allowance: <strong style="color: var(--wp-dark); text-transform: capitalize;"><?php echo htmlspecialchars($capabilities['user']['role_category'] ?? 'user'); ?></strong> (<strong><?php echo htmlspecialchars($capabilities['user']['configured_limit_formatted'] ?? $capabilities['user']['max_upload_formatted']); ?></strong>)</span>
+            <span style="margin: 0 6px;">&bull;</span>
+            <span>Effective Limit: <strong style="color: #0284c7;"><?php echo htmlspecialchars($capabilities['user']['max_upload_formatted']); ?></strong></span>
+        </div>
+        <?php if (!empty($capabilities['user']['is_server_capped']) && ($capabilities['user']['configured_limit_bytes'] ?? 0) > ($capabilities['user']['max_upload_bytes'] ?? 0)): ?>
+            <div style="font-size: 11px; color: #b45309; margin-top: 4px;">
+                &#9888; Server upload bottleneck: Capped at <strong><?php echo htmlspecialchars($capabilities['server']['effective_server_formatted']); ?></strong> by hosting PHP settings (<code>upload_max_filesize</code> / <code>post_max_size</code>).
+            </div>
         <?php endif; ?>
     </div>
 </div>

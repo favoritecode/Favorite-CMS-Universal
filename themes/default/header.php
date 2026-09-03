@@ -83,12 +83,20 @@ $siteLayout  = get_theme_mod('site_layout', 'right');
                     ?>
                     <?php if (!empty($_SESSION['auth_user_id'])): ?>
                         <li>
-                            <a href="/admin" style="color: var(--color-primary); font-weight: 600;">Dashboard</a>
+                            <a href="/admin/posts/new" style="color: var(--color-primary); font-weight: 600;">+ Create Post</a>
+                        </li>
+                        <li>
+                            <a href="/admin" style="font-weight: 600;">Dashboard</a>
                         </li>
                     <?php else: ?>
                         <li>
                             <a href="/admin/login" style="color: var(--color-muted); font-size: 0.875rem;">Log In</a>
                         </li>
+                        <?php if ((int)\FavoriteCMS\Models\Setting::get('general', 'allow_registration', 1)): ?>
+                            <li>
+                                <a href="/register" style="color: var(--color-primary); font-size: 0.875rem; font-weight: 600;">Sign Up</a>
+                            </li>
+                        <?php endif; ?>
                     <?php endif; ?>
                 </ul>
             </nav>
