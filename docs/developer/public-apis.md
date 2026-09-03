@@ -1,6 +1,6 @@
 # Public Core APIs
 
-This document serves as the contract between the Favorite CMS Core and extension authors. These APIs are guaranteed stable and will not break within a major version release.
+This document serves as the contract between the Favorite CMS Core and extension authors. These APIs are designed to remain backward-compatible within a major version release.
 
 ---
 

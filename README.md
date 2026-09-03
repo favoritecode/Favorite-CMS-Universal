@@ -2,14 +2,14 @@
 
 <p align="center">
   <strong>"One CMS. Any Website."</strong><br>
-  A lightweight, modular, standalone PHP CMS engineered for speed, absolute stability, and effortless shared-hosting and local development deployment.
+  A lightweight, modular, standalone PHP CMS engineered for speed, reliable stability, and straightforward shared-hosting and local development deployment.
 </p>
 
 ---
 
 ## 🌟 Overview
 
-**Favorite CMS Universal** provides a rock-solid, production-oriented content management foundation. It is designed to make it simple to build any kind of website—from personal blogs and company sites to news magazines and portfolio showcases—from a single, stable Core.
+**Favorite CMS Universal** provides a solid, production-oriented content management foundation. It is designed to make it simple to build any kind of website—from personal blogs and company sites to news magazines and portfolio showcases—from a single, stable Core.
 
 The **Core** provides the general CMS foundation (users, roles, permissions, posts, pages, categories, tags, media, comments, settings, and routing).  
 **Plugins** add specialized business functionality and dynamic endpoints.  
@@ -19,14 +19,14 @@ The **Core** provides the general CMS foundation (users, roles, permissions, pos
 
 ## 🚀 Key Benefits
 
-- **Shared-Hosting Friendly**: Runs natively on standard cPanel/Apache/LAMP shared hosting without needing root access, VPS, Docker, or external queue workers.
-- **Local-PC Friendly**: Works out of the box with XAMPP or PHP's built-in web server.
+- **Shared-Hosting Friendly**: Runs on standard cPanel/Apache/LAMP shared hosting without needing root access, VPS, Docker, or external queue workers.
+- **Local-PC Friendly**: Tested to work out of the box with XAMPP and PHP's built-in web server.
 - **Zero Mandatory Node.js / Python Runtime**: No background Node.js processes, Python daemons, or separate microservices required.
-- **True Installation Persistence**: Multi-tier persistence (lock file + database auto-healing) guarantees the CMS never reverts to a fresh install after web server restarts.
+- **Persistent Installation**: Multi-tier persistence (lock file + database verification) designed so the CMS maintains persistent installation state across web server restarts.
 - **Modern Default Theme**: Clean, responsive, content-first theme with zero external CSS/JS framework dependencies.
-- **First-Class Plugin Subsystem**: Extend the CMS with dynamic routes, admin pages, permissions, settings, and hooks without touching Core code.
-- **Failure Isolation**: A fatal error in a broken third-party plugin is isolated; it never takes down the live website or admin panel.
-- **Rock-Solid Security**: Parameterized PDO queries, CSRF validation, strict input cleaning, and secure session management.
+- **First-Class Plugin Subsystem**: Extend the CMS with dynamic routes, admin pages, permissions, settings, and hooks without modifying Core code.
+- **Fault-Tolerant Plugin Booting**: Runtime errors during plugin boot are caught and logged to help prevent third-party plugins from crashing the main application.
+- **Security Best Practices**: Parameterized PDO queries, CSRF validation, strict input cleaning, and secure session management.
 
 ---
 
