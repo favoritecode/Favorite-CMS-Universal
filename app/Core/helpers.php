@@ -202,21 +202,12 @@ if (!function_exists('abort')) {
 }
 
 if (!function_exists('clean_post_content')) {
-    function clean_post_content(string $content): string
+    function clean_post_content(string $content, mixed $user = null): string
     {
         if (trim($content) === '') {
             return '';
         }
-        if ($content !== strip_tags($content)) {
-            $allowed = '<p><br><h2><h3><h4><h5><h6><strong><b><em><i><u><s><a><img><blockquote><ul><ol><li><code><pre><table><thead><tbody><tr><th><td><hr><figure><figcaption><video><audio><source>';
-            $cleaned = strip_tags($content, $allowed);
-            $cleaned = preg_replace('/\b(on\w+)\s*=\s*(["\']).*?\2/i', '', $cleaned);
-            $cleaned = preg_replace('/\b(on\w+)\s*=\s*[^ >]+/i', '', $cleaned);
-            $cleaned = preg_replace('/href\s*=\s*(["\'])\s*javascript:[^"\']*\1/i', 'href="#"', $cleaned);
-            return $cleaned;
-        }
-
-        return '<p>' . nl2br(htmlspecialchars($content, ENT_QUOTES, 'UTF-8')) . '</p>';
+        return \FavoriteCMS\Services\ContentSanitizer::clean($content, $user);
     }
 }
 
@@ -363,6 +354,63 @@ if (!function_exists('cms_log')) {
     function cms_log(string $message, string $level = 'info', array $context = []): void
     {
         \FavoriteCMS\Core\Logger::log($level, $message, $context);
+    }
+}
+
+// -----------------------------------------------------------------------------
+// Widget & Theme Layout APIs
+// -----------------------------------------------------------------------------
+if (!function_exists('register_widget')) {
+    /**
+     * Public API for Core and Plugins to register custom widgets.
+     */
+    function register_widget(\FavoriteCMS\Widgets\WidgetInterface|string $widget): void
+    {
+        \FavoriteCMS\Widgets\WidgetRegistry::getInstance()->register($widget);
+    }
+}
+
+if (!function_exists('render_region')) {
+    /**
+     * Render all active widgets in a theme region.
+     */
+    function render_region(string $regionId, array $args = []): string
+    {
+        $manager = new \FavoriteCMS\Widgets\WidgetInstanceManager();
+        return $manager->renderRegion($regionId, $args);
+    }
+}
+
+if (!function_exists('has_region_widgets')) {
+    /**
+     * Check if a theme region has any visible widgets.
+     */
+    function has_region_widgets(string $regionId): bool
+    {
+        $manager = new \FavoriteCMS\Widgets\WidgetInstanceManager();
+        return $manager->hasRegionWidgets($regionId);
+    }
+}
+
+if (!function_exists('get_theme_mod')) {
+    /**
+     * Retrieve a theme customization setting value.
+     */
+    function get_theme_mod(string $name, mixed $default = null): mixed
+    {
+        $service = new \FavoriteCMS\Themes\ThemeLayoutService(\FavoriteCMS\Core\Application::getInstance());
+        return $service->getThemeMod($name, $default);
+    }
+}
+
+if (!function_exists('set_theme_mod')) {
+    /**
+     * Set a theme customization setting value.
+     */
+    function set_theme_mod(string $name, mixed $value): void
+    {
+        $service = new \FavoriteCMS\Themes\ThemeLayoutService(\FavoriteCMS\Core\Application::getInstance());
+        $service->setThemeMod($name, $value);
     }
 }
 

@@ -40,9 +40,12 @@ class CreateSettingsTable
             ['reading','posts_per_page',    '10',                'int',    'Posts Per Page',    0],
             ['reading','front_page_display','posts',             'string', 'Front Page Displays',0],
             ['writing','default_category',  '1',                 'int',    'Default Category',  0],
-            ['media',  'uploads_path',      'uploads',           'string', 'Uploads Path',      0],
-            ['seo',    'meta_title_sep',    ' | ',               'string', 'Title Separator',   0],
-            ['seo',    'robots_txt',        "User-agent: *\nAllow: /", 'text', 'Robots.txt',   0],
+            ['media',  'uploads_path',          'uploads',           'string', 'Uploads Path',      0],
+            ['media',  'max_upload_size_admin', '0',                 'int',    'Admin Max Upload Size', 0],
+            ['media',  'max_upload_size_user',  '52428800',          'int',    'User Max Upload Size',  0],
+            ['media',  'allowed_categories',    'images,videos,audio,documents,archives', 'string', 'Allowed Categories', 0],
+            ['seo',    'meta_title_sep',        ' | ',               'string', 'Title Separator',   0],
+            ['seo',    'robots_txt',            "User-agent: *\nAllow: /", 'text', 'Robots.txt',   0],
         ];
 
         foreach ($defaults as [$group, $key, $val, $type, $label, $public]) {

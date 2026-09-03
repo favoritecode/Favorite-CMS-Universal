@@ -59,6 +59,26 @@ class Response
         return $this;
     }
 
+    public function getContent(): string
+    {
+        return $this->content;
+    }
+
+    public function getStatus(): int
+    {
+        return $this->status;
+    }
+
+    public function getStatusCode(): int
+    {
+        return $this->status;
+    }
+
+    public function getHeaders(): array
+    {
+        return $this->headers;
+    }
+
     public function send(): void
     {
         if (!headers_sent()) {

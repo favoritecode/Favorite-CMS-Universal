@@ -11,6 +11,7 @@ use FavoriteCMS\Core\Response;
 use FavoriteCMS\Models\Post;
 use FavoriteCMS\Models\Taxonomy;
 use FavoriteCMS\Models\Media;
+use FavoriteCMS\Services\ContentSanitizer;
 
 class PostController
 {
@@ -129,6 +130,7 @@ class PostController
         $now = date('Y-m-d H:i:s');
         $publishedAt = ($status === 'published') ? $now : null;
         $authorId = (int)($_SESSION['auth_user_id'] ?? 1);
+        $content = ContentSanitizer::clean($content, $authorId);
 
         $db = $this->app->make(Database::class);
         $postId = $db->insert('posts', [
@@ -234,6 +236,9 @@ class PostController
             $publishedAt = $now;
         }
 
+        $authorId = (int)($_SESSION['auth_user_id'] ?? $post->author_id ?? 1);
+        $content = ContentSanitizer::clean($content, $authorId);
+
         $post->update([
             'title'             => $title,
             'slug'              => $finalSlug,
@@ -257,6 +262,44 @@ class PostController
 
         $_SESSION['flash_success'] = 'Post updated successfully.';
         return Response::redirect('/admin/posts/edit?id=' . $id);
+    }
+
+    public function preview(Request $request): Response
+    {
+        $title   = trim((string)$request->post('title', 'Untitled Preview'));
+        $content = (string)$request->post('content', '');
+        $featImgId = (int)$request->post('featured_image_id', 0);
+        $featImg = $featImgId > 0 ? Media::find($featImgId) : null;
+
+        $authorId = (int)($_SESSION['auth_user_id'] ?? 1);
+        $cleanedContent = ContentSanitizer::clean($content, $authorId);
+
+        $fakePost = new Post([
+            'id'                => 0,
+            'title'             => $title ?: 'Preview',
+            'slug'              => 'preview',
+            'content'           => $cleanedContent,
+            'excerpt'           => '',
+            'status'            => 'draft',
+            'type'              => 'post',
+            'author_id'         => $authorId,
+            'featured_image_id' => $featImgId > 0 ? $featImgId : null,
+            'published_at'      => date('Y-m-d H:i:s'),
+            'created_at'        => date('Y-m-d H:i:s'),
+        ]);
+
+        $engine = new \FavoriteCMS\Rendering\Engine($this->app);
+        $html = $engine->render('single', [
+            'post'            => $fakePost,
+            'previousPost'    => null,
+            'nextPost'        => null,
+            'metaTitle'       => 'Preview: ' . $title,
+            'metaDescription' => '',
+            'commentNotice'   => null,
+            'isPreview'       => true,
+        ]);
+
+        return Response::make($html, 200);
     }
 
     public function trash(Request $request): Response

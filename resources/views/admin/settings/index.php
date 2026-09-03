@@ -2,7 +2,7 @@
     <h1 class="page-title">Settings</h1>
 </div>
 
-<div class="form-card" style="max-width: 700px;">
+<div class="form-card" style="max-width: 760px;">
     <form method="POST" action="/admin/settings/update">
         <input type="hidden" name="_token" value="<?php echo htmlspecialchars($_SESSION['_token'] ?? '', ENT_QUOTES, 'UTF-8'); ?>">
 
@@ -85,9 +85,59 @@
             </select>
         </div>
 
+        <h2 style="font-size: 16px; font-weight: 600; margin: 24px 0 16px; border-bottom: 1px solid var(--wp-border); padding-bottom: 8px;">
+            Media & Upload Capabilities
+        </h2>
+
+        <div style="background: #f8fafc; border: 1px solid var(--wp-border); border-radius: 6px; padding: 14px; margin-bottom: 16px;">
+            <div style="font-size: 12px; font-weight: 700; color: #475569; text-transform: uppercase; margin-bottom: 8px;">
+                Detected PHP / Server Limits
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; font-size: 13px;">
+                <div>
+                    <span style="color: var(--wp-text-muted);">upload_max_filesize:</span><br>
+                    <strong><?php echo htmlspecialchars($serverLimits['upload_max_filesize_raw']); ?></strong>
+                </div>
+                <div>
+                    <span style="color: var(--wp-text-muted);">post_max_size:</span><br>
+                    <strong><?php echo htmlspecialchars($serverLimits['post_max_size_raw']); ?></strong>
+                </div>
+                <div>
+                    <span style="color: var(--wp-text-muted);">memory_limit:</span><br>
+                    <strong><?php echo htmlspecialchars($serverLimits['memory_limit_raw']); ?></strong>
+                </div>
+                <div>
+                    <span style="color: var(--wp-text-muted);">Effective Server Cap:</span><br>
+                    <strong style="color: #0284c7;"><?php echo htmlspecialchars($serverLimits['effective_server_formatted']); ?></strong>
+                </div>
+            </div>
+            <div style="margin-top: 10px; font-size: 11px; color: var(--wp-text-muted);">
+                The effective server upload limit is determined by the lower of <code>upload_max_filesize</code> and <code>post_max_size</code>. The CMS automatically respects this bottleneck.
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label for="max_upload_size_admin_mb">Administrator Upload Allowance (MB)</label>
+            <?php
+            $adminBytes = (int)$settings['max_upload_size_admin'];
+            $adminMb = $adminBytes > 0 ? round($adminBytes / (1024 * 1024), 1) : 0;
+            ?>
+            <input type="number" id="max_upload_size_admin_mb" name="max_upload_size_admin_mb" class="form-control" style="width: 140px;" value="<?php echo $adminMb; ?>" min="0" step="any">
+            <span class="description">Enter <strong>0</strong> to automatically grant administrators the maximum practical limit allowed by the hosting server (currently <?php echo htmlspecialchars($serverLimits['effective_server_formatted']); ?>).</span>
+        </div>
+
+        <div class="form-group">
+            <label for="max_upload_size_user_mb">Standard User Upload Limit (MB)</label>
+            <?php
+            $userBytes = (int)$settings['max_upload_size_user'];
+            $userMb = round($userBytes / (1024 * 1024), 1);
+            ?>
+            <input type="number" id="max_upload_size_user_mb" name="max_upload_size_user_mb" class="form-control" style="width: 140px;" value="<?php echo $userMb; ?>" min="1" step="any">
+            <span class="description">Maximum file size permitted for normal non-administrator users (strictly capped by server capability).</span>
+        </div>
+
         <div style="margin-top: 24px;">
             <button type="submit" class="btn btn-primary">Save Changes</button>
         </div>
     </form>
 </div>
-

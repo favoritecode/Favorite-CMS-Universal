@@ -87,6 +87,12 @@ class ThemeManager
 
         try {
             Setting::set('theme', 'active_theme', $themeId);
+            // Ensure default layout is seeded for the activated theme
+            try {
+                (new \FavoriteCMS\Themes\ThemeLayoutService($this->app))->ensureDefaultLayout($themeId);
+            } catch (\Throwable) {
+                // Ignore layout seeding error during activation
+            }
             return true;
         } catch (\Throwable $e) {
             // Rollback to previous theme

@@ -272,9 +272,23 @@ a:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visib
     align-items: start;
 }
 
-.site-content.no-sidebar {
+.site-content.no-sidebar,
+body.layout-none .site-content {
     grid-template-columns: minmax(0, 1fr);
     max-width: var(--content-width);
+}
+
+.site-content.site-content-sidebar-left {
+    grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
+}
+
+.site-content.site-content-sidebar-left .main-content {
+    grid-column: 2;
+}
+
+.site-content.site-content-sidebar-left .sidebar {
+    grid-column: 1;
+    grid-row: 1;
 }
 
 .main-content {

@@ -8,6 +8,115 @@
     "menu_locations": {
         "primary": "Primary Header Navigation",
         "footer": "Footer Menu"
+    },
+    "regions": [
+        {
+            "id": "sidebar-primary",
+            "name": "Primary Sidebar",
+            "description": "Main sidebar displayed beside post and page content."
+        },
+        {
+            "id": "footer-1",
+            "name": "Footer Column 1",
+            "description": "First column in the multi-column footer."
+        },
+        {
+            "id": "footer-2",
+            "name": "Footer Column 2",
+            "description": "Second column in the multi-column footer."
+        },
+        {
+            "id": "footer-3",
+            "name": "Footer Column 3",
+            "description": "Third column in the multi-column footer."
+        },
+        {
+            "id": "header-right",
+            "name": "Header Right",
+            "description": "Optional widget area in the top header bar."
+        }
+    ],
+    "sections": [
+        {
+            "id": "hero",
+            "name": "Welcome Hero Banner",
+            "description": "Top introductory welcome headline and tagline.",
+            "enabled": true
+        },
+        {
+            "id": "featured-posts",
+            "name": "Featured Stories Showcase",
+            "description": "Highlights sticky or selected featured articles.",
+            "enabled": true
+        },
+        {
+            "id": "latest-posts",
+            "name": "Latest Articles Feed",
+            "description": "Standard blog article stream with pagination.",
+            "enabled": true
+        }
+    ],
+    "default_widgets": {
+        "sidebar-primary": [
+            {
+                "widget": "search",
+                "settings": {
+                    "title": "Search Articles",
+                    "placeholder": "Search keywords..."
+                }
+            },
+            {
+                "widget": "recent_posts",
+                "settings": {
+                    "title": "Recent Articles",
+                    "number": 5,
+                    "show_date": true,
+                    "show_thumb": false
+                }
+            },
+            {
+                "widget": "categories",
+                "settings": {
+                    "title": "Categories",
+                    "show_count": true,
+                    "hide_empty": false
+                }
+            },
+            {
+                "widget": "tags",
+                "settings": {
+                    "title": "Popular Tags",
+                    "limit": 15
+                }
+            }
+        ],
+        "footer-1": [
+            {
+                "widget": "custom_html",
+                "settings": {
+                    "title": "About Site",
+                    "content": "<p>A fast, modern website built for performance and simplicity with Favorite CMS.</p>"
+                }
+            }
+        ],
+        "footer-2": [
+            {
+                "widget": "categories",
+                "settings": {
+                    "title": "Categories",
+                    "show_count": true
+                }
+            }
+        ],
+        "footer-3": [
+            {
+                "widget": "recent_posts",
+                "settings": {
+                    "title": "Latest Stories",
+                    "number": 3,
+                    "show_date": true
+                }
+            }
+        ]
     }
 }
-

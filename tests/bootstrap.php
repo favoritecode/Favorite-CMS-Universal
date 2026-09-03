@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 define('APP_ROOT', dirname(__DIR__));
+define('PHPUNIT_RUNNING', true);
 
 // Simulate web environment for tests
 $_SERVER['REQUEST_METHOD'] = 'GET';

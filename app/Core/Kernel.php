@@ -18,6 +18,8 @@ use FavoriteCMS\Http\Controllers\Admin\CommentController;
 use FavoriteCMS\Http\Controllers\Admin\UserController;
 use FavoriteCMS\Http\Controllers\Admin\MenuController;
 use FavoriteCMS\Http\Controllers\Admin\ThemeController;
+use FavoriteCMS\Http\Controllers\Admin\WidgetController;
+use FavoriteCMS\Http\Controllers\Admin\CustomizeController;
 use FavoriteCMS\Http\Controllers\Admin\PluginController;
 use FavoriteCMS\Http\Controllers\Admin\SettingController;
 use FavoriteCMS\Http\Controllers\Admin\SeoController;
@@ -57,8 +59,37 @@ class Kernel
             // Boot active plugins safely
             (new PluginManager($this->app))->bootActivePlugins();
 
+            // Load active theme functions.php if available
+            try {
+                $activeTheme = \FavoriteCMS\Models\Setting::get('theme', 'active_theme', 'default');
+                $themeFunctions = APP_ROOT . '/themes/' . $activeTheme . '/functions.php';
+                if (file_exists($themeFunctions)) {
+                    include_once $themeFunctions;
+                }
+            } catch (\Throwable) {}
+
+            // Boot widget registry and allow plugins/themes to register widgets via widgets_init
+            \FavoriteCMS\Widgets\WidgetRegistry::getInstance()->ensureBooted();
+
             // Fire core init hook
             \FavoriteCMS\Core\Hook::doAction('init', $this->app);
+
+            // Check for PHP post_max_size overflow (empty $_POST/$_FILES despite positive Content-Length)
+            if (
+                isset($_SERVER['REQUEST_METHOD']) &&
+                strtoupper($_SERVER['REQUEST_METHOD']) === 'POST' &&
+                (int)($_SERVER['CONTENT_LENGTH'] ?? 0) > 0 &&
+                empty($_POST) &&
+                empty($_FILES)
+            ) {
+                $postMax = ini_get('post_max_size') ?: 'unknown';
+                $length = (int)($_SERVER['CONTENT_LENGTH'] ?? 0);
+                $formattedLen = \FavoriteCMS\Services\UploadCapabilityService::formatBytes($length);
+                return Response::make(
+                    "<!DOCTYPE html><html><head><title>413 Payload Too Large</title><style>body{font-family:sans-serif;padding:40px;line-height:1.6;max-width:600px;margin:auto;color:#334155;}h1{color:#e11d48;}</style></head><body><h1>413 Payload Too Large</h1><p>The submitted request payload ({$formattedLen}) exceeded the server's <code>post_max_size</code> setting ({$postMax}).</p><p>To prevent data loss, the request was rejected rather than silently truncated. Please increase <code>post_max_size</code> in PHP or submit smaller content.</p><p><a href='javascript:history.back()'>&larr; Go Back</a></p></body></html>",
+                    413
+                );
+            }
 
             // 2. Dispatch request
             return $this->dispatch($request);
@@ -192,6 +223,7 @@ class Kernel
                 '/admin/posts/store'       => $ctrl->store($request),
                 '/admin/posts/edit'        => $ctrl->edit($request),
                 '/admin/posts/update'      => $ctrl->update($request),
+                '/admin/posts/preview'     => $ctrl->preview($request),
                 '/admin/posts/trash'       => $ctrl->trash($request),
                 '/admin/posts/restore'     => $ctrl->restore($request),
                 '/admin/posts/delete'      => $ctrl->delete($request),
@@ -209,6 +241,7 @@ class Kernel
                 '/admin/pages/store'   => $ctrl->store($request),
                 '/admin/pages/edit'    => $ctrl->edit($request),
                 '/admin/pages/update'  => $ctrl->update($request),
+                '/admin/pages/preview' => $ctrl->preview($request),
                 '/admin/pages/trash'   => $ctrl->trash($request),
                 '/admin/pages/restore' => $ctrl->restore($request),
                 '/admin/pages/delete'  => $ctrl->delete($request),
@@ -232,11 +265,13 @@ class Kernel
         if (str_starts_with($path, '/admin/media')) {
             $ctrl = new MediaController($this->app);
             return match ($path) {
-                '/admin/media'        => $ctrl->index($request),
-                '/admin/media/upload' => $ctrl->upload($request),
-                '/admin/media/update' => $ctrl->update($request),
-                '/admin/media/delete' => $ctrl->delete($request),
-                default               => Response::redirect('/admin/media'),
+                '/admin/media'              => $ctrl->index($request),
+                '/admin/media/upload'       => $ctrl->upload($request),
+                '/admin/media/upload-ajax'  => $ctrl->uploadAjax($request),
+                '/admin/media/capabilities' => $ctrl->capabilities($request),
+                '/admin/media/update'       => $ctrl->update($request),
+                '/admin/media/delete'       => $ctrl->delete($request),
+                default                     => Response::redirect('/admin/media'),
             };
         }
 
@@ -293,6 +328,34 @@ class Kernel
                 '/admin/themes/upload'   => $ctrl->upload($request),
                 '/admin/themes/delete'   => $ctrl->delete($request),
                 default                  => Response::redirect('/admin/themes'),
+            };
+        }
+
+        // Module 9b: Widgets
+        if (str_starts_with($path, '/admin/widgets')) {
+            $ctrl = new WidgetController($this->app);
+            return match ($path) {
+                '/admin/widgets'           => $ctrl->index($request),
+                '/admin/widgets/store'     => $ctrl->store($request),
+                '/admin/widgets/update'    => $ctrl->update($request),
+                '/admin/widgets/delete'    => $ctrl->delete($request),
+                '/admin/widgets/reorder'   => $ctrl->reorder($request),
+                '/admin/widgets/move'      => $ctrl->move($request),
+                '/admin/widgets/duplicate' => $ctrl->duplicate($request),
+                '/admin/widgets/reset'     => $ctrl->reset($request),
+                default                    => Response::redirect('/admin/widgets'),
+            };
+        }
+
+        // Module 9c: Customize Theme
+        if (str_starts_with($path, '/admin/customize')) {
+            $ctrl = new CustomizeController($this->app);
+            return match ($path) {
+                '/admin/customize'                  => $ctrl->index($request),
+                '/admin/customize/save'             => $ctrl->save($request),
+                '/admin/customize/sections/reorder' => $ctrl->reorderSections($request),
+                '/admin/customize/reset'            => $ctrl->reset($request),
+                default                             => Response::redirect('/admin/customize'),
             };
         }
 

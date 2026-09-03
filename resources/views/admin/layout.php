@@ -312,10 +312,12 @@ $activeMenu = $activeMenu ?? 'dashboard';
                 <li class="wp-menu-item <?php echo $activeMenu === 'comments' ? 'active' : ''; ?>">
                     <a href="/admin/comments" class="wp-menu-link">💬 Comments</a>
                 </li>
-                <li class="wp-menu-item <?php echo in_array($activeMenu, ['themes', 'menus']) ? 'active' : ''; ?>">
+                <li class="wp-menu-item <?php echo in_array($activeMenu, ['themes', 'widgets', 'customize', 'menus']) ? 'active' : ''; ?>">
                     <a href="/admin/themes" class="wp-menu-link">🎨 Appearance</a>
                     <ul class="wp-submenu">
                         <li><a href="/admin/themes" class="<?php echo $activeMenu === 'themes' ? 'active' : ''; ?>">Themes</a></li>
+                        <li><a href="/admin/customize" class="<?php echo $activeMenu === 'customize' ? 'active' : ''; ?>">Customize</a></li>
+                        <li><a href="/admin/widgets" class="<?php echo $activeMenu === 'widgets' ? 'active' : ''; ?>">Widgets</a></li>
                         <li><a href="/admin/menus" class="<?php echo $activeMenu === 'menus' ? 'active' : ''; ?>">Menus</a></li>
                     </ul>
                 </li>

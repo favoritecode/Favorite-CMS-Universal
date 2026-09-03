@@ -9,7 +9,7 @@
 
 ## 🌟 Overview
 
-**Favorite CMS Universal** provides a solid, production-oriented content management foundation. It is designed to make it simple to build any kind of website—from personal blogs and company sites to news magazines and portfolio showcases—from a single, stable Core.
+**Favorite CMS Universal** provides a solid, production-oriented content management foundation. It is designed to make it simple to build any kind of website—from personal blogs and company sites to news magazines, video blogs, and portfolio showcases—from a single, stable Core.
 
 The **Core** provides the general CMS foundation (users, roles, permissions, posts, pages, categories, tags, media, comments, settings, and routing).  
 **Plugins** add specialized business functionality and dynamic endpoints.  
@@ -17,18 +17,20 @@ The **Core** provides the general CMS foundation (users, roles, permissions, pos
 
 ---
 
-## 🚀 Key Benefits
+## 🚀 Key Features & Benefits
 
 - **Shared-Hosting Friendly**: Runs on standard cPanel/Apache/LAMP shared hosting without needing root access, VPS, Docker, or external queue workers.
 - **Local-PC Friendly**: Tested to work out of the box with XAMPP and PHP's built-in web server.
+- **Dual-Mode Professional Content Editor**: Effortlessly switch between **Visual Mode** (intuitive WYSIWYG for non-coders with Word/Docs-style formatting, table tools, and paste cleaning) and **Code Mode** (syntax-friendly monospace editor with line-number gutter, Tab indentation, and quick tags) with seamless bidirectional synchronization.
+- **Visual Theme Layout & Widget System**: Customize your site layout without writing PHP or CSS. Drag, drop, add, reorder, or duplicate widgets (Search, Recent Posts, Categories, Tags, Menus, Custom HTML, Images, Featured Story, Recent Comments) into theme-declared regions (Sidebars, Multi-column Footers, Header). Configure sidebar alignment (Right, Left, Full Width), brand accent colors, logo, and reorder homepage sections with 1-click theme defaults reset.
+- **Role-Aware Large Media System**: Administrators are granted the maximum practical capacity supported by the hosting environment (`min(upload_max_filesize, post_max_size)`), allowing large video (MP4, WebM, MKV), audio podcasts, and media archives. Standard users are governed by configurable limits (default 50 MB) with drag-and-drop and real-time upload progress bars.
+- **Huge Post Capacity**: Post and Page contents are stored in database `LONGTEXT` columns (up to 4 GB storage capacity), accommodating long-form articles, episode series, and detailed transcripts without truncation.
 - **Zero Mandatory Node.js / Python Runtime**: No background Node.js processes, Python daemons, or separate microservices required.
 - **Persistent Installation**: Multi-tier persistence (lock file + database verification) designed so the CMS maintains persistent installation state across web server restarts.
 - **Modern Default Theme**: Clean, responsive, content-first theme with zero external CSS/JS framework dependencies.
 - **First-Class Plugin Subsystem**: Extend the CMS with dynamic routes, admin pages, permissions, settings, and hooks without modifying Core code.
 - **Fault-Tolerant Plugin Booting**: Runtime errors during plugin boot are caught and logged to help prevent third-party plugins from crashing the main application.
-- **Security Best Practices**: Parameterized PDO queries, CSRF validation, strict input cleaning, and secure session management.
-
----
+- **Security Best Practices**: Parameterized PDO queries, CSRF validation, strict input cleaning, multi-extension upload prevention, and secure session management.
 
 ---
 
@@ -83,6 +85,7 @@ When official GitHub Releases are published, end users can download the pre-pack
 │   ├── Http/             # Request, Response, Controllers (Admin & Frontend)
 │   ├── Models/           # ActiveRecord Models (Post, Page, User, Setting, etc.)
 │   ├── Plugins/          # PluginManager lifecycle engine
+│   ├── Services/         # UploadCapabilityService, ContentSanitizer, MediaService
 │   └── Rendering/        # Engine template resolution
 ├── bootstrap.php         # Application initialization & singleton binding
 ├── database/             # Schema migrations (001 - 013)
@@ -109,6 +112,9 @@ Complete, self-contained documentation is included directly within the repositor
   - [Shared Hosting Installation](docs/getting-started/installation-shared-hosting.md)
   - [Configuration Guide](docs/getting-started/configuration.md)
   - [Creating Your First Website](docs/getting-started/first-website.md)
+- **Content & Media**:
+  - [Post Editor & Dual Modes](docs/content/post-editor.md)
+  - [Media Library & Large Uploads](docs/content/media-library.md)
 - **Architecture**:
   - [Overview](docs/architecture/overview.md)
   - [Application Lifecycle](docs/architecture/application-lifecycle.md)

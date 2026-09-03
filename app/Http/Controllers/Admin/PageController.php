@@ -10,6 +10,7 @@ use FavoriteCMS\Core\Request;
 use FavoriteCMS\Core\Response;
 use FavoriteCMS\Models\Page;
 use FavoriteCMS\Models\Media;
+use FavoriteCMS\Services\ContentSanitizer;
 
 class PageController
 {
@@ -100,6 +101,7 @@ class PageController
         $pageModel = new Page();
         $finalSlug = $slug !== '' ? str_slug($slug) : $pageModel->generateSlug($title);
         $authorId = (int)($_SESSION['auth_user_id'] ?? 1);
+        $content  = ContentSanitizer::clean($content, $authorId);
         $now = date('Y-m-d H:i:s');
 
         $db = $this->app->make(Database::class);
@@ -180,6 +182,8 @@ class PageController
         }
 
         $finalSlug = $slug !== '' ? str_slug($slug) : $page->slug;
+        $authorId = (int)($_SESSION['auth_user_id'] ?? $page->author_id ?? 1);
+        $content  = ContentSanitizer::clean($content, $authorId);
 
         $page->update([
             'title'             => $title,
@@ -201,6 +205,37 @@ class PageController
 
         $_SESSION['flash_success'] = 'Page updated successfully.';
         return Response::redirect('/admin/pages/edit?id=' . $id);
+    }
+
+    public function preview(Request $request): Response
+    {
+        $title   = trim((string)$request->post('title', 'Untitled Preview'));
+        $content = (string)$request->post('content', '');
+        $featImgId = (int)$request->post('featured_image_id', 0);
+
+        $authorId = (int)($_SESSION['auth_user_id'] ?? 1);
+        $cleanedContent = ContentSanitizer::clean($content, $authorId);
+
+        $fakePage = new Page([
+            'id'                => 0,
+            'title'             => $title ?: 'Preview',
+            'slug'              => 'preview',
+            'content'           => $cleanedContent,
+            'status'            => 'draft',
+            'author_id'         => $authorId,
+            'featured_image_id' => $featImgId > 0 ? $featImgId : null,
+            'created_at'        => date('Y-m-d H:i:s'),
+        ]);
+
+        $engine = new \FavoriteCMS\Rendering\Engine($this->app);
+        $html = $engine->render('page', [
+            'page'            => $fakePage,
+            'metaTitle'       => 'Preview: ' . $title,
+            'metaDescription' => '',
+            'isPreview'       => true,
+        ]);
+
+        return Response::make($html, 200);
     }
 
     public function trash(Request $request): Response
