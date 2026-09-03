@@ -30,6 +30,13 @@ class Response
 
     public static function redirect(string $url, int $status = 302): static
     {
+        if (str_starts_with($url, '/') && !str_starts_with($url, '//')) {
+            $basePath = (string)($GLOBALS['favorite_cms_base_path'] ?? '');
+            if ($basePath !== '' && ($url === '/' || !str_starts_with($url . '/', $basePath . '/'))) {
+                $url = rtrim($basePath, '/') . ($url === '/' ? '/' : $url);
+            }
+        }
+
         $response = new static('', $status);
         return $response->header('Location', $url);
     }
@@ -63,4 +70,3 @@ class Response
         echo $this->content;
     }
 }
-

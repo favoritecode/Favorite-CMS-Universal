@@ -55,7 +55,7 @@ class Migrator
 
     public function hasRun(string $migration): bool
     {
-        $result = $this->db->selectOne("SELECT id FROM cms_migrations WHERE migration = ?", [$migration]);
+        $result = $this->db->selectOne("SELECT id FROM `cms_migrations` WHERE migration = ?", [$migration]);
         return $result !== null;
     }
 
@@ -71,7 +71,7 @@ class Migrator
     {
         if (!$this->db->tableExists('cms_migrations')) {
             $this->db->execute("
-                CREATE TABLE cms_migrations (
+                CREATE TABLE `cms_migrations` (
                     id INT AUTO_INCREMENT PRIMARY KEY,
                     migration VARCHAR(255) NOT NULL,
                     batch INT NOT NULL,
@@ -83,7 +83,7 @@ class Migrator
 
     protected function getNextBatchNumber(): int
     {
-        $result = $this->db->selectOne("SELECT MAX(batch) as max_batch FROM cms_migrations");
+        $result = $this->db->selectOne("SELECT MAX(batch) as max_batch FROM `cms_migrations`");
         return ($result && $result->max_batch) ? (int)$result->max_batch + 1 : 1;
     }
 
@@ -94,4 +94,3 @@ class Migrator
         return implode('', array_map('ucfirst', $parts));
     }
 }
-

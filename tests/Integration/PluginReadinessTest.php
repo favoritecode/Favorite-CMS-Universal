@@ -27,6 +27,7 @@ class PluginReadinessTest extends TestCase
     public static function setUpBeforeClass(): void
     {
         static::$app = require APP_ROOT . '/bootstrap.php';
+        static::$app->setInstalled(true);
         static::$db  = static::$app->make(Database::class);
     }
 

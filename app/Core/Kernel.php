@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace FavoriteCMS\Core;
 
 use FavoriteCMS\Installer\InstallerController;
+use FavoriteCMS\Installer\InstallerSession;
+use FavoriteCMS\Installer\UrlResolver;
 use FavoriteCMS\Plugins\PluginManager;
 use FavoriteCMS\Http\Controllers\FrontendController;
 use FavoriteCMS\Http\Controllers\Admin\DashboardController;
@@ -34,16 +36,10 @@ class Kernel
     public function handle(Request $request): Response
     {
         try {
-            if (session_status() === PHP_SESSION_NONE && !headers_sent()) {
-                session_name('fcms_session');
-                session_set_cookie_params([
-                    'lifetime' => 7200,
-                    'path'     => '/',
-                    'httponly' => true,
-                    'samesite' => 'Lax',
-                ]);
-                session_start();
-            }
+            $urls = new UrlResolver();
+            $request->setBasePath($urls->basePath($request));
+            $GLOBALS['favorite_cms_base_path'] = $request->basePath();
+            (new InstallerSession($urls))->start($request);
 
             $path = $request->path();
 

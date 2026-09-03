@@ -12,10 +12,32 @@ class Database
 {
     protected PDO $pdo;
     protected array $config;
+    protected string $prefix = '';
+    protected array $prefixableTables = [
+        'cms_migrations',
+        'users',
+        'roles',
+        'permissions',
+        'role_permissions',
+        'user_roles',
+        'posts',
+        'pages',
+        'taxonomies',
+        'post_taxonomies',
+        'media',
+        'menus',
+        'menu_items',
+        'settings',
+        'seo_meta',
+        'sessions',
+        'plugin_settings',
+        'comments',
+    ];
 
     public function __construct(array $config)
     {
         $this->config = $config;
+        $this->prefix = $this->normalizePrefix((string)($config['prefix'] ?? ''));
         $this->connect();
     }
 
@@ -47,6 +69,7 @@ class Database
 
     public function query(string $sql, array $bindings = []): PDOStatement
     {
+        $sql = $this->prefixSql($sql);
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute($bindings);
         return $stmt;
@@ -65,7 +88,7 @@ class Database
 
     public function insert(string $table, array $data): int
     {
-        $columns = implode(', ', array_keys($data));
+        $columns = implode(', ', array_map(fn ($key) => $this->quoteIdentifier((string)$key, false), array_keys($data)));
         $placeholders = implode(', ', array_fill(0, count($data), '?'));
 
         $sql = sprintf('INSERT INTO %s (%s) VALUES (%s)', $this->quoteIdentifier($table), $columns, $placeholders);
@@ -77,8 +100,8 @@ class Database
 
     public function update(string $table, array $data, array $where): int
     {
-        $set = implode(', ', array_map(fn($key) => "$key = ?", array_keys($data)));
-        $conditions = implode(' AND ', array_map(fn($key) => "$key = ?", array_keys($where)));
+        $set = implode(', ', array_map(fn($key) => $this->quoteIdentifier((string)$key, false) . " = ?", array_keys($data)));
+        $conditions = implode(' AND ', array_map(fn($key) => $this->quoteIdentifier((string)$key, false) . " = ?", array_keys($where)));
 
         $sql = sprintf('UPDATE %s SET %s WHERE %s', $this->quoteIdentifier($table), $set, $conditions);
         
@@ -89,7 +112,7 @@ class Database
 
     public function delete(string $table, array $where): int
     {
-        $conditions = implode(' AND ', array_map(fn($key) => "$key = ?", array_keys($where)));
+        $conditions = implode(' AND ', array_map(fn($key) => $this->quoteIdentifier((string)$key, false) . " = ?", array_keys($where)));
 
         $sql = sprintf('DELETE FROM %s WHERE %s', $this->quoteIdentifier($table), $conditions);
         
@@ -149,9 +172,58 @@ class Database
         return $this->pdo;
     }
 
-    public function quoteIdentifier(string $identifier): string
+    public function table(string $table): string
     {
+        return $this->prefixTable($table);
+    }
+
+    public function quoteIdentifier(string $identifier, bool $applyPrefix = true): string
+    {
+        if ($applyPrefix) {
+            $identifier = $this->prefixTable($identifier);
+        }
         return '`' . str_replace('`', '``', $identifier) . '`';
     }
-}
 
+    protected function prefixTable(string $table): string
+    {
+        if ($this->prefix === '' || !in_array($table, $this->prefixableTables, true) || str_starts_with($table, $this->prefix)) {
+            return $table;
+        }
+
+        return $this->prefix . $table;
+    }
+
+    protected function prefixSql(string $sql): string
+    {
+        if ($this->prefix === '') {
+            return $sql;
+        }
+
+        foreach ($this->prefixableTables as $table) {
+            $prefixed = $this->prefix . $table;
+            $sql = preg_replace('/`' . preg_quote($table, '/') . '`/', '`' . str_replace('`', '``', $prefixed) . '`', $sql) ?? $sql;
+            $sql = preg_replace(
+                '/\b(FROM|JOIN|INTO|UPDATE|TABLE|TABLES|DESCRIBE|DESC)\s+' . preg_quote($table, '/') . '\b/i',
+                '$1 `' . str_replace('`', '``', $prefixed) . '`',
+                $sql
+            ) ?? $sql;
+            $sql = str_replace("LIKE '" . $table . "'", "LIKE '" . $prefixed . "'", $sql);
+        }
+
+        return $sql;
+    }
+
+    protected function normalizePrefix(string $prefix): string
+    {
+        if ($prefix === '') {
+            return '';
+        }
+
+        if (preg_match('/^[A-Za-z][A-Za-z0-9_]{0,31}$/', $prefix) !== 1) {
+            throw new \InvalidArgumentException('Invalid database table prefix.');
+        }
+
+        return $prefix;
+    }
+}

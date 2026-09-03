@@ -11,6 +11,7 @@ class Request
     protected array $server;
     protected array $files;
     protected array $cookies;
+    protected string $basePath = '';
 
     public function __construct(array $get = [], array $post = [], array $server = [], array $files = [], array $cookies = [])
     {
@@ -46,7 +47,22 @@ class Request
         if (($pos = strpos($uri, '?')) !== false) {
             return substr($uri, 0, $pos);
         }
-        return $uri;
+        $path = $uri;
+        if ($this->basePath !== '' && ($path === $this->basePath || str_starts_with($path . '/', $this->basePath . '/'))) {
+            $path = substr($path, strlen($this->basePath));
+        }
+        return $path === '' ? '/' : $path;
+    }
+
+    public function setBasePath(string $basePath): void
+    {
+        $basePath = '/' . trim($basePath, '/');
+        $this->basePath = $basePath === '/' ? '' : $basePath;
+    }
+
+    public function basePath(): string
+    {
+        return $this->basePath;
     }
 
     public function get(string $key, mixed $default = null): mixed
@@ -73,6 +89,11 @@ class Request
     {
         $header = 'HTTP_' . strtoupper(str_replace('-', '_', $key));
         return $this->server[$header] ?? $default;
+    }
+
+    public function server(): array
+    {
+        return $this->server;
     }
 
     public function ip(): string
@@ -105,4 +126,3 @@ class Request
         return array_intersect_key($this->all(), array_flip($keys));
     }
 }
-

@@ -1,135 +1,87 @@
-# Shared Hosting Installation Guide (cPanel / Apache / LAMP)
+# Shared Hosting Installation
 
-Favorite CMS Universal is purpose-built to run effortlessly on ordinary shared hosting. It does **not** require root access, VPS, Docker, Node.js background processes, Redis, or Python.
+Favorite CMS Universal is designed for ordinary Apache/PHP shared hosting. A normal ZIP installation does not require Composer, Node.js, Python, Git, SSH, or command-line access on the hosting account.
 
----
+## Requirements
 
-## 1. Shared Hosting Requirements
+- Apache with URL rewriting enabled.
+- PHP 8.1 or newer.
+- PHP extensions: `pdo_mysql`, `openssl`, `json`, and sessions. `mbstring`, `fileinfo`, `gd` or `imagick`, and `zip` are recommended for the full CMS feature set.
+- MySQL or MariaDB.
+- Writable `storage/` directory and writable application root for first-run `.env` creation.
 
-- **Web Server**: Apache 2.4+ with `mod_rewrite` enabled
-- **PHP Version**: PHP 8.1 or higher (PHP 8.2+ recommended)
-- **Required PHP Extensions**:
-  - `pdo_mysql`
-  - `mbstring`
-  - `openssl`
-  - `json`
-  - `fileinfo`
-  - `gd` or `imagick` (for media thumbnail generation)
-  - `zip` (for plugin/theme zip installations)
-- **Database**: MySQL 5.7+ or MariaDB 10.3+
+## Public And Private Files
 
----
+Keep the public document root pointed at `public/` when your host allows it. The private application directories `app/`, `config/`, `database/`, `resources/`, `storage/`, `themes/`, `plugins/`, and `vendor/` should not be directly web-accessible.
 
-## 2. Directory Architecture for Shared Hosting
+On hosts where the ZIP is extracted below `public_html`, the root `.htaccess` forwards web requests into `public/` and blocks sensitive directories. If your host lets you configure the subdomain document root, point it directly to the CMS `public/` directory.
 
-For maximum security on cPanel and Apache shared hosting, keep application core files **outside** the public web root:
+## Browser Installer
 
-```
-/home/username/
-├── favorite_cms_core/        <-- Application core, app/, storage/, themes/, plugins/
-│   ├── app/
-│   ├── database/
-│   ├── storage/
-│   ├── themes/
-│   ├── plugins/
-│   ├── vendor/
-│   ├── bootstrap.php
-│   └── .env
-│
-└── public_html/              <-- Public web root (contents of public/)
-    ├── assets/
-    ├── index.php
-    ├── .htaccess
-    └── robots.txt
-```
+1. Extract `Favorite-CMS-Universal.zip`.
+2. Visit the actual domain where the CMS will run, for example `https://example.com/`, `https://cms.example.com/`, or `https://example.com/cms/`.
+3. The CMS detects that no persistent installation lock exists and opens the installer.
+4. Review the requirements screen.
+5. Configure the database.
+6. Enter the site name, detected site URL, and administrator account.
+7. Complete installation.
 
-### Adjusting `public_html/index.php`
-Open `public_html/index.php` and update the bootstrap path:
+The installer writes `.env`, runs migrations, creates the administrator, stores the site URL, and creates `storage/installed.lock` only after the installation has completed successfully.
 
-```php
-define('APP_ROOT', dirname(__DIR__) . '/favorite_cms_core');
-require_once APP_ROOT . '/bootstrap.php';
-```
+## Database Setup
 
----
+### Automatic Database Creation
 
-## 3. File Upload & Permissions
+The installer can try to create the database automatically when the database account you provide has the necessary MySQL privileges:
 
-1. Upload the project files using cPanel File Manager or FTP (SFTP).
-2. Set directory permissions:
-   - `storage/` &rarr; `775` or `755` (writable by web server)
-   - `storage/logs/` &rarr; `775` or `755`
-   - `storage/cache/` &rarr; `775` or `755`
-   - `public_html/uploads/` &rarr; `775` or `755`
+- `CREATE DATABASE`
+- `CREATE USER`, when creating a separate runtime user
+- `GRANT`, when assigning privileges to the runtime user
 
----
+This commonly works on local XAMPP or VPS-style database accounts. Many shared hosts, including cPanel, DirectAdmin, and managed providers, do not allow PHP applications to create databases or database users directly. That is normal.
 
-## 4. Database Creation in cPanel
+When automatic creation is denied, Favorite CMS shows a clean manual fallback instead of a raw SQL error. It does not require root access and does not weaken database security.
 
-1. Log into your cPanel dashboard.
-2. Under **Databases**, open **MySQL Database Wizard**.
-3. Create a database: `username_favcms`.
-4. Create a database user: `username_cmsuser` with a strong password.
-5. Grant **All Privileges** to the user on this database.
+### Manual Database Setup
 
----
+If automatic creation is unavailable, create a database and database user in your hosting control panel, then enter:
 
-## 5. Configure `.env`
+- Database host
+- Database port
+- Database name
+- Database username
+- Database password
+- Table prefix
 
-Create or edit `.env` in your application core directory:
+Use the host value provided by your hosting company. Do not assume `127.0.0.1`, `localhost`, or `root` on production shared hosting.
 
-```env
-APP_NAME="Favorite CMS"
-APP_ENV=production
-APP_URL=https://yourdomain.com
-APP_DEBUG=false
+The table prefix defaults to `fvcms_` for new installations. It is validated and allows multiple Favorite CMS installations to share one database without touching unrelated tables.
 
-DB_DRIVER=mysql
-DB_HOST=127.0.0.1
-DB_PORT=3306
-DB_DATABASE=username_favcms
-DB_USERNAME=username_cmsuser
-DB_PASSWORD=your_secure_password
+## Subdomains And Subdirectories
 
-CACHE_DRIVER=file
-SESSION_DRIVER=file
-SESSION_LIFETIME=120
-```
+Favorite CMS detects the URL used to access the installer. If you install from `https://cms.canbangla.net/`, the saved site URL and generated installer/admin routes stay on `https://cms.canbangla.net/`; they do not collapse to `https://canbangla.net/`.
 
----
+Supported examples:
 
-## 6. Apache URL Rewriting (`.htaccess`)
+- `https://example.com/`
+- `https://www.example.com/`
+- `https://cms.example.com/`
+- `https://example.com/cms/`
 
-Ensure your `public_html/.htaccess` contains:
+## HTTPS And Proxies
 
-```apache
-<IfModule mod_rewrite.c>
-    RewriteEngine On
+The installer detects HTTPS from direct Apache HTTPS variables and standard server values. Proxy headers are used only when proxy trust is enabled with `TRUST_PROXY_HEADERS=true` or when the request comes through a local/private proxy address.
 
-    # Prevent directory browsing
-    Options -Indexes
+Use HTTPS for production installs so session cookies receive the Secure flag.
 
-    # Handle Authorization Header
-    RewriteCond %{HTTP:Authorization} .
-    RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+## Interrupted Install Recovery
 
-    # Redirect Trailing Slashes If Not A Folder...
-    RewriteCond %{REQUEST_FILENAME} !-d
-    RewriteCond %{REQUEST_URI} (.+)/$
-    RewriteRule ^ %1 [L,R=301]
+Installation is resumable. If a request stops midway:
 
-    # Send Requests To Front Controller...
-    RewriteCond %{REQUEST_FILENAME} !-d
-    RewriteCond %{REQUEST_FILENAME} !-f
-    RewriteRule ^ index.php [L]
-</IfModule>
-```
+- The persistent install lock is not written until the schema, admin account, settings, and configuration are valid.
+- Existing Favorite CMS tables are detected.
+- Partial Favorite CMS tables are treated as repair/resume candidates.
+- Unrelated tables are never dropped.
+- The installer never drops a database during normal setup.
 
----
-
-## 7. Web Installation
-
-1. Browse to your domain: `https://yourdomain.com/`
-2. Follow the web installer wizard.
-3. Configure your initial Site Title and Admin Account.
-4. Once completed, your site is live and the installation is permanently secured with `storage/installed.lock`.
+After a successful install, `/install` is no longer a normal setup entry point and redirects safely to the site.

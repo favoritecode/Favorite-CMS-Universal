@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace FavoriteCMS\Core;
 
+use FavoriteCMS\Installer\InstallationStateManager;
+
 class Application extends Container
 {
     /**
@@ -71,26 +73,27 @@ class Application extends Container
             return $this->installedOverride;
         }
 
-        $lockFile = $this->basePath . '/storage/installed.lock';
-        if (file_exists($lockFile)) {
+        $state = new InstallationStateManager();
+        $lockFile = $state->lockPath();
+        if ($state->hasLock()) {
             return true;
         }
 
         // Secondary persistent verification: inspect database for valid existing installation
         try {
+            if (!file_exists($this->basePath . '/.env') && env('DB_DATABASE', '') === '') {
+                return false;
+            }
+
             $db = $this->make(Database::class);
-            $tables = $db->select("SHOW TABLES LIKE 'settings'");
-            if (!empty($tables)) {
-                $userCheck = $db->selectOne("SELECT id FROM `users` WHERE `status` = 'active' LIMIT 1");
-                if ($userCheck) {
-                    // Valid installation detected in database; self-heal the persistent lock file
-                    $storageDir = $this->basePath . '/storage';
-                    if (!is_dir($storageDir)) {
-                        @mkdir($storageDir, 0775, true);
-                    }
-                    @file_put_contents($lockFile, "installed\n");
-                    return true;
+            if ($state->databaseLooksInstalled($db)) {
+                // Valid installation detected in database; self-heal the persistent lock file.
+                $storageDir = dirname($lockFile);
+                if (!is_dir($storageDir)) {
+                    @mkdir($storageDir, 0775, true);
                 }
+                @file_put_contents($lockFile, "installed_at=" . date('c') . "\nrecovered_from=database\n");
+                return true;
             }
         } catch (\Throwable) {
             // Database not configured or connection failed -> genuine uninstalled state

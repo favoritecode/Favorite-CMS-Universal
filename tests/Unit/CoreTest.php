@@ -150,7 +150,8 @@ class CoreTest extends TestCase
 
     public function testBasePath(): void
     {
-        $this->assertStringEndsWith('CMS', base_path());
+        $this->assertDirectoryExists(base_path());
+        $this->assertSame(APP_ROOT, base_path());
         $this->assertStringEndsWith('storage', storage_path());
     }
 }

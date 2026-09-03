@@ -64,20 +64,14 @@ When official GitHub Releases are published, end users can download the pre-pack
    composer install
    ```
 
-3. **Configure Environment**:
-   ```bash
-   cp .env.example .env
-   ```
-   Verify database connection details in `.env` (MySQL on `127.0.0.1:3306`, DB `favorite_cms`).
-
-4. **Point Apache DocumentRoot**:
+3. **Point Apache DocumentRoot**:
    Point your local virtual host to the `public/` folder:
    ```apache
    DocumentRoot "C:/xampp/htdocs/favorite-cms/public"
    ```
 
-5. **Run the Browser Installer**:
-   Navigate to `http://favorite-cms.local/` (or `http://localhost/favorite-cms/public`). The installer wizard will automatically guide you through creating your initial administrator account.
+4. **Run the Browser Installer**:
+   Navigate to `http://favorite-cms.local/` (or `http://localhost/favorite-cms/public`). The installer wizard detects the current URL, tests or creates the database when permissions allow, writes `.env`, and creates your initial administrator account.
 
 ---
 

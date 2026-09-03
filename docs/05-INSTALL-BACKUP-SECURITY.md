@@ -16,6 +16,8 @@ Installer stages:
 
 Do not reinstall over an existing installation.
 
+Fresh release archives must not include `storage/installed.lock`. The lock is created only after the schema, configuration, initial administrator, and required settings have been verified.
+
 ## Environment checks
 Give actionable messages for:
 - unsupported PHP version
@@ -30,6 +32,22 @@ Do not make optional features hard requirements.
 Use a lock/state mechanism so concurrent requests cannot create duplicate installations.
 
 Protect secrets and generated configuration files.
+
+Installation state must be persistent. A PHP session can protect the in-progress browser workflow, but it is not installation state. After a completed install, the CMS uses `storage/installed.lock`; if the lock is missing but the configured database clearly contains a valid Favorite CMS installation, the application may safely recreate the lock instead of reopening the normal installer.
+
+Normal installation must never drop a database or unrelated tables. Existing Favorite CMS tables are detected, partial Favorite CMS tables are treated as repair/resume state, and unrelated application tables are left untouched.
+
+## Database Setup
+The installer supports manual database credentials and best-effort automatic database creation.
+
+Automatic creation depends on the database privileges granted by the host. If `CREATE DATABASE`, `CREATE USER`, or `GRANT` are denied, the installer must fall back to manual setup with a plain-language message.
+
+The table prefix is configurable and validated. It must be used consistently for core CMS tables so multiple installations can share one database safely.
+
+## URL Detection
+The installer detects the runtime scheme, host, and base path from the active request. It must preserve subdomains and subdirectories, for example `https://cms.example.com/` and `https://example.com/cms/`.
+
+Redirects and form actions must be generated from the detected base path or trusted configured site URL. Do not hard-code production domains, local domains, `localhost`, or `127.0.0.1`.
 
 ## Updates
 Use:
@@ -83,6 +101,8 @@ Use secure session settings appropriate to HTTPS and hosting environment.
 
 Prevent session fixation and unauthorized privilege escalation.
 
+Session cookies should use an application-specific name and the detected base path. Avoid hard-coded cookie domains so a Favorite CMS subdomain does not collide with a WordPress site or another application on the parent domain.
+
 ## Passwords
 Use modern proven password hashing/password verification APIs.
 
@@ -90,6 +110,8 @@ Never store plaintext passwords.
 
 ## CSRF
 Protect browser-based state-changing operations.
+
+Installer pages must send no-cache headers so browsers and proxies do not reuse stale CSRF tokens. Expired installer tokens should rotate safely and show a clear retry message; token validation must not be disabled or bypassed.
 
 ## Output
 Escape untrusted data according to output context.

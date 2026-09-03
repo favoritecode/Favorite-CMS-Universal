@@ -5,290 +5,275 @@ declare(strict_types=1);
 namespace FavoriteCMS\Installer;
 
 use FavoriteCMS\Core\Application;
-use FavoriteCMS\Core\Config;
 use FavoriteCMS\Core\Database;
-use FavoriteCMS\Core\Migrator;
 use FavoriteCMS\Core\Request;
 use FavoriteCMS\Core\Response;
 
-/**
- * WordPress-style single-page first-time installer for Favorite CMS.
- *
- * Requirements:
- * - Uses ONLY the database credentials from .env
- * - NEVER prompts for or overwrites MySQL/database credentials
- * - Prompts for: Site Name, Admin Username, Admin Email, Admin Password, Confirm Password
- * - Runs pending migrations
- * - Creates admin user with password_hash(..., PASSWORD_DEFAULT)
- * - Sets site name and admin email in settings
- * - Creates storage/installed.lock ONLY AFTER all steps succeed
- */
 class InstallerController
 {
-    protected Application $app;
+    protected UrlResolver $urls;
+    protected CsrfService $csrf;
+    protected EnvironmentChecker $environment;
+    protected DatabaseProvisioner $databases;
+    protected InstallationStateManager $state;
+    protected InstallationService $installer;
 
-    public function __construct(Application $app)
+    public function __construct(protected Application $app)
     {
-        $this->app = $app;
+        $this->urls = new UrlResolver();
+        $this->csrf = new CsrfService();
+        $this->environment = new EnvironmentChecker($this->urls);
+        $this->databases = new DatabaseProvisioner();
+        $this->state = new InstallationStateManager();
+        $this->installer = new InstallationService($app, $this->databases, $this->state);
     }
 
     public function handle(Request $request): Response
     {
-        // If already installed, prevent re-installation
         if ($this->app->isInstalled()) {
             return Response::redirect('/');
         }
 
         if ($request->method() === 'POST') {
-            return $this->processInstall($request);
+            return $this->process($request);
         }
 
-        return $this->showInstallForm($request);
+        return $this->show($request);
     }
 
-    /**
-     * Display the WordPress-style installer form.
-     */
-    protected function showInstallForm(Request $request, array $errors = [], array $oldInput = []): Response
+    protected function show(Request $request, array $errors = [], array $notices = [], array $old = []): Response
     {
-        // Check database connection using ONLY .env credentials
-        $dbStatus = $this->checkDatabaseConnection();
+        $checks = $this->environment->check($request);
+        $dbStatus = $this->detectDatabaseStatus();
+        $detectedUrl = $this->urls->currentBaseUrl($request);
 
-        $token = $this->csrfToken();
+        $defaultConfig = $this->databases->defaultConfig();
+        $dbDefaults = array_merge([
+            'db_host' => $defaultConfig['host'],
+            'db_port' => $defaultConfig['port'],
+            'db_name' => $defaultConfig['database'],
+            'db_username' => $defaultConfig['username'],
+            'db_prefix' => $defaultConfig['prefix'],
+            'setup_mode' => 'manual',
+        ], $old);
 
         $content = $this->renderView('installer/install', [
+            'checks' => $checks,
+            'hasRequirementFailures' => $this->environment->hasFailures($checks),
             'dbStatus' => $dbStatus,
-            'errors'   => $errors,
-            'old'      => $oldInput,
-            'token'    => $token,
+            'errors' => $errors,
+            'notices' => $notices,
+            'old' => $old,
+            'dbDefaults' => $dbDefaults,
+            'token' => $this->csrf->token(),
+            'detectedUrl' => $detectedUrl,
+            'installAction' => $this->urls->route($request, '/install'),
+            'basePath' => $request->basePath(),
         ]);
 
-        return Response::make($content, 200);
+        return $this->noCache(Response::make($content, 200));
     }
 
-    /**
-     * Process the installation submission.
-     */
-    protected function processInstall(Request $request): Response
+    protected function process(Request $request): Response
     {
-        // Verify CSRF
-        if (!$this->verifyCsrf($request)) {
-            return $this->showInstallForm($request, ['Invalid or expired security token. Please try again.']);
+        if (!$this->csrf->validate((string)$request->post('_token', ''))) {
+            return $this->show($request, ['Invalid or expired security token. A fresh token has been created; please review the form and try again.'], [], $this->safeOld($request));
         }
 
-        $siteName        = trim((string)$request->post('site_name', ''));
-        $adminUsername   = trim((string)$request->post('admin_username', ''));
-        $adminEmail      = trim((string)$request->post('admin_email', ''));
-        $adminPassword   = (string)$request->post('admin_password', '');
-        $confirmPassword = (string)$request->post('admin_password_confirm', '');
+        $action = (string)$request->post('db_action', 'install');
+        $old = $this->safeOld($request);
+        $dbConfig = $this->databases->normalize($request->all());
+        $mode = (string)$request->post('setup_mode', 'manual');
 
-        $oldInput = [
-            'site_name'      => $siteName,
-            'admin_username' => $adminUsername,
-            'admin_email'    => $adminEmail,
-        ];
+        if ($mode === 'automatic') {
+            $adminConfig = $dbConfig;
+            $adminConfig['username'] = trim((string)$request->post('db_admin_username', $dbConfig['username']));
+            $adminConfig['password'] = (string)$request->post('db_admin_password', $dbConfig['password']);
 
-        // 1. Validate inputs
-        $errors = [];
-
-        if ($siteName === '') {
-            $errors[] = 'Please provide a Site Name.';
-        }
-
-        if ($adminUsername === '') {
-            $errors[] = 'Please choose an Admin Username.';
-        } elseif (strlen($adminUsername) < 3) {
-            $errors[] = 'Admin Username must be at least 3 characters long.';
-        } elseif (!preg_match('/^[a-zA-Z0-9_\.\-]+$/', $adminUsername)) {
-            $errors[] = 'Admin Username can only contain letters, numbers, underscores, hyphens, and periods.';
-        }
-
-        if ($adminEmail === '') {
-            $errors[] = 'Please provide an Admin Email address.';
-        } elseif (!filter_var($adminEmail, FILTER_VALIDATE_EMAIL)) {
-            $errors[] = 'Please provide a valid email address.';
-        }
-
-        if ($adminPassword === '') {
-            $errors[] = 'Please enter an Admin Password.';
-        } elseif (strlen($adminPassword) < 6) {
-            $errors[] = 'Admin Password must be at least 6 characters long.';
-        }
-
-        if ($adminPassword !== $confirmPassword) {
-            $errors[] = 'The password and confirmation password do not match.';
-        }
-
-        // If validation failed, return form with errors
-        if (!empty($errors)) {
-            return $this->showInstallForm($request, $errors, $oldInput);
-        }
-
-        // 2. Connect to database using ONLY .env credentials
-        try {
-            $db = $this->app->make(Database::class);
-            $db->selectOne('SELECT 1');
-        } catch (\Throwable $e) {
-            $dbError = 'Database connection failed: ' . $e->getMessage() . '. Please check your database credentials in .env.';
-            return $this->showInstallForm($request, [$dbError], $oldInput);
-        }
-
-        // 3. Run migrations
-        try {
-            $migrator = new Migrator($db);
-            $migrator->createMigrationsTableIfNotExists();
-            $migrator->migrate(APP_ROOT . '/database/migrations');
-
-            // Ensure username column exists on users table (for backwards compatibility)
-            $colCheck = $db->select("SHOW COLUMNS FROM `users` LIKE 'username'");
-            if (empty($colCheck)) {
-                $db->execute("ALTER TABLE `users` ADD COLUMN `username` VARCHAR(191) NULL UNIQUE AFTER `id`");
-            }
-        } catch (\Throwable $e) {
-            $migrationError = 'Failed to execute database migrations: ' . $e->getMessage();
-            return $this->showInstallForm($request, [$migrationError], $oldInput);
-        }
-
-        // 4. Create or update admin account & update settings
-        try {
-            $now = date('Y-m-d H:i:s');
-            $hashedPassword = password_hash($adminPassword, PASSWORD_DEFAULT);
-
-            $existing = $db->selectOne(
-                "SELECT id FROM `users` WHERE `email` = ? OR `username` = ? LIMIT 1",
-                [$adminEmail, $adminUsername]
+            $auto = $this->databases->createAutomatically(
+                $adminConfig,
+                trim((string)$request->post('db_username', '')),
+                (string)$request->post('db_password', '')
             );
 
-            if ($existing) {
-                $userId = (int)$existing->id;
-                $db->execute(
-                    "UPDATE `users` SET `username` = ?, `name` = ?, `email` = ?, `password` = ?, `status` = 'active', `updated_at` = ? WHERE `id` = ?",
-                    [$adminUsername, $adminUsername, $adminEmail, $hashedPassword, $now, $userId]
-                );
-            } else {
-                $userId = $db->insert('users', [
-                    'username'          => $adminUsername,
-                    'name'              => $adminUsername,
-                    'email'             => $adminEmail,
-                    'password'          => $hashedPassword,
-                    'status'            => 'active',
-                    'email_verified_at' => $now,
-                    'created_at'        => $now,
-                    'updated_at'        => $now,
-                ]);
+            if (!$auto['ok']) {
+                $old['setup_mode'] = 'manual';
+                return $this->show($request, [(string)$auto['message']], ['Manual Database Setup is ready below.'], $old);
             }
 
-            // Assign super-admin role
-            $superAdminRole = $db->selectOne("SELECT id FROM `roles` WHERE `slug` = 'super-admin' LIMIT 1");
-            if ($superAdminRole) {
-                $db->execute(
-                    "INSERT IGNORE INTO `user_roles` (`user_id`, `role_id`) VALUES (?, ?)",
-                    [$userId, $superAdminRole->id]
-                );
-            }
-
-            // Update site settings
-            \FavoriteCMS\Models\Setting::clearCache();
-            \FavoriteCMS\Models\Setting::set('general', 'site_name', $siteName);
-            \FavoriteCMS\Models\Setting::set('general', 'admin_email', $adminEmail);
-
-        } catch (\Throwable $e) {
-            return $this->showInstallForm(
-                $request,
-                ['Failed to create administrator account: ' . $e->getMessage()],
-                $oldInput
-            );
+            $dbConfig = $auto['config'];
         }
 
-        // 6. Create storage/installed.lock ONLY AFTER EVERYTHING SUCCEEDED
+        if ($action === 'test_database') {
+            try {
+                $this->databases->testConnection($dbConfig);
+                return $this->show($request, [], ['Database connection verified successfully.'], $old);
+            } catch (\Throwable $e) {
+                return $this->show($request, [$this->databasePublicMessage($e)], [], $old);
+            }
+        }
+
+        $site = $this->validateSite($request);
+        $admin = $this->validateAdmin($request);
+        $errors = array_merge($this->databases->validate($dbConfig), $site['errors'], $admin['errors']);
+
+        if ($errors !== []) {
+            return $this->show($request, $errors, [], $old);
+        }
+
         try {
-            $storageDir = APP_ROOT . '/storage';
-            if (!is_dir($storageDir)) {
-                mkdir($storageDir, 0775, true);
-            }
-
-            $lockContent = sprintf(
-                "installed_at=%s\ninstalled_by=%s\napp_url=%s\n",
-                date('c'),
-                $adminUsername,
-                config('app.url', 'http://favorite-cms.local')
-            );
-
-            file_put_contents($storageDir . '/installed.lock', $lockContent);
-            $this->app->setInstalled(null);
+            $result = $this->installer->install($dbConfig, $site['data'], $admin['data']);
+            (new InstallerSession($this->urls))->regenerate();
         } catch (\Throwable $e) {
-            return $this->showInstallForm(
-                $request,
-                ['Could not write storage/installed.lock: ' . $e->getMessage()],
-                $oldInput
-            );
+            return $this->show($request, [$this->installer->publicMessage($e)], [], $old);
         }
 
-        // 7. Show success screen
         $content = $this->renderView('installer/success', [
-            'siteName'      => $siteName,
-            'adminUsername' => $adminUsername,
-            'adminEmail'    => $adminEmail,
-            'loginUrl'      => '/admin/login',
+            'siteName' => $site['data']['name'],
+            'siteUrl' => $site['data']['url'],
+            'adminUsername' => $admin['data']['username'],
+            'adminEmail' => $admin['data']['email'],
+            'loginUrl' => $this->urls->route($request, '/admin/login'),
+            'homeUrl' => $this->urls->route($request, '/'),
+            'migrations' => $result['applied_migrations'],
         ]);
 
-        return Response::make($content, 200);
+        return $this->noCache(Response::make($content, 200));
     }
 
-    /**
-     * Check whether the database is accessible with current .env settings.
-     *
-     * @return array{connected: bool, message: string, database: string, host: string}
-     */
-    protected function checkDatabaseConnection(): array
+    protected function detectDatabaseStatus(): array
     {
-        $config = $this->app->make(Config::class);
-        $dbConfig = $config->get('database', []);
-
-        $dbName = (string)($dbConfig['database'] ?? 'favorite_cms');
-        $dbHost = (string)($dbConfig['host'] ?? '127.0.0.1');
-
-        try {
-            $db = $this->app->make(Database::class);
-            $db->selectOne('SELECT 1');
-
-            return [
-                'connected' => true,
-                'message'   => "Connected to database '{$dbName}' on {$dbHost}",
-                'database'  => $dbName,
-                'host'      => $dbHost,
-            ];
-        } catch (\Throwable $e) {
+        $defaults = $this->databases->defaultConfig();
+        if (($defaults['database'] ?? '') === '' || ($defaults['username'] ?? '') === '') {
             return [
                 'connected' => false,
-                'message'   => $e->getMessage(),
-                'database'  => $dbName,
-                'host'      => $dbHost,
+                'message' => 'No database configuration has been saved yet.',
+                'state' => 'missing',
+            ];
+        }
+
+        try {
+            $db = new Database($defaults);
+            if ($this->state->databaseLooksInstalled($db)) {
+                return ['connected' => true, 'message' => 'Existing Favorite CMS installation detected.', 'state' => 'installed'];
+            }
+            if ($this->state->databaseLooksPartial($db)) {
+                return ['connected' => true, 'message' => 'Partial Favorite CMS tables detected. The installer can resume safely.', 'state' => 'partial'];
+            }
+
+            return ['connected' => true, 'message' => 'Database connection available.', 'state' => 'ready'];
+        } catch (\Throwable) {
+            return [
+                'connected' => false,
+                'message' => 'Saved database settings could not be verified. You can enter new credentials below.',
+                'state' => 'failed',
             ];
         }
     }
 
-    protected function csrfToken(): string
+    protected function validateSite(Request $request): array
     {
-        if (empty($_SESSION['_token'])) {
-            $_SESSION['_token'] = bin2hex(random_bytes(32));
+        $name = trim((string)$request->post('site_name', ''));
+        $url = $this->urls->normalizeSiteUrl((string)$request->post('site_url', '')) ?: $this->urls->currentBaseUrl($request);
+        $errors = [];
+
+        if ($name === '') {
+            $errors[] = 'Please provide a site name.';
         }
-        return $_SESSION['_token'];
+        if (!$this->urls->normalizeSiteUrl($url)) {
+            $errors[] = 'Please provide a valid site URL.';
+        }
+
+        return ['errors' => $errors, 'data' => ['name' => $name, 'url' => $url]];
     }
 
-    protected function verifyCsrf(Request $request): bool
+    protected function validateAdmin(Request $request): array
     {
-        $token  = $request->post('_token', '');
-        $stored = $_SESSION['_token'] ?? '';
-        return $stored !== '' && hash_equals($stored, $token);
+        $username = trim((string)$request->post('admin_username', ''));
+        $email = trim((string)$request->post('admin_email', ''));
+        $password = (string)$request->post('admin_password', '');
+        $confirm = (string)$request->post('admin_password_confirm', '');
+        $errors = [];
+
+        if ($username === '') {
+            $errors[] = 'Please choose an admin username.';
+        } elseif (strlen($username) < 3 || strlen($username) > 60 || !preg_match('/^[A-Za-z0-9_.-]+$/', $username)) {
+            $errors[] = 'Admin username must be 3-60 characters and may contain letters, numbers, underscores, hyphens, and periods.';
+        }
+
+        if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $errors[] = 'Please provide a valid admin email address.';
+        }
+
+        if (strlen($password) < 10) {
+            $errors[] = 'Admin password must be at least 10 characters long.';
+        }
+        if (!preg_match('/[A-Za-z]/', $password) || !preg_match('/\d/', $password)) {
+            $errors[] = 'Admin password must include at least one letter and one number.';
+        }
+        if ($password !== $confirm) {
+            $errors[] = 'The admin password and confirmation do not match.';
+        }
+
+        return [
+            'errors' => $errors,
+            'data' => [
+                'username' => $username,
+                'email' => $email,
+                'password' => $password,
+            ],
+        ];
+    }
+
+    protected function safeOld(Request $request): array
+    {
+        $keys = [
+            'setup_mode',
+            'db_host',
+            'db_port',
+            'db_name',
+            'db_username',
+            'db_prefix',
+            'site_name',
+            'site_url',
+            'admin_username',
+            'admin_email',
+        ];
+
+        $old = [];
+        foreach ($keys as $key) {
+            $old[$key] = trim((string)$request->post($key, ''));
+        }
+
+        return $old;
+    }
+
+    protected function databasePublicMessage(\Throwable $e): string
+    {
+        $message = $e->getMessage();
+        if (str_contains($message, 'SQLSTATE') || str_contains($message, 'Access denied')) {
+            return 'Database connection failed. Please verify the database host, username, password, and database name.';
+        }
+
+        return $message;
+    }
+
+    protected function noCache(Response $response): Response
+    {
+        return $response
+            ->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+            ->header('Pragma', 'no-cache')
+            ->header('Expires', 'Thu, 01 Jan 1970 00:00:00 GMT')
+            ->header('X-Robots-Tag', 'noindex, nofollow');
     }
 
     protected function renderView(string $template, array $data = []): string
     {
         $path = APP_ROOT . '/resources/views/' . $template . '.php';
-        if (!file_exists($path)) {
+        if (!is_file($path)) {
             throw new \RuntimeException("Installer view not found: {$template}");
         }
+
         extract($data, EXTR_SKIP);
         ob_start();
         include $path;

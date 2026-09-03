@@ -1,161 +1,89 @@
+<?php
+$h = static fn ($value): string => htmlspecialchars((string)$value, ENT_QUOTES, 'UTF-8');
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Favorite CMS &rsaquo; Success</title>
+    <title>Favorite CMS Installed</title>
     <style>
-        *, *::before, *::after {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
+        * { box-sizing: border-box; }
         body {
-            background: #f0f0f1;
-            color: #3c434a;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
-            font-size: 14px;
-            line-height: 1.5;
+            margin: 0;
             min-height: 100vh;
-            padding: 2em 1em;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
-        .install-container {
-            background: #fff;
-            border: 1px solid #c3c4c7;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
-            max-width: 600px;
-            width: 100%;
-            padding: 2.5em;
-            margin-bottom: 2em;
-        }
-        .header-logo {
-            text-align: center;
-            margin-bottom: 1.5em;
-        }
-        .header-logo h1 {
-            font-size: 28px;
-            font-weight: 600;
-            color: #1d2327;
-            letter-spacing: -0.5px;
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 8px;
+            background: #f3f4f6;
+            color: #1f2937;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+            padding: 24px;
         }
-        .header-logo .star {
-            color: #e5a00d;
-            font-size: 32px;
-        }
-        h2 {
-            font-size: 20px;
-            font-weight: 600;
-            color: #1d2327;
-            margin-bottom: 0.6em;
-            padding-bottom: 0.4em;
-            border-bottom: 1px solid #dcdcde;
-        }
-        p {
-            margin-bottom: 1.2em;
-            color: #50575e;
-            font-size: 14px;
-        }
-        .success-box {
-            background: #edfaef;
-            border-left: 4px solid #00a32a;
-            padding: 12px 16px;
-            margin-bottom: 1.5em;
-            font-size: 13.5px;
-            color: #1a6826;
-        }
-        .info-table {
+        .panel {
             width: 100%;
-            border-collapse: collapse;
-            margin-top: 1em;
-            margin-bottom: 1.8em;
+            max-width: 620px;
+            background: #fff;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            padding: 28px;
+            box-shadow: 0 1px 2px rgba(0,0,0,.04);
         }
-        .info-table th {
-            text-align: left;
-            padding: 10px 12px 10px 0;
-            width: 130px;
-            font-weight: 600;
-            color: #1d2327;
+        h1 { margin: 0 0 12px; font-size: 26px; color: #111827; letter-spacing: 0; }
+        p { margin: 0 0 16px; color: #4b5563; }
+        .success {
+            border-left: 4px solid #16a34a;
+            background: #f0fdf4;
+            color: #166534;
+            padding: 12px 14px;
+            margin-bottom: 18px;
+            border-radius: 4px;
         }
-        .info-table td {
-            padding: 10px 0;
-            color: #2c3338;
-        }
-        .btn-login {
-            background: #2271b1;
-            border-color: #2271b1;
+        dl { display: grid; grid-template-columns: 140px 1fr; gap: 8px 12px; margin: 0 0 20px; }
+        dt { font-weight: 700; color: #111827; }
+        dd { margin: 0; color: #374151; overflow-wrap: anywhere; }
+        .actions { display: flex; flex-wrap: wrap; gap: 10px; }
+        a {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 40px;
+            border: 1px solid #1d4ed8;
+            border-radius: 4px;
+            padding: 0 16px;
+            background: #2563eb;
             color: #fff;
             text-decoration: none;
-            text-shadow: none;
-            display: inline-block;
-            font-size: 14px;
-            font-weight: 500;
-            line-height: 36px;
-            padding: 0 18px;
-            cursor: pointer;
-            border-width: 1px;
-            border-style: solid;
-            border-radius: 4px;
-            white-space: nowrap;
-            transition: background 0.15s ease-in-out;
+            font-weight: 700;
         }
-        .btn-login:hover {
-            background: #135e96;
-            border-color: #135e96;
-            color: #fff;
-        }
-        .footer-text {
-            font-size: 12px;
-            color: #646970;
-            text-align: center;
+        a.secondary { background: #fff; color: #1d4ed8; }
+        @media (max-width: 560px) {
+            dl { grid-template-columns: 1fr; }
         }
     </style>
 </head>
 <body>
+    <main class="panel">
+        <h1>Favorite CMS</h1>
+        <div class="success">Favorite CMS installed successfully.</div>
 
-    <div class="install-container">
-        <div class="header-logo">
-            <h1><span class="star">&#9733;</span> Favorite CMS</h1>
+        <dl>
+            <dt>Site Name</dt>
+            <dd><?php echo $h($siteName); ?></dd>
+            <dt>Site URL</dt>
+            <dd><?php echo $h($siteUrl); ?></dd>
+            <dt>Admin Username</dt>
+            <dd><?php echo $h($adminUsername); ?></dd>
+            <dt>Admin Email</dt>
+            <dd><?php echo $h($adminEmail); ?></dd>
+            <dt>Migrations</dt>
+            <dd><?php echo count($migrations); ?> applied this run</dd>
+        </dl>
+
+        <div class="actions">
+            <a href="<?php echo $h($loginUrl); ?>">Login to Admin</a>
+            <a href="<?php echo $h($homeUrl); ?>" class="secondary">Visit Website</a>
         </div>
-
-        <h2>Success!</h2>
-        <div class="success-box">
-            Favorite CMS has been installed successfully. Thank you, and enjoy!
-        </div>
-
-        <table class="info-table">
-            <tr>
-                <th scope="row">Site Name:</th>
-                <td><?php echo htmlspecialchars($siteName, ENT_QUOTES, 'UTF-8'); ?></td>
-            </tr>
-            <tr>
-                <th scope="row">Username:</th>
-                <td><code><?php echo htmlspecialchars($adminUsername, ENT_QUOTES, 'UTF-8'); ?></code></td>
-            </tr>
-            <tr>
-                <th scope="row">Email:</th>
-                <td><?php echo htmlspecialchars($adminEmail, ENT_QUOTES, 'UTF-8'); ?></td>
-            </tr>
-            <tr>
-                <th scope="row">Password:</th>
-                <td><em>Your chosen password</em></td>
-            </tr>
-        </table>
-
-        <p>
-            <a href="<?php echo htmlspecialchars($loginUrl, ENT_QUOTES, 'UTF-8'); ?>" class="btn-login">Log In</a>
-        </p>
-    </div>
-
-    <div class="footer-text">
-        <p>Favorite CMS &bull; Fast, Secure, Modular</p>
-    </div>
-
+    </main>
 </body>
 </html>
