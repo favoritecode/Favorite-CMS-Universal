@@ -36,3 +36,6 @@ desktop.ini
 *.sublime-workspace
 *.swp
 *~
+
+# Release archives
+release/

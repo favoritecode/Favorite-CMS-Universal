@@ -1,6 +1,7 @@
 {
     "name": "favoritecode/favorite-cms-universal",
     "description": "Favorite CMS Universal — A lightweight, modular, standalone PHP CMS",
+    "version": "0.1.0-beta",
     "type": "project",
     "require": {
         "php": "^8.1"

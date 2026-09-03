@@ -30,7 +30,28 @@ The **Core** provides the general CMS foundation (users, roles, permissions, pos
 
 ---
 
-## 📦 Quick Start (Local XAMPP)
+---
+
+## 📥 Download
+
+The standalone, installable WordPress-style distribution archive is prepared as:
+- **Package**: `Favorite-CMS-Universal.zip`
+- **Current Version**: `0.1.0-beta`
+
+When official GitHub Releases are published, end users can download the pre-packaged, zero-configuration distribution ZIP directly from the [GitHub Releases](https://github.com/favoritecode/Favorite-CMS-Universal/releases) page. The distribution package includes all required core classes, assets, themes, plugins, and bundled vendor dependencies—no git cloning, command line, or Composer installation is needed on shared hosting.
+
+### Standard End-User Installation Workflow:
+```
+1. Download Favorite-CMS-Universal.zip
+2. Extract directly onto your web hosting or XAMPP directory
+3. Open your domain in any web browser
+4. Complete the 2-minute web setup wizard (Database & Admin Account)
+5. Your website is immediately online!
+```
+
+---
+
+## 📦 Quick Start for Developers (Local XAMPP)
 
 1. **Clone the Repository**:
    ```bash
@@ -52,11 +73,11 @@ The **Core** provides the general CMS foundation (users, roles, permissions, pos
 4. **Point Apache DocumentRoot**:
    Point your local virtual host to the `public/` folder:
    ```apache
-   DocumentRoot "D:/Server/Shofikul/CMS/public"
+   DocumentRoot "C:/xampp/htdocs/favorite-cms/public"
    ```
 
 5. **Run the Browser Installer**:
-   Navigate to `http://favorite-cms.local/`. The installer wizard will automatically guide you through creating your initial administrator account.
+   Navigate to `http://favorite-cms.local/` (or `http://localhost/favorite-cms/public`). The installer wizard will automatically guide you through creating your initial administrator account.
 
 ---
 

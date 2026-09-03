@@ -19,7 +19,7 @@ Clone or extract the repository directly into your web directory or a dedicated 
 
 For example:
 ```
-D:\Server\Shofikul\CMS
+C:\xampp\htdocs\favorite-cms
 ```
 
 ---
@@ -38,9 +38,9 @@ Edit `C:\xampp\apache\conf\extra\httpd-vhosts.conf` and append:
 ```apache
 <VirtualHost *:80>
     ServerAdmin admin@favorite-cms.local
-    DocumentRoot "D:/Server/Shofikul/CMS/public"
+    DocumentRoot "C:/xampp/htdocs/favorite-cms/public"
     ServerName favorite-cms.local
-    <Directory "D:/Server/Shofikul/CMS/public">
+    <Directory "C:/xampp/htdocs/favorite-cms/public">
         Options Indexes FollowSymLinks
         AllowOverride All
         Require all granted
