@@ -67,66 +67,93 @@ final class FavoritePayPlugin
                 'manual_bd',
                 'Manual Bangladesh Payment',
                 PaymentMethodType::MANUAL_BD,
-                [
+                $this->loadGatewayConfig('favorite_pay_manual_bd', [
                     'channel'      => 'manual_bd',
                     'instructions' => 'Please transfer to our merchant account and submit your TrxID below.',
-                ]
+                ]),
+                $this->loadGatewayEnabled('favorite_pay_manual_bd', true)
             );
 
             $manualBkash = new ManualBangladeshGateway(
                 'manual_bkash',
                 'bKash Manual Payment',
                 PaymentMethodType::MANUAL_BKASH,
-                [
+                $this->loadGatewayConfig('favorite_pay_manual_bkash', [
                     'channel'        => 'bkash',
-                    'account_name'   => 'Favorite CMS Merchant',
-                    'account_number' => '01700000000',
+                    'account_name'   => '',
+                    'account_number' => '',
                     'account_type'   => 'Personal / Merchant',
                     'instructions'   => 'Send money via bKash and submit your 10-digit TrxID.',
-                ]
+                ]),
+                $this->loadGatewayEnabled('favorite_pay_manual_bkash', true)
             );
 
             $manualNagad = new ManualBangladeshGateway(
                 'manual_nagad',
                 'Nagad Manual Payment',
                 PaymentMethodType::MANUAL_NAGAD,
-                [
+                $this->loadGatewayConfig('favorite_pay_manual_nagad', [
                     'channel'        => 'nagad',
-                    'account_name'   => 'Favorite CMS Merchant',
-                    'account_number' => '01800000000',
+                    'account_name'   => '',
+                    'account_number' => '',
                     'account_type'   => 'Personal / Merchant',
                     'instructions'   => 'Send money via Nagad and submit your TrxID.',
-                ]
+                ]),
+                $this->loadGatewayEnabled('favorite_pay_manual_nagad', true)
+            );
+
+            $manualRocket = new ManualBangladeshGateway(
+                'manual_rocket',
+                'Rocket Manual Payment',
+                PaymentMethodType::MANUAL_ROCKET,
+                $this->loadGatewayConfig('favorite_pay_manual_rocket', [
+                    'channel'        => 'rocket',
+                    'account_name'   => '',
+                    'account_number' => '',
+                    'account_type'   => 'Personal / Merchant',
+                    'instructions'   => 'Send money via Rocket and submit your transaction reference.',
+                ]),
+                $this->loadGatewayEnabled('favorite_pay_manual_rocket', true)
             );
 
             $manualBank = new ManualBangladeshGateway(
                 'manual_bank',
                 'Bank Transfer',
                 PaymentMethodType::MANUAL_BANK,
-                [
+                $this->loadGatewayConfig('favorite_pay_manual_bank', [
                     'channel'        => 'bank',
-                    'bank_name'      => 'City Bank PLC',
-                    'account_name'   => 'Favorite CMS',
-                    'account_number' => '1100000000000',
-                    'branch_name'    => 'Principal Branch, Dhaka',
-                    'routing_no'     => '225260000',
+                    'bank_name'      => '',
+                    'account_name'   => '',
+                    'account_number' => '',
+                    'branch_name'    => '',
+                    'routing_no'     => '',
                     'instructions'   => 'Transfer the exact amount and submit your bank deposit/EFT reference number.',
-                ]
+                ]),
+                $this->loadGatewayEnabled('favorite_pay_manual_bank', true)
             );
 
             $registry->register($manualBd);
             $registry->register($manualBkash);
             $registry->register($manualNagad);
+            $registry->register($manualRocket);
             $registry->register($manualBank);
 
             $db = $app->has(Database::class) ? $app->make(Database::class) : null;
             $currencyService = $app->has(CurrencyServiceInterface::class) ? $app->make(CurrencyServiceInterface::class) : null;
+
+            // Automatic Gateways
+            $bkashDirect = new \FavoriteCMS\Pay\Gateways\Bkash\BkashMerchantGateway([], null, $db);
+            $registry->register($bkashDirect, ['bkash_auto', 'bkash_merchant']);
+
             $binancePay = new \FavoriteCMS\Pay\Gateways\Binance\BinancePayGateway([], null, $db, $currencyService);
             $registry->register($binancePay, ['binance']);
 
-            // Backward compatibility aliases for Phase 1 tests
+            // Backward compatibility aliases
             $registry->registerAlias('bkash_manual', 'manual_bkash');
             $registry->registerAlias('nagad_manual', 'manual_nagad');
+            $registry->registerAlias('rocket_manual', 'manual_rocket');
+            $registry->registerAlias('rocket', 'manual_rocket');
+            $registry->registerAlias('bank_manual', 'manual_bank');
 
             return $registry;
         });
@@ -255,11 +282,11 @@ final class FavoritePayPlugin
 
                 add_admin_submenu(
                     'favorite-pay',
-                    'favorite-pay-rates',
-                    'Exchange Rates',
+                    'favorite-pay-manual',
+                    'Manual Payments',
                     function (\FavoriteCMS\Core\Request $request) {
-                        $controller = $this->app->make(\FavoriteCMS\Pay\Controllers\PaymentRateController::class);
-                        return $controller->handle($request);
+                        $controller = $this->app->make(\FavoriteCMS\Pay\Controllers\PaymentGatewaySettingsController::class);
+                        return $controller->handleManual($request);
                     },
                     'manage_settings'
                 );
@@ -267,9 +294,20 @@ final class FavoritePayPlugin
                 add_admin_submenu(
                     'favorite-pay',
                     'favorite-pay-gateways',
-                    'Gateways & Settings',
+                    'Automatic Gateways',
                     function (\FavoriteCMS\Core\Request $request) {
                         $controller = $this->app->make(\FavoriteCMS\Pay\Controllers\PaymentGatewaySettingsController::class);
+                        return $controller->handleAutomatic($request);
+                    },
+                    'manage_settings'
+                );
+
+                add_admin_submenu(
+                    'favorite-pay',
+                    'favorite-pay-rates',
+                    'Exchange Rates',
+                    function (\FavoriteCMS\Core\Request $request) {
+                        $controller = $this->app->make(\FavoriteCMS\Pay\Controllers\PaymentRateController::class);
                         return $controller->handle($request);
                     },
                     'manage_settings'
@@ -448,5 +486,35 @@ final class FavoritePayPlugin
         $migrator = new Migrator($db);
         $migrationsPath = __DIR__ . '/../database/migrations';
         return $migrator->migrate($migrationsPath);
+    }
+
+    private function loadGatewayConfig(string $group, array $default = []): array
+    {
+        if (class_exists(\FavoriteCMS\Models\Setting::class)) {
+            try {
+                $saved = \FavoriteCMS\Models\Setting::getGroup($group);
+                if (!empty($saved)) {
+                    return array_merge($default, $saved);
+                }
+            } catch (\Throwable) {
+                // Ignore DB error during boot
+            }
+        }
+        return $default;
+    }
+
+    private function loadGatewayEnabled(string $group, bool $default = true): bool
+    {
+        if (class_exists(\FavoriteCMS\Models\Setting::class)) {
+            try {
+                $saved = \FavoriteCMS\Models\Setting::getGroup($group);
+                if (isset($saved['enabled'])) {
+                    return !empty($saved['enabled']);
+                }
+            } catch (\Throwable) {
+                // Ignore DB error during boot
+            }
+        }
+        return $default;
     }
 }

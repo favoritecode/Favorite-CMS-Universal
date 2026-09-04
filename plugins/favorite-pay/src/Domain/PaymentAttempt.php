@@ -183,4 +183,74 @@ final class PaymentAttempt
         }
         return $clone;
     }
+
+    public function markCancelled(string $reason = 'Cancelled by customer'): self
+    {
+        $clone = clone $this;
+        $clone->status = PaymentStatus::CANCELLED;
+        $clone->verifiedAt = date('Y-m-d H:i:s');
+        $clone->errorMessage = $reason;
+        return $clone;
+    }
+
+    public function getChargeAmount(): Money
+    {
+        return $this->amount;
+    }
+
+    public function getChargeCurrency(): string
+    {
+        return $this->amount->getCurrency();
+    }
+
+    public function getProviderReference(): ?string
+    {
+        return $this->transactionReference;
+    }
+
+    public function getOriginalOrderAmount(): ?Money
+    {
+        if (isset($this->metadata['original_order_amount'], $this->metadata['original_order_currency'])) {
+            return new Money((int)$this->metadata['original_order_amount'], (string)$this->metadata['original_order_currency']);
+        }
+        if (isset($this->metadata['base_amount'], $this->metadata['base_currency'])) {
+            return new Money((int)$this->metadata['base_amount'], (string)$this->metadata['base_currency']);
+        }
+        return $this->amount;
+    }
+
+    public function getOriginalOrderCurrency(): ?string
+    {
+        return $this->getOriginalOrderAmount()?->getCurrency();
+    }
+
+    public function getAccountingAmount(): ?Money
+    {
+        return $this->getOriginalOrderAmount();
+    }
+
+    public function getAccountingCurrency(): ?string
+    {
+        return $this->getOriginalOrderCurrency();
+    }
+
+    public function getConversionSnapshot(): ?ConversionSnapshot
+    {
+        if (isset($this->metadata['conversion_snapshot']) && is_array($this->metadata['conversion_snapshot'])) {
+            return ConversionSnapshot::fromArray($this->metadata['conversion_snapshot']);
+        }
+        if (isset($this->metadata['rate_factor'], $this->metadata['base_currency'], $this->metadata['charge_currency'])) {
+            return new ConversionSnapshot(
+                (string)$this->metadata['base_currency'],
+                (string)$this->metadata['charge_currency'],
+                (int)$this->metadata['rate_factor'],
+                (int)($this->metadata['rate_scale'] ?? ConversionSnapshot::DEFAULT_SCALE),
+                true,
+                $this->createdAt,
+                null,
+                (string)($this->metadata['rate_source'] ?? 'locked')
+            );
+        }
+        return null;
+    }
 }

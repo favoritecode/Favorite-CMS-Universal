@@ -108,6 +108,13 @@ class PaymentService implements PaymentServiceInterface
                 : $options['method_type'];
         }
 
+        $metadata = $options['metadata'] ?? [];
+        if (!empty($options['gateway_id'])) {
+            $metadata['gateway_id'] = (string)$options['gateway_id'];
+        } elseif (!empty($options['gateway'])) {
+            $metadata['gateway_id'] = (string)$options['gateway'];
+        }
+
         $intent = new PaymentIntent(
             $id,
             $sourcePlugin,
@@ -118,7 +125,7 @@ class PaymentService implements PaymentServiceInterface
             $methodType,
             $options['customer_id'] ?? null,
             $snapshot,
-            $options['metadata'] ?? []
+            $metadata
         );
 
         $this->intents[$id] = $intent;
@@ -239,6 +246,66 @@ class PaymentService implements PaymentServiceInterface
         return $updated;
     }
 
+    /**
+     * Initiate payment attempt for an automatic online gateway (e.g. Binance Pay, bKash Auto).
+     * Locks authoritative acquiring conversion snapshot and links attempt to intent.
+     */
+    public function initiatePayment(
+        string $intentId,
+        string $gatewayId,
+        array $params = []
+    ): PaymentAttempt {
+        $intent = $this->getIntent($intentId);
+        if (!$intent) {
+            throw new InvalidArgumentException("Payment intent not found: {$intentId}");
+        }
+
+        if ($intent->getStatus()->isFinal()) {
+            throw new RuntimeException("Cannot initiate payment for final intent status: {$intent->getStatus()->value}");
+        }
+
+        if (!$this->gatewayRegistry->has($gatewayId)) {
+            throw new InvalidArgumentException("Payment gateway not registered: {$gatewayId}");
+        }
+
+        $gateway = $this->gatewayRegistry->get($gatewayId);
+        if (!$gateway->isEnabled()) {
+            throw new RuntimeException("Payment gateway '{$gatewayId}' is disabled.");
+        }
+
+        $attempt = $gateway->createAttempt($intent, $params);
+        $attemptId = $attempt->getId();
+        $this->attempts[$attemptId] = $attempt;
+
+        if ($attempt->getTransactionReference() !== null) {
+            $compositeKey = strtolower($gateway->getId() . ':' . trim($attempt->getTransactionReference()));
+            $this->providerReferences[$compositeKey] = $attemptId;
+        }
+
+        // Synchronize intent charge amount & conversion snapshot from attempt
+        $snapshot = $attempt->getConversionSnapshot();
+        $chargeAmount = $attempt->getAmount();
+        $updatedIntent = $intent->withCharge($chargeAmount, $snapshot);
+        $this->intents[$intentId] = $updatedIntent;
+
+        // Persist attempt to database if available
+        if ($this->db !== null && $this->db->tableExists('favorite_pay_attempts')) {
+            $this->db->insert('favorite_pay_attempts', [
+                'attempt_id'         => $attemptId,
+                'transaction_id'     => $intentId,
+                'gateway_id'         => $gateway->getId(),
+                'amount'             => $attempt->getAmount()->getAmount(),
+                'currency'           => $attempt->getAmount()->getCurrency(),
+                'status'             => $attempt->getStatus()->value,
+                'provider_reference' => $attempt->getTransactionReference(),
+                'response_payload'   => json_encode($attempt->getMetadata(), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+                'created_at'         => date('Y-m-d H:i:s'),
+            ]);
+        }
+
+        return $attempt;
+    }
+
     public function submitManualVerification(
         string $intentId,
         string $gatewayId,
@@ -282,6 +349,16 @@ class PaymentService implements PaymentServiceInterface
         $compositeKey = strtolower($gateway->getId() . ':' . $trimmedRef);
         if (isset($this->providerReferences[$compositeKey])) {
             throw new RuntimeException("Duplicate transaction reference '{$trimmedRef}' for gateway '{$gateway->getId()}'.");
+        }
+
+        if ($this->db !== null && $this->db->tableExists('favorite_pay_attempts')) {
+            $existing = $this->db->selectOne(
+                "SELECT attempt_id FROM favorite_pay_attempts WHERE gateway_id = ? AND provider_reference = ? LIMIT 1",
+                [$gateway->getId(), $trimmedRef]
+            );
+            if ($existing) {
+                throw new RuntimeException("Duplicate transaction reference '{$trimmedRef}' for gateway '{$gateway->getId()}'.");
+            }
         }
 
         // Delegate attempt creation to the concrete gateway driver
@@ -485,6 +562,15 @@ class PaymentService implements PaymentServiceInterface
             $compositeKey = strtolower($attempt->getGatewayId() . ':' . trim($attempt->getTransactionReference()));
             $this->providerReferences[$compositeKey] = $attempt->getId();
         }
+
+        $intentId = $attempt->getIntentId();
+        if (isset($this->intents[$intentId])) {
+            $intent = $this->intents[$intentId];
+            $this->intents[$intentId] = $intent->withCharge(
+                $attempt->getAmount(),
+                $attempt->getConversionSnapshot()
+            );
+        }
     }
 
     public function hasTransactions(): bool
@@ -652,5 +738,115 @@ class PaymentService implements PaymentServiceInterface
         $this->updateIntentStatus($attempt->getIntentId(), PaymentStatus::FAILED);
 
         return $failedAttempt;
+    }
+
+    /**
+     * Return list of enabled and configured payment methods available for checkout.
+     *
+     * @param string|null $currency Optional currency filter
+     * @return array<int, array{id: string, title: string, type: string, is_manual: bool, instructions?: array}>
+     */
+    public function getAvailablePaymentMethods(?string $currency = null): array
+    {
+        $availableGateways = $this->gatewayRegistry->available($currency);
+        $methods = [];
+
+        foreach ($availableGateways as $gw) {
+            $isManual = $gw->getType()->requiresManualVerification();
+            $instructions = $gw->getInstructions();
+
+            $methods[] = [
+                'id'           => $gw->getId(),
+                'title'        => $gw->getTitle(),
+                'type'         => $gw->getType()->value,
+                'is_manual'    => $isManual,
+                'instructions' => $instructions,
+            ];
+        }
+
+        return $methods;
+    }
+
+    /**
+     * Compute explicit customer checkout figures for a given gateway.
+     * Prevents customer confusion between commercial order total and gateway acquiring charge.
+     */
+    public function getCheckoutCalculation(PaymentIntent $intent, string $gatewayId): array
+    {
+        if (!$this->gatewayRegistry->has($gatewayId)) {
+            throw new InvalidArgumentException("Payment gateway not registered: {$gatewayId}");
+        }
+
+        $gateway = $this->gatewayRegistry->get($gatewayId);
+        $baseAmount = $intent->getBaseAmount();
+        $baseCurrency = $baseAmount->getCurrency();
+
+        $isManual = $gateway->getType()->requiresManualVerification();
+        if ($isManual) {
+            return [
+                'gateway_id'               => $gatewayId,
+                'gateway_title'            => $gateway->getTitle(),
+                'original_order_amount'    => $baseAmount->getAmount(),
+                'original_order_currency'  => $baseCurrency,
+                'original_order_formatted' => $baseAmount->format(),
+                'charge_amount'            => $baseAmount->getAmount(),
+                'charge_currency'          => $baseCurrency,
+                'charge_formatted'         => $baseAmount->format(),
+                'has_conversion'           => false,
+                'conversion_rate_display'  => null,
+                'display_note'             => "Pay exact order total in {$baseCurrency}",
+            ];
+        }
+
+        if ($gateway instanceof \FavoriteCMS\Pay\Gateways\Binance\BinancePayGateway) {
+            $preferred = $gateway->getPreferredPaymentCurrency();
+            if ($baseCurrency === $preferred) {
+                return [
+                    'gateway_id'               => $gatewayId,
+                    'gateway_title'            => $gateway->getTitle(),
+                    'original_order_amount'    => $baseAmount->getAmount(),
+                    'original_order_currency'  => $baseCurrency,
+                    'original_order_formatted' => $baseAmount->format(),
+                    'charge_amount'            => $baseAmount->getAmount(),
+                    'charge_currency'          => $preferred,
+                    'charge_formatted'         => $baseAmount->format(),
+                    'has_conversion'           => false,
+                    'conversion_rate_display'  => null,
+                    'display_note'             => "Direct crypto payment in {$preferred}",
+                ];
+            }
+
+            if ($this->currencyService->hasRate($baseCurrency, $preferred)) {
+                $snapshot = $this->currencyService->createLockedSnapshot($baseCurrency, $preferred);
+                $charge = $snapshot->convert($baseAmount);
+                return [
+                    'gateway_id'               => $gatewayId,
+                    'gateway_title'            => $gateway->getTitle(),
+                    'original_order_amount'    => $baseAmount->getAmount(),
+                    'original_order_currency'  => $baseCurrency,
+                    'original_order_formatted' => $baseAmount->format(),
+                    'charge_amount'            => $charge->getAmount(),
+                    'charge_currency'          => $preferred,
+                    'charge_formatted'         => $charge->format(),
+                    'has_conversion'           => true,
+                    'conversion_rate_display'  => "1 {$preferred} = {$snapshot->getRateDecimalString()} {$baseCurrency}",
+                    'display_note'             => "Order total: {$baseAmount->format()} → Binance Pay: {$charge->format()}",
+                ];
+            }
+        }
+
+        return [
+            'gateway_id'               => $gatewayId,
+            'gateway_title'            => $gateway->getTitle(),
+            'original_order_amount'    => $baseAmount->getAmount(),
+            'original_order_currency'  => $baseCurrency,
+            'original_order_formatted' => $baseAmount->format(),
+            'charge_amount'            => $baseAmount->getAmount(),
+            'charge_currency'          => $baseCurrency,
+            'charge_formatted'         => $baseAmount->format(),
+            'has_conversion'           => false,
+            'conversion_rate_display'  => null,
+            'display_note'             => "Order total: {$baseAmount->format()}",
+        ];
     }
 }

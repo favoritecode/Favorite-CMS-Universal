@@ -11,6 +11,7 @@ use FavoriteCMS\Pay\Domain\ConversionSnapshot;
 use FavoriteCMS\Pay\Domain\Money;
 use FavoriteCMS\Pay\Exceptions\UnauthoritativeRateException;
 use FavoriteCMS\Pay\Providers\DatabaseRateProvider;
+use FavoriteCMS\Pay\Providers\LiveExchangeRateProvider;
 use InvalidArgumentException;
 
 /**
@@ -21,7 +22,7 @@ use InvalidArgumentException;
  * 2. Strict authoritative requirement: non-authoritative rates fail closed.
  * 3. Freshness validation: expired rates fail closed.
  * 4. Inverse rates are derived ONLY from authoritative, fresh source rates.
- * 5. Supports ExchangeRateProviderInterface and DatabaseRateProvider.
+ * 5. Supports ExchangeRateProviderInterface, LiveExchangeRateProvider, and DatabaseRateProvider.
  */
 class CurrencyService implements CurrencyServiceInterface
 {
@@ -45,10 +46,13 @@ class CurrencyService implements CurrencyServiceInterface
         if ($provider !== null) {
             $this->provider = $provider;
         } elseif ($db !== null) {
-            $this->provider = new DatabaseRateProvider($db);
+            $fallback = new DatabaseRateProvider($db);
+            $this->provider = new LiveExchangeRateProvider($db, $fallback);
         } else {
             $this->provider = null;
         }
+
+
     }
 
     public function setProvider(?ExchangeRateProviderInterface $provider): void
@@ -220,8 +224,39 @@ class CurrencyService implements CurrencyServiceInterface
             );
         }
 
+        // 4. Safe Triangulation via common reference currency (USD)
+        if ($from !== 'USD' && $to !== 'USD') {
+            $snapFrom = $this->resolveRateSnapshot('USD', $from);
+            $snapTo = $this->resolveRateSnapshot('USD', $to);
+
+            if (
+                $snapFrom !== null && $snapFrom->isAuthoritative() && !$snapFrom->isExpired() && $snapFrom->getRateFactor() > 0
+                && $snapTo !== null && $snapTo->isAuthoritative() && !$snapTo->isExpired() && $snapTo->getRateFactor() > 0
+            ) {
+                // Rate math: 1 USD = factorFrom 'from'  => 1 'from' = (factorTo / factorFrom) 'to'
+                $scale = $snapFrom->getRateScale();
+                $factorFrom = $snapFrom->getRateFactor();
+                $factorTo = $snapTo->getRateFactor();
+
+                $derivedFactor = intdiv(($factorTo * $scale) + intdiv($factorFrom, 2), $factorFrom);
+                if ($derivedFactor > 0) {
+                    return new ConversionSnapshot(
+                        $from,
+                        $to,
+                        $derivedFactor,
+                        $scale,
+                        true,
+                        $snapTo->getLockedAt(),
+                        $snapTo->getExpiresAt(),
+                        'derived_triangulation:USD'
+                    );
+                }
+            }
+        }
+
         return null;
     }
+
 
     public function setOperatorRate(
         string $fromCurrency,

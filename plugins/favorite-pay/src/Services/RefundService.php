@@ -57,13 +57,24 @@ class RefundService implements RefundServiceInterface
             throw new RuntimeException("Cannot refund payment with status: {$intent->getStatus()->value}");
         }
 
-        $refundAmount = $amount ?? $intent->getChargeAmount();
+        $chargeAmount = $intent->getChargeAmount();
+        $baseAmount = $intent->getBaseAmount();
+
+        $refundAmount = $amount ?? $chargeAmount;
         if (!$refundAmount->isPositive()) {
             throw new InvalidArgumentException("Refund amount must be strictly positive.");
         }
 
-        if ($refundAmount->greaterThan($intent->getChargeAmount())) {
-            throw new RuntimeException("Refund amount exceeds original charge amount.");
+        if ($refundAmount->getCurrency() === $chargeAmount->getCurrency()) {
+            if ($refundAmount->greaterThan($chargeAmount)) {
+                throw new RuntimeException("Refund amount exceeds original charge amount.");
+            }
+        } elseif ($refundAmount->getCurrency() === $baseAmount->getCurrency()) {
+            if ($refundAmount->greaterThan($baseAmount)) {
+                throw new RuntimeException("Refund amount exceeds original order base amount.");
+            }
+        } else {
+            throw new InvalidArgumentException("Refund currency '{$refundAmount->getCurrency()}' does not match charge currency '{$chargeAmount->getCurrency()}' or order currency '{$baseAmount->getCurrency()}'.");
         }
 
         $refundId = 'ref_' . bin2hex(random_bytes(8));
@@ -75,11 +86,17 @@ class RefundService implements RefundServiceInterface
             'intent_id'                 => $intentId,
             'amount'                    => $refundAmount->getAmount(),
             'currency'                  => $refundAmount->getCurrency(),
+            'original_order_amount'     => $baseAmount->getAmount(),
+            'original_order_currency'   => $baseAmount->getCurrency(),
+            'charge_amount'             => $chargeAmount->getAmount(),
+            'charge_currency'           => $chargeAmount->getCurrency(),
+            'conversion_snapshot'       => $intent->getConversionSnapshot()?->toArray(),
             'reason'                    => $reason,
             'provider_refund_reference' => $providerRef,
             'operator_id'               => $operatorId,
             'created_at'                => date('Y-m-d H:i:s'),
         ];
+
 
         $this->refunds[$intentId][] = $refundRecord;
 

@@ -84,9 +84,13 @@ class BinancePayGateway implements
         $this->db = $db;
 
         if ($currencyService === null && class_exists(\FavoriteCMS\Core\Application::class)) {
-            $app = \FavoriteCMS\Core\Application::getInstance();
-            if ($app && $app->has(CurrencyServiceInterface::class)) {
-                $currencyService = $app->make(CurrencyServiceInterface::class);
+            try {
+                $app = \FavoriteCMS\Core\Application::getInstance();
+                if ($app instanceof \FavoriteCMS\Core\Application && $app->has(CurrencyServiceInterface::class)) {
+                    $currencyService = $app->make(CurrencyServiceInterface::class);
+                }
+            } catch (\Throwable) {
+                // Ignore container instance mismatch in isolated tests or standalone context
             }
         }
         $this->currencyService = $currencyService;
@@ -187,31 +191,46 @@ class BinancePayGateway implements
             throw new RuntimeException("Binance Pay is not configured: missing API Secret Key.");
         }
 
-        $amount = $intent->getAmount();
-        $currency = strtoupper($amount->getCurrency());
-        $snapshot = $intent->getConversionSnapshot();
+        $baseAmount = $intent->getBaseAmount();
+        $baseCurrency = strtoupper($baseAmount->getCurrency());
+        $preferred = $this->getPreferredPaymentCurrency();
 
-        // 3. Strict Currency verification & automated conversion for supported site currencies (e.g. BDT, EUR)
-        if (!in_array($currency, $this->supportedCurrencies, true)) {
-            $preferred = $this->getPreferredPaymentCurrency();
-            if ($this->currencyService === null || !$this->currencyService->hasRate($currency, $preferred)) {
-                throw new UnauthoritativeRateException(
-                    "Cannot process payment: No valid authoritative exchange rate is available between order currency '{$currency}' and Binance acquiring currency '{$preferred}'.",
-                    $currency,
-                    $preferred
-                );
+        // 3. Strict Currency verification & automated conversion for supported site currencies (e.g. BDT, EUR, USD)
+        if ($baseCurrency !== $preferred) {
+            $existingSnapshot = $intent->getConversionSnapshot();
+            if (
+                $existingSnapshot !== null
+                && $existingSnapshot->getFromCurrency() === $baseCurrency
+                && $existingSnapshot->getToCurrency() === $preferred
+                && $existingSnapshot->isValidForPayment()
+            ) {
+                $snapshot = $existingSnapshot;
+                $amount = $snapshot->convert($baseAmount);
+                $currency = $preferred;
+            } else {
+                if ($this->currencyService === null || !$this->currencyService->hasRate($baseCurrency, $preferred)) {
+                    throw new UnauthoritativeRateException(
+                        "Cannot process payment: No valid authoritative exchange rate is available between order currency '{$baseCurrency}' and Binance acquiring currency '{$preferred}'.",
+                        $baseCurrency,
+                        $preferred
+                    );
+                }
+                $snapshot = $this->currencyService->createLockedSnapshot($baseCurrency, $preferred);
+                if (!$snapshot->isValidForPayment()) {
+                    throw new UnauthoritativeRateException(
+                        "Cannot process payment: Exchange rate between '{$baseCurrency}' and '{$preferred}' is not valid or has expired.",
+                        $baseCurrency,
+                        $preferred
+                    );
+                }
+                $amount = $snapshot->convert($baseAmount);
+                $currency = $preferred;
             }
-            $snapshot = $this->currencyService->createLockedSnapshot($currency, $preferred);
-            if (!$snapshot->isValidForPayment()) {
-                throw new UnauthoritativeRateException(
-                    "Cannot process payment: Exchange rate between '{$currency}' and '{$preferred}' is not valid or has expired.",
-                    $currency,
-                    $preferred
-                );
-            }
-            $amount = $snapshot->convert($amount);
-            $currency = $amount->getCurrency();
         } else {
+            // Base currency is already the preferred payment currency (e.g. USDT)
+            $amount = $baseAmount;
+            $currency = $preferred;
+            $snapshot = $intent->getConversionSnapshot();
             if ($snapshot !== null && !$snapshot->isValidForPayment()) {
                 throw new UnauthoritativeRateException(
                     "Cannot process payment: Payment conversion snapshot is non-authoritative or expired.",
@@ -220,6 +239,7 @@ class BinancePayGateway implements
                 );
             }
         }
+
 
         // 4. Strict Amount verification
         if (!$amount->isPositive()) {
@@ -277,21 +297,29 @@ class BinancePayGateway implements
         $universalUrl = $responseData['universalUrl'] ?? null;
 
         $metadata = [
-            'merchant_trade_no' => $merchantTradeNo,
-            'prepay_id'         => $prepayId,
-            'checkout_url'      => $checkoutUrl,
-            'qrcode_link'       => $qrCodeLink,
-            'qr_content'        => $qrContent,
-            'universal_url'     => $universalUrl,
-            'charge_currency'   => $currency,
-            'charge_amount'     => $amount->getAmount(),
-            'base_currency'     => $intent->getBaseAmount()->getCurrency(),
-            'base_amount'       => $intent->getBaseAmount()->getAmount(),
-            'rate_factor'       => $snapshot?->getRateFactor(),
-            'rate_scale'        => $snapshot?->getRateScale(),
-            'created_currency'  => $currency,
-            'decimal_amount'    => $decimalAmountStr,
+            'original_order_amount'   => $baseAmount->getAmount(),
+            'original_order_currency' => $baseCurrency,
+            'accounting_amount'       => $baseAmount->getAmount(),
+            'accounting_currency'     => $baseCurrency,
+            'charge_amount'           => $amount->getAmount(),
+            'charge_currency'         => $currency,
+            'rate_factor'             => $snapshot?->getRateFactor(),
+            'rate_scale'              => $snapshot?->getRateScale(),
+            'rate_decimal'            => $snapshot?->getRateDecimalString(),
+            'rate_source'             => $snapshot?->getSource(),
+            'conversion_snapshot'     => $snapshot?->toArray(),
+            'merchant_trade_no'       => $merchantTradeNo,
+            'prepay_id'               => $prepayId,
+            'checkout_url'            => $checkoutUrl,
+            'qrcode_link'             => $qrCodeLink,
+            'qr_content'              => $qrContent,
+            'universal_url'           => $universalUrl,
+            'decimal_amount'          => $decimalAmountStr,
+            'base_currency'           => $baseCurrency,
+            'base_amount'             => $baseAmount->getAmount(),
+            'created_currency'        => $currency,
         ];
+
 
         $attempt = new PaymentAttempt(
             $attemptId,

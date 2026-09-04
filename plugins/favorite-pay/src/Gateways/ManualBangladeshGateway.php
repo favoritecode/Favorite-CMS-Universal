@@ -79,20 +79,40 @@ class ManualBangladeshGateway implements PaymentGatewayInterface, ConfigurableGa
         return $this->supportedCurrencies;
     }
 
+    public function isConfigured(): bool
+    {
+        $accountNumber = trim((string)($this->config['account_number'] ?? ''));
+        if ($accountNumber !== '') {
+            return true;
+        }
+        $bankName = trim((string)($this->config['bank_name'] ?? ''));
+        return $bankName !== '';
+    }
+
+    public function isAvailable(): bool
+    {
+        return $this->isEnabled() && $this->isConfigured();
+    }
+
     public function getInstructions(array $context = []): array
     {
         return [
-            'gateway_id'     => $this->id,
-            'title'          => $this->title,
-            'channel'        => $this->config['channel'] ?? 'manual_bd',
-            'account_name'   => $this->config['account_name'] ?? 'Favorite CMS Merchant',
-            'account_number' => $this->config['account_number'] ?? '01700000000',
-            'account_type'   => $this->config['account_type'] ?? 'Personal / Merchant',
-            'bank_name'      => $this->config['bank_name'] ?? '',
-            'branch_name'    => $this->config['branch_name'] ?? '',
-            'routing_no'     => $this->config['routing_no'] ?? '',
-            'instructions'   => $this->config['instructions'] ?? 'Please send the exact amount to the account above and submit your transaction reference (TrxID).',
-            'is_enabled'     => $this->enabled,
+            'gateway_id'             => $this->id,
+            'title'                  => $this->title,
+            'channel'                => $this->config['channel'] ?? 'manual_bd',
+            'account_name'           => $this->config['account_name'] ?? '',
+            'account_number'         => $this->config['account_number'] ?? '',
+            'account_type'           => $this->config['account_type'] ?? 'Personal / Merchant',
+            'bank_name'              => $this->config['bank_name'] ?? '',
+            'branch_name'            => $this->config['branch_name'] ?? '',
+            'routing_no'             => $this->config['routing_no'] ?? '',
+            'swift_code'             => $this->config['swift_code'] ?? '',
+            'instructions'           => $this->config['instructions'] ?? 'Please send the exact amount to the account above and submit your transaction reference (TrxID).',
+            'reference_instructions' => $this->config['reference_instructions'] ?? 'Submit the Transaction ID (TrxID) or deposit reference after completing payment.',
+            'proof_requirements'     => $this->config['proof_requirements'] ?? 'Sender number/account, transaction reference (TrxID), and optional screenshot.',
+            'is_enabled'             => $this->enabled,
+            'is_configured'          => $this->isConfigured(),
+            'is_available'           => $this->isAvailable(),
         ];
     }
 
@@ -163,11 +183,11 @@ class ManualBangladeshGateway implements PaymentGatewayInterface, ConfigurableGa
                 'label'       => 'Payment Channel',
                 'required'    => true,
                 'secret'      => false,
-                'description' => 'Identifier for the payment channel (e.g. bkash, nagad, bank).',
+                'description' => 'Identifier for the payment channel (e.g. bkash, nagad, rocket, bank).',
             ],
             'account_name' => [
                 'type'        => 'text',
-                'label'       => 'Merchant Account Name',
+                'label'       => 'Merchant / Account Name',
                 'required'    => false,
                 'secret'      => false,
                 'description' => 'Account holder or organization name.',
@@ -179,12 +199,61 @@ class ManualBangladeshGateway implements PaymentGatewayInterface, ConfigurableGa
                 'secret'      => false,
                 'description' => 'Receiving account number or mobile wallet number.',
             ],
+            'account_type' => [
+                'type'        => 'text',
+                'label'       => 'Account Type',
+                'required'    => false,
+                'secret'      => false,
+                'description' => 'Account type (e.g. Personal, Merchant, Agent).',
+            ],
+            'bank_name' => [
+                'type'        => 'text',
+                'label'       => 'Bank Name',
+                'required'    => false,
+                'secret'      => false,
+                'description' => 'Name of the bank for manual wire/transfer.',
+            ],
+            'branch_name' => [
+                'type'        => 'text',
+                'label'       => 'Branch Name',
+                'required'    => false,
+                'secret'      => false,
+                'description' => 'Branch name where account is held.',
+            ],
+            'routing_no' => [
+                'type'        => 'text',
+                'label'       => 'Routing Number',
+                'required'    => false,
+                'secret'      => false,
+                'description' => 'Bank routing number for electronic fund transfer (BEFTN/NPSB).',
+            ],
+            'swift_code' => [
+                'type'        => 'text',
+                'label'       => 'SWIFT / BIC',
+                'required'    => false,
+                'secret'      => false,
+                'description' => 'SWIFT / BIC code for international wire transfers.',
+            ],
             'instructions' => [
                 'type'        => 'textarea',
                 'label'       => 'Customer Instructions',
                 'required'    => false,
                 'secret'      => false,
                 'description' => 'Instructions displayed to customer on checkout.',
+            ],
+            'reference_instructions' => [
+                'type'        => 'textarea',
+                'label'       => 'Reference Instructions',
+                'required'    => false,
+                'secret'      => false,
+                'description' => 'Guidance on what TrxID / reference the customer must provide.',
+            ],
+            'proof_requirements' => [
+                'type'        => 'text',
+                'label'       => 'Proof Requirements',
+                'required'    => false,
+                'secret'      => false,
+                'description' => 'Information required from customer as proof of payment.',
             ],
         ];
     }
@@ -195,7 +264,14 @@ class ManualBangladeshGateway implements PaymentGatewayInterface, ConfigurableGa
         $validated['channel'] = trim((string)($config['channel'] ?? 'manual_bd'));
         $validated['account_name'] = trim((string)($config['account_name'] ?? ''));
         $validated['account_number'] = trim((string)($config['account_number'] ?? ''));
+        $validated['account_type'] = trim((string)($config['account_type'] ?? 'Personal / Merchant'));
+        $validated['bank_name'] = trim((string)($config['bank_name'] ?? ''));
+        $validated['branch_name'] = trim((string)($config['branch_name'] ?? ''));
+        $validated['routing_no'] = trim((string)($config['routing_no'] ?? ''));
+        $validated['swift_code'] = trim((string)($config['swift_code'] ?? ''));
         $validated['instructions'] = trim((string)($config['instructions'] ?? ''));
+        $validated['reference_instructions'] = trim((string)($config['reference_instructions'] ?? ''));
+        $validated['proof_requirements'] = trim((string)($config['proof_requirements'] ?? ''));
         return $validated;
     }
 

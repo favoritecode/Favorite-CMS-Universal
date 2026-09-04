@@ -64,9 +64,12 @@ class PaymentRateController
         // 3. Dispatch based on HTTP method & action
         if ($request->method() === 'POST') {
             $action = (string)$request->post('action', 'save');
+            if ($action === 'refresh_live') {
+                return $this->refreshLiveRates($request);
+            }
             if ($action === 'deactivate') {
                 $operatorId = (int)($currentUser->id ?? $userId);
-            return $this->deactivate($request, $currentUser, $operatorId);
+                return $this->deactivate($request, $currentUser, $operatorId);
             }
             $operatorId = (int)($currentUser->id ?? $userId);
             return $this->store($request, $currentUser, $operatorId);
@@ -88,14 +91,47 @@ class PaymentRateController
             $csrfToken = csrf_token();
         }
 
+        $provider = $this->currencyService->getProvider();
+        $liveFxStatus = null;
+        if ($provider instanceof \FavoriteCMS\Pay\Providers\LiveExchangeRateProvider) {
+            $liveFxStatus = $provider->getDiagnosticStatus();
+        }
+
         return $this->renderView('rates', [
             'rates'               => $rates,
             'supportedCurrencies' => $supportedCurrencies,
             'baseCurrency'        => $this->currencyService->getBaseCurrency(),
             'csrfToken'           => $csrfToken,
+            'liveFxStatus'        => $liveFxStatus,
             'flashSuccess'        => $_SESSION['flash_success'] ?? null,
             'flashError'          => $_SESSION['flash_error'] ?? null,
         ]);
+    }
+
+    /**
+     * Trigger on-demand sync with Live FX provider.
+     */
+    public function refreshLiveRates(Request $request): Response
+    {
+        if (!$this->validateCsrf($request)) {
+            $_SESSION['flash_error'] = 'Security token expired or invalid (CSRF failure). Please try again.';
+            return Response::redirect('/admin/page/favorite-pay-rates');
+        }
+
+        $provider = $this->currencyService->getProvider();
+        if ($provider instanceof \FavoriteCMS\Pay\Providers\LiveExchangeRateProvider) {
+            $success = $provider->refreshRates();
+            if ($success) {
+                $_SESSION['flash_success'] = 'Live FX market rates synchronized successfully.';
+            } else {
+                $status = $provider->getDiagnosticStatus();
+                $_SESSION['flash_error'] = 'Failed to refresh live FX rates: ' . ($status['last_error'] ?? 'API endpoint unreachable');
+            }
+        } else {
+            $_SESSION['flash_error'] = 'Live FX provider is not active.';
+        }
+
+        return Response::redirect('/admin/page/favorite-pay-rates');
     }
 
     /**

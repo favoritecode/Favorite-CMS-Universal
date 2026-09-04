@@ -112,6 +112,11 @@ final class PaymentIntent
         return $this->metadata;
     }
 
+    public function getGatewayId(): ?string
+    {
+        return $this->metadata['gateway_id'] ?? null;
+    }
+
     public function getCreatedAt(): string
     {
         return $this->createdAt;
@@ -120,6 +125,31 @@ final class PaymentIntent
     public function getUpdatedAt(): string
     {
         return $this->updatedAt;
+    }
+
+    public function getOriginalOrderAmount(): Money
+    {
+        return $this->baseAmount;
+    }
+
+    public function getOriginalOrderCurrency(): string
+    {
+        return $this->baseAmount->getCurrency();
+    }
+
+    public function getAccountingAmount(): Money
+    {
+        return $this->baseAmount;
+    }
+
+    public function getAccountingCurrency(): string
+    {
+        return $this->baseAmount->getCurrency();
+    }
+
+    public function getChargeCurrency(): string
+    {
+        return $this->chargeAmount->getCurrency();
     }
 
     public function withStatus(PaymentStatus $newStatus): self
@@ -134,6 +164,17 @@ final class PaymentIntent
     {
         $clone = clone $this;
         $clone->methodType = $methodType;
+        $clone->updatedAt = date('Y-m-d H:i:s');
+        return $clone;
+    }
+
+    public function withCharge(Money $chargeAmount, ?ConversionSnapshot $snapshot = null): self
+    {
+        $clone = clone $this;
+        $clone->chargeAmount = $chargeAmount;
+        if ($snapshot !== null) {
+            $clone->conversionSnapshot = $snapshot;
+        }
         $clone->updatedAt = date('Y-m-d H:i:s');
         return $clone;
     }

@@ -10,6 +10,9 @@ enum PaymentMethodType: string
     case MANUAL_BKASH = 'manual_bkash';
     case MANUAL_NAGAD = 'manual_nagad';
     case MANUAL_BANK = 'manual_bank';
+    case MANUAL_ROCKET = 'manual_rocket';
+    case BKASH = 'bkash';
+    case BINANCE = 'binance';
     case CARD = 'card';
     case CRYPTO = 'crypto';
     case WALLET = 'wallet';
@@ -21,6 +24,7 @@ enum PaymentMethodType: string
             self::MANUAL_BD,
             self::MANUAL_BKASH,
             self::MANUAL_NAGAD,
+            self::MANUAL_ROCKET,
             self::MANUAL_BANK,
         ], true);
     }

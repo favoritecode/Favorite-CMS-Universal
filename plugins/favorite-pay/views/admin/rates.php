@@ -35,6 +35,49 @@
         </div>
     <?php endif; ?>
 
+    <!-- Live FX Provider Status Card -->
+    <?php if (!empty($liveFxStatus)): ?>
+        <div class="card mb-4" style="border: 1px solid #c3c4c7;">
+            <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Automated Live FX Market Rate Provider</h5>
+                <form method="POST" action="/admin/page/favorite-pay-rates" class="m-0">
+                    <input type="hidden" name="_token" value="<?php echo htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
+                    <input type="hidden" name="action" value="refresh_live">
+                    <button type="submit" class="btn btn-sm btn-primary">🔄 Sync Live Rates Now</button>
+                </form>
+            </div>
+            <div class="card-body">
+                <div class="row align-items-center">
+                    <div class="col-md-3">
+                        <small class="text-muted d-block">Status</small>
+                        <?php if ($liveFxStatus['state'] === 'READY'): ?>
+                            <span class="badge bg-success text-white" style="font-size: 0.9rem; padding: 4px 8px;">● READY (Live Market Feed)</span>
+                        <?php else: ?>
+                            <span class="badge bg-warning text-dark" style="font-size: 0.9rem; padding: 4px 8px;">● <?php echo htmlspecialchars($liveFxStatus['state'], ENT_QUOTES, 'UTF-8'); ?></span>
+                        <?php endif; ?>
+                    </div>
+                    <div class="col-md-3">
+                        <small class="text-muted d-block">Source Provider</small>
+                        <strong>Open Market Rates (ExchangeRate-API)</strong>
+                    </div>
+                    <div class="col-md-3">
+                        <small class="text-muted d-block">Last Sync</small>
+                        <span><?php echo htmlspecialchars($liveFxStatus['last_refresh_time'] ?? 'Cached / Standby', ENT_QUOTES, 'UTF-8'); ?></span>
+                    </div>
+                    <div class="col-md-3">
+                        <small class="text-muted d-block">Emergency Manual Fallback</small>
+                        <span class="badge <?php echo ($liveFxStatus['emergency_fallback'] ?? '') === 'ENABLED' ? 'bg-warning text-dark' : 'bg-secondary text-white'; ?>">
+                            <?php echo htmlspecialchars($liveFxStatus['emergency_fallback'] ?? 'DISABLED (Fail Closed)', ENT_QUOTES, 'UTF-8'); ?>
+                        </span>
+                    </div>
+                </div>
+                <div class="mt-2 text-muted small">
+                    <em>Normal automatic conversion runs on live market rates (ExchangeRate-API / Binance Ticker). If live rates are unavailable or stale, the engine safely fails closed. The table below manages explicit operator rates for manual payments or emergency override mode.</em>
+                </div>
+            </div>
+        </div>
+    <?php endif; ?>
+
     <!-- New Rate Configuration Card -->
     <div class="card mb-4" style="border: 1px solid #c3c4c7;">
         <div class="card-header bg-light">

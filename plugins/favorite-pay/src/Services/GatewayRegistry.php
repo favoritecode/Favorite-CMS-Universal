@@ -38,6 +38,11 @@ final class GatewayRegistry
             'Nagad Manual',
             \FavoriteCMS\Pay\Domain\PaymentMethodType::MANUAL_NAGAD
         );
+        $rocket = new \FavoriteCMS\Pay\Gateways\ManualBangladeshGateway(
+            'manual_rocket',
+            'Rocket Manual',
+            \FavoriteCMS\Pay\Domain\PaymentMethodType::MANUAL_ROCKET
+        );
         $bank = new \FavoriteCMS\Pay\Gateways\ManualBangladeshGateway(
             'manual_bank',
             'Bank Transfer Manual',
@@ -53,8 +58,15 @@ final class GatewayRegistry
         $this->gateways[$nagad->getId()] = $nagad;
         $this->defaults[$nagad->getId()] = true;
 
+        $this->gateways[$rocket->getId()] = $rocket;
+        $this->defaults[$rocket->getId()] = true;
+
         $this->gateways[$bank->getId()] = $bank;
         $this->defaults[$bank->getId()] = true;
+
+        $bkashDirect = new \FavoriteCMS\Pay\Gateways\Bkash\BkashMerchantGateway();
+        $this->gateways[$bkashDirect->getId()] = $bkashDirect;
+        $this->defaults[$bkashDirect->getId()] = true;
 
         $binance = new \FavoriteCMS\Pay\Gateways\Binance\BinancePayGateway();
         $this->gateways[$binance->getId()] = $binance;
@@ -62,8 +74,12 @@ final class GatewayRegistry
 
         $this->aliases['bkash_manual'] = 'manual_bkash';
         $this->aliases['nagad_manual'] = 'manual_nagad';
+        $this->aliases['rocket_manual'] = 'manual_rocket';
+        $this->aliases['rocket'] = 'manual_rocket';
         $this->aliases['bank_manual'] = 'manual_bank';
         $this->aliases['binance'] = 'binance_pay';
+        $this->aliases['bkash_auto'] = 'bkash_direct';
+        $this->aliases['bkash_merchant'] = 'bkash_direct';
     }
 
     public function register(PaymentGatewayInterface $gateway, array $aliases = [], bool $overwrite = false): void
@@ -184,5 +200,45 @@ final class GatewayRegistry
     public function enabled(): array
     {
         return array_values(array_filter($this->gateways, fn($gw) => $gw->isEnabled()));
+    }
+
+    /**
+     * Return only gateways that are enabled AND configured for customer checkout.
+     *
+     * @param string|null $currency Optional currency filter
+     * @return PaymentGatewayInterface[]
+     */
+    public function available(?string $currency = null): array
+    {
+        $normalizedCurrency = $currency !== null ? strtoupper(trim($currency)) : null;
+
+        return array_values(array_filter($this->gateways, function (PaymentGatewayInterface $gw) use ($normalizedCurrency) {
+            if (!$gw->isEnabled()) {
+                return false;
+            }
+
+            // Must be configured if gateway declares isConfigured()
+            if (method_exists($gw, 'isConfigured') && !$gw->isConfigured()) {
+                return false;
+            }
+
+            // Check availability helper if provided
+            if (method_exists($gw, 'isAvailable') && !$gw->isAvailable()) {
+                return false;
+            }
+
+            // Currency check
+            if ($normalizedCurrency !== null) {
+                $supported = $gw->getSupportedCurrencies();
+                if (!in_array($normalizedCurrency, $supported, true)) {
+                    // Multi-currency conversion gateways (e.g. BinancePayGateway) convert automatically
+                    if (!($gw instanceof \FavoriteCMS\Pay\Gateways\Binance\BinancePayGateway)) {
+                        return false;
+                    }
+                }
+            }
+
+            return true;
+        }));
     }
 }

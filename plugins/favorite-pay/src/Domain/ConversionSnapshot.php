@@ -234,6 +234,12 @@ final class ConversionSnapshot
             $convertedMinor = intdiv($source->getAmount() * $this->rateFactor + intdiv($effectiveScale, 2), $effectiveScale);
         }
 
+        if ($source->getAmount() > 0 && $convertedMinor === 0) {
+            $convertedMinor = 1;
+        } elseif ($source->getAmount() < 0 && $convertedMinor === 0) {
+            $convertedMinor = -1;
+        }
+
         return new Money($convertedMinor, $this->toCurrency);
     }
 }
