@@ -57,13 +57,14 @@ class PluginLifecycleTest extends TestCase
         $registry = $this->app->make(GatewayRegistry::class);
 
         $mockGateway = new class implements PaymentGatewayInterface {
-            public function getId(): string { return 'mock_bkash'; }
-            public function getTitle(): string { return 'Mock bKash Gateway'; }
+            public function getId(): string { return 'mock_test_gw'; }
+            public function getTitle(): string { return 'Mock Test Gateway'; }
             public function getType(): PaymentMethodType { return PaymentMethodType::MANUAL_BD; }
             public function isEnabled(): bool { return true; }
             public function getSupportedCurrencies(): array { return ['BDT']; }
+            public function getInstructions(array $context = []): array { return ['instructions' => 'test']; }
             public function createAttempt(PaymentIntent $intent, array $params = []): PaymentAttempt {
-                return new PaymentAttempt('att_1', $intent->getId(), 'mock_bkash', $intent->getChargeAmount());
+                return new PaymentAttempt('att_1', $intent->getId(), 'mock_test_gw', $intent->getChargeAmount());
             }
             public function verifyAttempt(PaymentAttempt $attempt, array $data = []): PaymentAttempt {
                 return $attempt;
@@ -72,9 +73,9 @@ class PluginLifecycleTest extends TestCase
 
         $registry->register($mockGateway);
 
-        $this->assertTrue($registry->has('mock_bkash'));
-        $this->assertSame('Mock bKash Gateway', $registry->get('mock_bkash')->getTitle());
-        $this->assertCount(1, $registry->enabled());
+        $this->assertTrue($registry->has('mock_test_gw'));
+        $this->assertSame('Mock Test Gateway', $registry->get('mock_test_gw')->getTitle());
+        $this->assertNotEmpty($registry->enabled());
     }
 
     public function testRefundLifecycleFullAndPartial(): void

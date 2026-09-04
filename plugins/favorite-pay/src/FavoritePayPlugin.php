@@ -11,6 +11,8 @@ use FavoriteCMS\Pay\Contracts\CurrencyServiceInterface;
 use FavoriteCMS\Pay\Contracts\PaymentServiceInterface;
 use FavoriteCMS\Pay\Contracts\RefundServiceInterface;
 use FavoriteCMS\Pay\Contracts\WalletServiceInterface;
+use FavoriteCMS\Pay\Domain\PaymentMethodType;
+use FavoriteCMS\Pay\Gateways\ManualBangladeshGateway;
 use FavoriteCMS\Pay\Services\CurrencyService;
 use FavoriteCMS\Pay\Services\GatewayRegistry;
 use FavoriteCMS\Pay\Services\PaymentService;
@@ -52,9 +54,72 @@ final class FavoritePayPlugin
 
     public function register(): void
     {
-        // Bind Gateway Registry
+        // Bind Gateway Registry with default Manual Bangladesh Gateway drivers
         $this->app->singleton(GatewayRegistry::class, function () {
-            return new GatewayRegistry();
+            $registry = new GatewayRegistry();
+
+            // Default Manual Bangladesh Gateways
+            $manualBd = new ManualBangladeshGateway(
+                'manual_bd',
+                'Manual Bangladesh Payment',
+                PaymentMethodType::MANUAL_BD,
+                [
+                    'channel'      => 'manual_bd',
+                    'instructions' => 'Please transfer to our merchant account and submit your TrxID below.',
+                ]
+            );
+
+            $manualBkash = new ManualBangladeshGateway(
+                'manual_bkash',
+                'bKash Manual Payment',
+                PaymentMethodType::MANUAL_BKASH,
+                [
+                    'channel'        => 'bkash',
+                    'account_name'   => 'Favorite CMS Merchant',
+                    'account_number' => '01700000000',
+                    'account_type'   => 'Personal / Merchant',
+                    'instructions'   => 'Send money via bKash and submit your 10-digit TrxID.',
+                ]
+            );
+
+            $manualNagad = new ManualBangladeshGateway(
+                'manual_nagad',
+                'Nagad Manual Payment',
+                PaymentMethodType::MANUAL_NAGAD,
+                [
+                    'channel'        => 'nagad',
+                    'account_name'   => 'Favorite CMS Merchant',
+                    'account_number' => '01800000000',
+                    'account_type'   => 'Personal / Merchant',
+                    'instructions'   => 'Send money via Nagad and submit your TrxID.',
+                ]
+            );
+
+            $manualBank = new ManualBangladeshGateway(
+                'manual_bank',
+                'Bank Transfer',
+                PaymentMethodType::MANUAL_BANK,
+                [
+                    'channel'        => 'bank',
+                    'bank_name'      => 'City Bank PLC',
+                    'account_name'   => 'Favorite CMS',
+                    'account_number' => '1100000000000',
+                    'branch_name'    => 'Principal Branch, Dhaka',
+                    'routing_no'     => '225260000',
+                    'instructions'   => 'Transfer the exact amount and submit your bank deposit/EFT reference number.',
+                ]
+            );
+
+            $registry->register($manualBd);
+            $registry->register($manualBkash);
+            $registry->register($manualNagad);
+            $registry->register($manualBank);
+
+            // Backward compatibility aliases for Phase 1 tests
+            $registry->registerAlias('bkash_manual', 'manual_bkash');
+            $registry->registerAlias('nagad_manual', 'manual_nagad');
+
+            return $registry;
         });
 
         // Bind Currency Service
@@ -69,9 +134,11 @@ final class FavoritePayPlugin
 
         // Bind Payment Service
         $this->app->singleton(PaymentServiceInterface::class, function ($app) {
+            $db = $app->has(Database::class) ? $app->make(Database::class) : null;
             return new PaymentService(
                 $app->make(CurrencyServiceInterface::class),
-                $app->make(GatewayRegistry::class)
+                $app->make(GatewayRegistry::class),
+                $db
             );
         });
 

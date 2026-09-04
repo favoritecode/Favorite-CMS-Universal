@@ -1,10 +1,10 @@
 # Favorite Pay — Phase 1 Implementation Specification
 
-**Document Version**: 1.0.0  
+**Document Version**: 1.1.0  
 **Target Repository**: `Favorite-CMS-Universal`  
 **Plugin Identifier**: `favorite-pay`  
 **Namespace**: `FavoriteCMS\Pay`  
-**Status**: Implemented (Phase 1 Foundation)  
+**Status**: Implemented (Phase 1 Foundation, Phase 2 Database & Migrations, Phase 3A Gateway Framework & Manual Payment)  
 
 ---
 
@@ -115,12 +115,42 @@ Migration file: `plugins/favorite-pay/database/migrations/001_create_favorite_pa
 
 ---
 
-## 7. Phase 3 & Future Roadmap
+## 7. Phase 3A: Gateway Driver Framework & Manual Bangladesh Payment
+ 
+### 7.1 Runtime Gateway Framework
+- **`PaymentGatewayInterface`**: Enforces unified driver contracts across all payment providers:
+  - `getId(): string`
+  - `getTitle(): string`
+  - `getType(): PaymentMethodType`
+  - `isEnabled(): bool`
+  - `getSupportedCurrencies(): array`
+  - `processPayment(PaymentAttempt $attempt, array $payload = []): array`
+  - `verifyPayment(PaymentAttempt $attempt, array $payload = []): array`
+  - `refundPayment(PaymentAttempt $attempt, Money $amount, string $reason = ''): array`
+  - `getInstructions(array $context = []): array` (Standard instruction payload for client UI)
+- **`GatewayRegistry`**: Centralized gateway driver registration and discovery supporting primary gateway IDs (`manual_bd`, `manual_bkash`, `manual_nagad`, `manual_bank`) as well as backward-compatible aliases (`bkash_manual`, `nagad_manual`, `bank_manual`).
 
-- **Phase 3**: Gateway driver implementations:
-  - Manual BD Drivers: `BkashManualGateway`, `NagadManualGateway`, `BankTransferGateway`.
+### 7.2 Manual Bangladesh Gateway (`ManualBangladeshGateway`)
+- Concrete payment driver encapsulating offline/manual Bangladesh payment channels (`manual_bkash`, `manual_nagad`, `manual_bank`).
+- **Zero External Network Dependencies**: Operates strictly offline without external API or HTTP requests.
+- **Account & Instruction Configuration**: Supports dynamic and configured merchant/agent account numbers, account names, account types (e.g., Merchant, Personal), and customer instructions.
+
+### 7.3 Idempotency & Duplicate TrxID Protection
+- **Idempotency Safeguard**: If a customer resubmits the same checkout request with an identical `idempotency_key`, `PaymentService` deterministically returns the existing attempt without creating duplicates.
+- **Composite TrxID Uniqueness**: In-memory registry and database unique constraint `(gateway_id, provider_reference)` guarantees that a submitted Transaction Reference / TrxID cannot be reused across payment attempts for the same gateway.
+
+### 7.4 Client Status Protection & Security Model
+- **Strict Server Control**: Clients can never submit or dictate transaction statuses. Attempt creation and TrxID submission strictly sets the attempt to `awaiting_verification`.
+- **Operator Authority**: Status transitions to `succeeded` or `failed` require explicit administrative action (`approveManualPayment` / `rejectManualPayment`) with operator ID and audit logging.
+
+---
+
+## 8. Phase 3B & Future Roadmap
+
+- **Phase 3B**: Automated Gateway Driver implementations:
   - International Card Driver: `StripeCardGateway`.
   - Crypto Driver: `BinancePayGateway`.
 - **Phase 4**: Operator Admin Console UI module for pending manual transaction verification.
 - **Phase 5**: Theme checkout template tags and API endpoints for Favorite Web Theme.
+
 

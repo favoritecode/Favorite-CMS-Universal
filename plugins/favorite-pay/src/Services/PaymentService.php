@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace FavoriteCMS\Pay\Services;
 
+use FavoriteCMS\Core\Database;
 use FavoriteCMS\Pay\Contracts\CurrencyServiceInterface;
 use FavoriteCMS\Pay\Contracts\PaymentServiceInterface;
 use FavoriteCMS\Pay\Domain\Money;
@@ -17,14 +18,18 @@ use RuntimeException;
 /**
  * Payment Service
  *
- * Implements Locked Decision:
- * 1. 100% Operator Manual Bangladesh Payment Approval (pending -> awaiting_verification -> succeeded/failed).
- * 2. Immutable amount locking at checkout time.
+ * Implements:
+ * 1. Gateway driver delegation via GatewayRegistry.
+ * 2. 100% Operator Manual Bangladesh Payment Approval lifecycle.
+ * 3. TrxID duplicate protection per gateway.
+ * 4. Idempotency protection for repeated requests.
+ * 5. Optional database persistence to Favorite Pay Phase 2 schema.
  */
 class PaymentService implements PaymentServiceInterface
 {
     private CurrencyServiceInterface $currencyService;
     private GatewayRegistry $gatewayRegistry;
+    private ?Database $db;
 
     /** @var array<string, PaymentIntent> */
     private array $intents = [];
@@ -32,12 +37,20 @@ class PaymentService implements PaymentServiceInterface
     /** @var array<string, PaymentAttempt> */
     private array $attempts = [];
 
+    /** @var array<string, string> composite key (gateway:trx_id) => attempt_id */
+    private array $providerReferences = [];
+
+    /** @var array<string, PaymentAttempt> idempotency_key => PaymentAttempt */
+    private array $idempotentAttempts = [];
+
     public function __construct(
         CurrencyServiceInterface $currencyService,
-        GatewayRegistry $gatewayRegistry
+        GatewayRegistry $gatewayRegistry,
+        ?Database $db = null
     ) {
         $this->currencyService = $currencyService;
         $this->gatewayRegistry = $gatewayRegistry;
+        $this->db = $db;
     }
 
     public function createIntent(
@@ -62,6 +75,13 @@ class PaymentService implements PaymentServiceInterface
             $chargeAmount = $baseAmount;
         }
 
+        $methodType = null;
+        if (isset($options['method_type'])) {
+            $methodType = is_string($options['method_type'])
+                ? PaymentMethodType::from($options['method_type'])
+                : $options['method_type'];
+        }
+
         $intent = new PaymentIntent(
             $id,
             $sourcePlugin,
@@ -69,7 +89,7 @@ class PaymentService implements PaymentServiceInterface
             $baseAmount,
             $chargeAmount,
             PaymentStatus::PENDING,
-            isset($options['method_type']) ? PaymentMethodType::from($options['method_type']) : null,
+            $methodType,
             $options['customer_id'] ?? null,
             $snapshot,
             $options['metadata'] ?? []
@@ -77,8 +97,34 @@ class PaymentService implements PaymentServiceInterface
 
         $this->intents[$id] = $intent;
 
+        // Persist to database if available
+        if ($this->db !== null && $this->db->tableExists('favorite_pay_transactions')) {
+            $this->db->insert('favorite_pay_transactions', [
+                'transaction_id'      => $id,
+                'source_plugin'       => $sourcePlugin,
+                'source_reference'    => $sourceReference,
+                'user_id'             => $options['customer_id'] ?? null,
+                'base_amount'         => $baseAmount->getAmount(),
+                'base_currency'       => $baseAmount->getCurrency(),
+                'charge_amount'       => $chargeAmount->getAmount(),
+                'charge_currency'     => $chargeAmount->getCurrency(),
+                'exchange_rate'       => $snapshot ? (float)$snapshot->getRateFactor() / $snapshot->getRateScale() : 1.0,
+                'rate_factor'         => $snapshot?->getRateFactor(),
+                'rate_scale'          => $snapshot?->getRateScale(),
+                'payment_method_type' => $methodType?->value,
+                'status'              => PaymentStatus::PENDING->value,
+                'metadata'            => !empty($options['metadata']) ? json_encode($options['metadata']) : null,
+                'created_at'          => date('Y-m-d H:i:s'),
+            ]);
+        }
+
         if (function_exists('do_action')) {
             do_action('favorite.pay.intent.created', $intent);
+            do_action('favorite.pay.payment.created', [
+                'transaction_id' => $id,
+                'source_plugin'  => $sourcePlugin,
+                'amount_bdt'     => $baseAmount->getAmount(),
+            ]);
         }
 
         return $intent;
@@ -86,7 +132,31 @@ class PaymentService implements PaymentServiceInterface
 
     public function getIntent(string $intentId): ?PaymentIntent
     {
-        return $this->intents[$intentId] ?? null;
+        if (isset($this->intents[$intentId])) {
+            return $this->intents[$intentId];
+        }
+
+        if ($this->db !== null && $this->db->tableExists('favorite_pay_transactions')) {
+            $row = $this->db->selectOne("SELECT * FROM favorite_pay_transactions WHERE transaction_id = ?", [$intentId]);
+            if ($row) {
+                $baseAmount = new Money((int)$row->base_amount, (string)$row->base_currency);
+                $chargeAmount = new Money((int)$row->charge_amount, (string)$row->charge_currency);
+                $intent = new PaymentIntent(
+                    (string)$row->transaction_id,
+                    (string)$row->source_plugin,
+                    (string)$row->source_reference,
+                    $baseAmount,
+                    $chargeAmount,
+                    PaymentStatus::from((string)$row->status),
+                    !empty($row->payment_method_type) ? PaymentMethodType::from((string)$row->payment_method_type) : null,
+                    $row->user_id ? (int)$row->user_id : null
+                );
+                $this->intents[$intentId] = $intent;
+                return $intent;
+            }
+        }
+
+        return null;
     }
 
     public function updateIntentStatus(string $intentId, PaymentStatus $newStatus): PaymentIntent
@@ -105,21 +175,37 @@ class PaymentService implements PaymentServiceInterface
         $updated = $intent->withStatus($newStatus);
         $this->intents[$intentId] = $updated;
 
+        if ($this->db !== null && $this->db->tableExists('favorite_pay_transactions')) {
+            $this->db->update('favorite_pay_transactions', [
+                'status'       => $newStatus->value,
+                'completed_at' => $newStatus->isFinal() ? date('Y-m-d H:i:s') : null,
+                'updated_at'   => date('Y-m-d H:i:s'),
+            ], ['transaction_id' => $intentId]);
+        }
+
         if (function_exists('do_action')) {
             do_action('favorite.pay.intent.status_updated', [
-                'intent_id' => $intentId,
-                'status' => $newStatus->value,
-                'source_plugin' => $updated->getSourcePlugin(),
+                'intent_id'        => $intentId,
+                'status'           => $newStatus->value,
+                'source_plugin'    => $updated->getSourcePlugin(),
                 'source_reference' => $updated->getSourceReference(),
             ]);
 
             if ($newStatus === PaymentStatus::SUCCEEDED) {
                 do_action('favorite.pay.payment.succeeded', [
-                    'intent_id' => $intentId,
-                    'source_plugin' => $updated->getSourcePlugin(),
+                    'transaction_id'   => $intentId,
+                    'source_plugin'    => $updated->getSourcePlugin(),
                     'source_reference' => $updated->getSourceReference(),
-                    'base_amount' => $updated->getBaseAmount()->getAmount(),
-                    'charge_amount' => $updated->getChargeAmount()->getAmount(),
+                    'amount_bdt'       => $updated->getBaseAmount()->getAmount(),
+                    'currency_pay'     => $updated->getChargeAmount()->getCurrency(),
+                    'settled_at'       => date('Y-m-d H:i:s'),
+                ]);
+            } elseif ($newStatus === PaymentStatus::FAILED) {
+                do_action('favorite.pay.payment.failed', [
+                    'transaction_id'   => $intentId,
+                    'source_plugin'    => $updated->getSourcePlugin(),
+                    'source_reference' => $updated->getSourceReference(),
+                    'reason'           => 'Payment rejected or failed',
                 ]);
             }
         }
@@ -138,33 +224,84 @@ class PaymentService implements PaymentServiceInterface
             throw new InvalidArgumentException("Payment intent not found: {$intentId}");
         }
 
+        // Prevent submission if intent is already settled or final
+        if ($intent->getStatus()->isFinal()) {
+            throw new RuntimeException("Cannot submit payment attempt for final intent status: {$intent->getStatus()->value}");
+        }
+
+        // Resolve gateway via GatewayRegistry
+        if (!$this->gatewayRegistry->has($gatewayId)) {
+            throw new InvalidArgumentException("Payment gateway not registered: {$gatewayId}");
+        }
+
+        $gateway = $this->gatewayRegistry->get($gatewayId);
+        if (!$gateway->isEnabled()) {
+            throw new RuntimeException("Payment gateway '{$gatewayId}' is disabled.");
+        }
+
         $trimmedRef = trim($transactionReference);
         if ($trimmedRef === '') {
             throw new InvalidArgumentException("Transaction reference (TrxID) cannot be empty for manual payment.");
         }
 
-        // Transition intent to AWAITING_VERIFICATION
+        // Idempotency check
+        $idempotencyKey = isset($details['idempotency_key']) ? trim((string)$details['idempotency_key']) : null;
+        if ($idempotencyKey !== null && $idempotencyKey !== '') {
+            if (isset($this->idempotentAttempts[$idempotencyKey])) {
+                return $this->idempotentAttempts[$idempotencyKey];
+            }
+        }
+
+        // Duplicate TrxID check for the same gateway
+        $compositeKey = strtolower($gateway->getId() . ':' . $trimmedRef);
+        if (isset($this->providerReferences[$compositeKey])) {
+            throw new RuntimeException("Duplicate transaction reference '{$trimmedRef}' for gateway '{$gateway->getId()}'.");
+        }
+
+        // Delegate attempt creation to the concrete gateway driver
+        $params = array_merge($details, [
+            'transaction_reference' => $trimmedRef,
+            'idempotency_key'       => $idempotencyKey,
+        ]);
+        $attempt = $gateway->createAttempt($intent, $params);
+
+        $attemptId = $attempt->getId();
+        $this->attempts[$attemptId] = $attempt;
+        $this->providerReferences[$compositeKey] = $attemptId;
+        if ($idempotencyKey !== null && $idempotencyKey !== '') {
+            $this->idempotentAttempts[$idempotencyKey] = $attempt;
+        }
+
+        // Update intent status to AWAITING_VERIFICATION
         $this->updateIntentStatus($intentId, PaymentStatus::AWAITING_VERIFICATION);
 
-        $attemptId = 'att_' . bin2hex(random_bytes(10));
-        $attempt = new PaymentAttempt(
-            $attemptId,
-            $intentId,
-            $gatewayId,
-            $intent->getChargeAmount(),
-            PaymentStatus::AWAITING_VERIFICATION,
-            $trimmedRef,
-            $details['notes'] ?? null
-        );
-
-        $this->attempts[$attemptId] = $attempt;
+        // Persist attempt to database if available
+        if ($this->db !== null && $this->db->tableExists('favorite_pay_attempts')) {
+            $this->db->insert('favorite_pay_attempts', [
+                'attempt_id'         => $attemptId,
+                'transaction_id'     => $intentId,
+                'gateway_id'         => $gateway->getId(),
+                'amount'             => $attempt->getAmount()->getAmount(),
+                'currency'           => $attempt->getAmount()->getCurrency(),
+                'status'             => PaymentStatus::AWAITING_VERIFICATION->value,
+                'provider_reference' => $trimmedRef,
+                'operator_notes'     => $details['notes'] ?? null,
+                'created_at'         => date('Y-m-d H:i:s'),
+            ]);
+        }
 
         if (function_exists('do_action')) {
             do_action('favorite.pay.manual.submitted', [
                 'attempt_id' => $attemptId,
-                'intent_id' => $intentId,
-                'trx_id' => $trimmedRef,
-                'gateway_id' => $gatewayId,
+                'intent_id'  => $intentId,
+                'trx_id'     => $trimmedRef,
+                'gateway_id' => $gateway->getId(),
+            ]);
+
+            do_action('favorite.pay.payment.awaiting_verification', [
+                'transaction_id' => $intentId,
+                'attempt_id'     => $attemptId,
+                'gateway_id'     => $gateway->getId(),
             ]);
         }
 
@@ -176,24 +313,51 @@ class PaymentService implements PaymentServiceInterface
         int $operatorUserId,
         ?string $notes = null
     ): PaymentAttempt {
-        if (!isset($this->attempts[$attemptId])) {
+        $attempt = $this->getAttempt($attemptId);
+        if (!$attempt) {
             throw new InvalidArgumentException("Payment attempt not found: {$attemptId}");
         }
 
-        $attempt = $this->attempts[$attemptId];
+        if ($attempt->getStatus() === PaymentStatus::SUCCEEDED) {
+            throw new RuntimeException("Cannot approve payment attempt: attempt is already approved.");
+        }
+
+        if ($attempt->getStatus() === PaymentStatus::FAILED) {
+            throw new RuntimeException("Cannot approve payment attempt: attempt was already rejected.");
+        }
+
         if ($attempt->getStatus() !== PaymentStatus::AWAITING_VERIFICATION) {
             throw new RuntimeException("Cannot approve attempt in status: {$attempt->getStatus()->value}");
         }
 
-        $approvedAttempt = $attempt->markApproved($operatorUserId, $notes);
+        // Delegate verification to gateway driver
+        $gateway = $this->gatewayRegistry->get($attempt->getGatewayId());
+        $verifiedAttempt = $gateway->verifyAttempt($attempt, [
+            'action'      => 'approve',
+            'operator_id' => $operatorUserId,
+            'notes'       => $notes,
+        ]);
+
+        $approvedAttempt = $verifiedAttempt->markApproved($operatorUserId, $notes);
         $this->attempts[$attemptId] = $approvedAttempt;
 
         // Transition Intent to SUCCEEDED
         $this->updateIntentStatus($attempt->getIntentId(), PaymentStatus::SUCCEEDED);
 
+        // Update database attempt record if available
+        if ($this->db !== null && $this->db->tableExists('favorite_pay_attempts')) {
+            $this->db->update('favorite_pay_attempts', [
+                'status'         => PaymentStatus::SUCCEEDED->value,
+                'verified_by'    => $operatorUserId,
+                'verified_at'    => date('Y-m-d H:i:s'),
+                'operator_notes' => $notes,
+                'updated_at'     => date('Y-m-d H:i:s'),
+            ], ['attempt_id' => $attemptId]);
+        }
+
         if (function_exists('do_action')) {
             do_action('favorite.pay.manual.approved', [
-                'attempt_id' => $attemptId,
+                'attempt_id'  => $attemptId,
                 'operator_id' => $operatorUserId,
             ]);
         }
@@ -206,26 +370,52 @@ class PaymentService implements PaymentServiceInterface
         int $operatorUserId,
         string $reason
     ): PaymentAttempt {
-        if (!isset($this->attempts[$attemptId])) {
+        $attempt = $this->getAttempt($attemptId);
+        if (!$attempt) {
             throw new InvalidArgumentException("Payment attempt not found: {$attemptId}");
         }
 
-        $attempt = $this->attempts[$attemptId];
+        if ($attempt->getStatus() === PaymentStatus::SUCCEEDED) {
+            throw new RuntimeException("Cannot reject payment attempt: attempt was already approved.");
+        }
+
+        if ($attempt->getStatus() === PaymentStatus::FAILED) {
+            throw new RuntimeException("Cannot reject payment attempt: attempt is already rejected.");
+        }
+
         if ($attempt->getStatus() !== PaymentStatus::AWAITING_VERIFICATION) {
             throw new RuntimeException("Cannot reject attempt in status: {$attempt->getStatus()->value}");
         }
 
-        $rejectedAttempt = $attempt->markRejected($operatorUserId, $reason);
+        $gateway = $this->gatewayRegistry->get($attempt->getGatewayId());
+        $verifiedAttempt = $gateway->verifyAttempt($attempt, [
+            'action'      => 'reject',
+            'operator_id' => $operatorUserId,
+            'reason'      => $reason,
+        ]);
+
+        $rejectedAttempt = $verifiedAttempt->markRejected($operatorUserId, $reason);
         $this->attempts[$attemptId] = $rejectedAttempt;
 
         // Transition Intent to FAILED
         $this->updateIntentStatus($attempt->getIntentId(), PaymentStatus::FAILED);
 
+        // Update database attempt record if available
+        if ($this->db !== null && $this->db->tableExists('favorite_pay_attempts')) {
+            $this->db->update('favorite_pay_attempts', [
+                'status'        => PaymentStatus::FAILED->value,
+                'verified_by'   => $operatorUserId,
+                'verified_at'   => date('Y-m-d H:i:s'),
+                'error_message' => $reason,
+                'updated_at'    => date('Y-m-d H:i:s'),
+            ], ['attempt_id' => $attemptId]);
+        }
+
         if (function_exists('do_action')) {
             do_action('favorite.pay.manual.rejected', [
-                'attempt_id' => $attemptId,
+                'attempt_id'  => $attemptId,
                 'operator_id' => $operatorUserId,
-                'reason' => $reason,
+                'reason'      => $reason,
             ]);
         }
 
@@ -234,6 +424,31 @@ class PaymentService implements PaymentServiceInterface
 
     public function getAttempt(string $attemptId): ?PaymentAttempt
     {
-        return $this->attempts[$attemptId] ?? null;
+        if (isset($this->attempts[$attemptId])) {
+            return $this->attempts[$attemptId];
+        }
+
+        if ($this->db !== null && $this->db->tableExists('favorite_pay_attempts')) {
+            $row = $this->db->selectOne("SELECT * FROM favorite_pay_attempts WHERE attempt_id = ?", [$attemptId]);
+            if ($row) {
+                $amount = new Money((int)$row->amount, (string)$row->currency);
+                $attempt = new PaymentAttempt(
+                    (string)$row->attempt_id,
+                    (string)$row->transaction_id,
+                    (string)$row->gateway_id,
+                    $amount,
+                    PaymentStatus::from((string)$row->status),
+                    $row->provider_reference ? (string)$row->provider_reference : null,
+                    $row->operator_notes ? (string)$row->operator_notes : null,
+                    $row->verified_by ? (int)$row->verified_by : null,
+                    $row->verified_at ? (string)$row->verified_at : null,
+                    $row->error_message ? (string)$row->error_message : null
+                );
+                $this->attempts[$attemptId] = $attempt;
+                return $attempt;
+            }
+        }
+
+        return null;
     }
 }

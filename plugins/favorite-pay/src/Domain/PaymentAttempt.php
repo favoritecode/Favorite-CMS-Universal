@@ -16,6 +16,9 @@ final class PaymentAttempt
     private ?int $verifiedBy;
     private ?string $verifiedAt;
     private ?string $errorMessage;
+    private ?string $idempotencyKey;
+    private ?string $senderAccount;
+    private array $metadata;
     private string $createdAt;
 
     public function __construct(
@@ -29,6 +32,9 @@ final class PaymentAttempt
         ?int $verifiedBy = null,
         ?string $verifiedAt = null,
         ?string $errorMessage = null,
+        ?string $idempotencyKey = null,
+        ?string $senderAccount = null,
+        array $metadata = [],
         ?string $createdAt = null
     ) {
         $this->id = $id;
@@ -41,6 +47,9 @@ final class PaymentAttempt
         $this->verifiedBy = $verifiedBy;
         $this->verifiedAt = $verifiedAt;
         $this->errorMessage = $errorMessage;
+        $this->idempotencyKey = $idempotencyKey;
+        $this->senderAccount = $senderAccount;
+        $this->metadata = $metadata;
         $this->createdAt = $createdAt ?? date('Y-m-d H:i:s');
     }
 
@@ -92,6 +101,21 @@ final class PaymentAttempt
     public function getErrorMessage(): ?string
     {
         return $this->errorMessage;
+    }
+
+    public function getIdempotencyKey(): ?string
+    {
+        return $this->idempotencyKey;
+    }
+
+    public function getSenderAccount(): ?string
+    {
+        return $this->senderAccount;
+    }
+
+    public function getMetadata(): array
+    {
+        return $this->metadata;
     }
 
     public function getCreatedAt(): string
