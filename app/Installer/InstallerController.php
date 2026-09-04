@@ -8,6 +8,8 @@ use FavoriteCMS\Core\Application;
 use FavoriteCMS\Core\Database;
 use FavoriteCMS\Core\Request;
 use FavoriteCMS\Core\Response;
+use FavoriteCMS\Services\RestoreService;
+use Throwable;
 
 class InstallerController
 {
@@ -49,12 +51,12 @@ class InstallerController
 
         $defaultConfig = $this->databases->defaultConfig();
         $dbDefaults = array_merge([
-            'db_host' => $defaultConfig['host'],
-            'db_port' => $defaultConfig['port'],
+            'db_host' => $defaultConfig['host'] !== '' ? $defaultConfig['host'] : 'localhost',
+            'db_port' => $defaultConfig['port'] !== '' ? $defaultConfig['port'] : '3306',
             'db_name' => $defaultConfig['database'],
             'db_username' => $defaultConfig['username'],
-            'db_prefix' => $defaultConfig['prefix'],
-            'setup_mode' => 'manual',
+            'db_prefix' => $defaultConfig['prefix'] !== '' ? $defaultConfig['prefix'] : $this->databases->generateTablePrefix(),
+            'setup_mode' => 'recommended',
         ], $old);
 
         $content = $this->renderView('installer/install', [
@@ -82,8 +84,14 @@ class InstallerController
 
         $action = (string)$request->post('db_action', 'install');
         $old = $this->safeOld($request);
+
+        // Handle Site Restoration from Backup Archive if submitted
+        if ($action === 'restore') {
+            return $this->processRestore($request, $old);
+        }
+
         $dbConfig = $this->databases->normalize($request->all());
-        $mode = (string)$request->post('setup_mode', 'manual');
+        $mode = (string)$request->post('setup_mode', 'recommended');
 
         if ($mode === 'automatic') {
             $adminConfig = $dbConfig;
@@ -97,8 +105,8 @@ class InstallerController
             );
 
             if (!$auto['ok']) {
-                $old['setup_mode'] = 'manual';
-                return $this->show($request, [(string)$auto['message']], ['Manual Database Setup is ready below.'], $old);
+                $old['setup_mode'] = 'advanced';
+                return $this->show($request, [(string)$auto['message']], ['Advanced Database Setup is available below to verify manual credentials.'], $old);
             }
 
             $dbConfig = $auto['config'];
@@ -107,9 +115,9 @@ class InstallerController
         if ($action === 'test_database') {
             try {
                 $this->databases->testConnection($dbConfig);
-                return $this->show($request, [], ['Database connection verified successfully.'], $old);
-            } catch (\Throwable $e) {
-                return $this->show($request, [$this->databasePublicMessage($e)], [], $old);
+                return $this->show($request, [], ['Database connection verified successfully! Everything is ready for installation.'], $old);
+            } catch (Throwable $e) {
+                return $this->show($request, [$this->databasePublicMessage($e, $dbConfig)], [], $old);
             }
         }
 
@@ -124,7 +132,7 @@ class InstallerController
         try {
             $result = $this->installer->install($dbConfig, $site['data'], $admin['data']);
             (new InstallerSession($this->urls))->regenerate();
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             return $this->show($request, [$this->installer->publicMessage($e)], [], $old);
         }
 
@@ -141,13 +149,68 @@ class InstallerController
         return $this->noCache(Response::make($content, 200));
     }
 
+    /**
+     * Process restoring a backup file directly from the installer wizard.
+     */
+    protected function processRestore(Request $request, array $old): Response
+    {
+        $uploaded = $_FILES['backup_file'] ?? null;
+        if (!$uploaded || empty($uploaded['tmp_name']) || $uploaded['error'] !== UPLOAD_ERR_OK) {
+            return $this->show($request, ['Please select a valid Favorite CMS backup (.zip) file to restore.'], [], $old);
+        }
+
+        $dbConfig = $this->databases->normalize($request->all());
+        $validationErrors = $this->databases->validate($dbConfig);
+        if (!empty($validationErrors)) {
+            return $this->show($request, $validationErrors, [], $old);
+        }
+
+        try {
+            $restoreService = new RestoreService();
+            $inspection = $restoreService->inspectBackup($uploaded['tmp_name']);
+
+            $detectedUrl = $this->urls->currentBaseUrl($request);
+            $siteUrl = $this->urls->normalizeSiteUrl((string)$request->post('site_url', '')) ?: $detectedUrl;
+
+            $result = $restoreService->restoreBackup(
+                $uploaded['tmp_name'],
+                $dbConfig,
+                $siteUrl,
+                true // Explicit consent during installer restore
+            );
+
+            // Write .env configuration
+            $this->databases->writeEnv($dbConfig, $siteUrl);
+
+            // Write installation lockfile
+            $lockPath = APP_ROOT . '/storage/installed.lock';
+            @file_put_contents($lockPath, date('c') . " - Restored from backup\n");
+
+            (new InstallerSession($this->urls))->regenerate();
+
+            $content = $this->renderView('installer/success', [
+                'siteName' => $inspection['site_name'] . ' (Restored)',
+                'siteUrl' => $siteUrl,
+                'adminUsername' => 'Original Administrator',
+                'adminEmail' => 'As configured in backup',
+                'loginUrl' => $this->urls->route($request, '/admin/login'),
+                'homeUrl' => $this->urls->route($request, '/'),
+                'migrations' => $inspection['tables'],
+            ]);
+
+            return $this->noCache(Response::make($content, 200));
+        } catch (Throwable $e) {
+            return $this->show($request, ['Restore failed: ' . $e->getMessage()], [], $old);
+        }
+    }
+
     protected function detectDatabaseStatus(): array
     {
         $defaults = $this->databases->defaultConfig();
         if (($defaults['database'] ?? '') === '' || ($defaults['username'] ?? '') === '') {
             return [
                 'connected' => false,
-                'message' => 'No database configuration has been saved yet.',
+                'message' => 'Recommended setup automatically configures your database host and prefix. Enter your database credentials below to begin.',
                 'state' => 'missing',
             ];
         }
@@ -155,18 +218,18 @@ class InstallerController
         try {
             $db = new Database($defaults);
             if ($this->state->databaseLooksInstalled($db)) {
-                return ['connected' => true, 'message' => 'Existing Favorite CMS installation detected.', 'state' => 'installed'];
+                return ['connected' => true, 'message' => 'Existing Favorite CMS installation detected in this database.', 'state' => 'installed'];
             }
             if ($this->state->databaseLooksPartial($db)) {
-                return ['connected' => true, 'message' => 'Partial Favorite CMS tables detected. The installer can resume safely.', 'state' => 'partial'];
+                return ['connected' => true, 'message' => 'Partial Favorite CMS tables detected. The installer can safely resume.', 'state' => 'partial'];
             }
 
-            return ['connected' => true, 'message' => 'Database connection available.', 'state' => 'ready'];
-        } catch (\Throwable) {
+            return ['connected' => true, 'message' => 'Pre-configured database connection is available.', 'state' => 'ready'];
+        } catch (Throwable $e) {
             return [
                 'connected' => false,
-                'message' => 'Saved database settings could not be verified. You can enter new credentials below.',
-                'state' => 'failed',
+                'message' => 'Recommended setup automatically defaults to localhost (3306). Please enter your database name, username, and password.',
+                'state' => 'ready',
             ];
         }
     }
@@ -248,14 +311,9 @@ class InstallerController
         return $old;
     }
 
-    protected function databasePublicMessage(\Throwable $e): string
+    protected function databasePublicMessage(Throwable $e, array $config = []): string
     {
-        $message = $e->getMessage();
-        if (str_contains($message, 'SQLSTATE') || str_contains($message, 'Access denied')) {
-            return 'Database connection failed. Please verify the database host, username, password, and database name.';
-        }
-
-        return $message;
+        return $this->databases->formatDatabaseError($e, $config);
     }
 
     protected function noCache(Response $response): Response

@@ -1,33 +1,155 @@
+<?php
+$h = static fn ($val): string => htmlspecialchars((string)$val, ENT_QUOTES, 'UTF-8');
+?>
 <div class="page-header">
-    <h1 class="page-title">Tools & System Status</h1>
+    <h1 class="page-title">Tools, Backups &amp; System Health</h1>
 </div>
 
-<div class="form-row">
-    <!-- Export / Backup -->
-    <div class="form-card">
-        <h2 style="font-size: 16px; font-weight: 600; margin-bottom: 12px;">Export Site Database Backup</h2>
-        <p style="color: var(--wp-text-muted); font-size: 13px; margin-bottom: 16px;">
-            Download a portable JSON snapshot containing your site's full database tables, settings, posts, pages, and users.
+<?php if (!empty($notice)): ?>
+    <div style="background: #ecfdf5; border-left: 4px solid #10b981; color: #065f46; padding: 12px 16px; border-radius: 4px; margin-bottom: 20px; font-weight: 500;">
+        <?php echo $h($notice); ?>
+    </div>
+<?php endif; ?>
+
+<?php if (!empty($error)): ?>
+    <div style="background: #fef2f2; border-left: 4px solid #ef4444; color: #991b1b; padding: 12px 16px; border-radius: 4px; margin-bottom: 20px; font-weight: 500;">
+        <?php echo $h($error); ?>
+    </div>
+<?php endif; ?>
+
+<div class="form-row" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 20px; margin-bottom: 24px;">
+    <!-- Create Backup Card -->
+    <div class="form-card" style="background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
+        <h2 style="font-size: 17px; font-weight: 700; margin: 0 0 10px; color: #0f172a;">&#128230; Create Portable Site Backup</h2>
+        <p style="color: #64748b; font-size: 13px; margin: 0 0 16px; line-height: 1.5;">
+            Creates a self-contained, portable <code>.zip</code> package including your full database SQL dump, media uploads, active themes, and plugins.
         </p>
-        <a href="/admin/tools/export" class="btn btn-primary">&#128229; Download Database Backup (.json)</a>
+
+        <form method="POST" action="/admin/tools/backup/create">
+            <input type="hidden" name="_token" value="<?php echo $h($csrfToken); ?>">
+
+            <div style="margin-bottom: 14px; font-size: 13px; color: #334155;">
+                <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px; cursor: pointer;">
+                    <input type="checkbox" name="include_media" value="1" checked> Include Media Uploads (<code>public/uploads</code>)
+                </label>
+                <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px; cursor: pointer;">
+                    <input type="checkbox" name="include_themes" value="1" checked> Include Themes (<code>themes/</code>)
+                </label>
+                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                    <input type="checkbox" name="include_plugins" value="1" checked> Include Plugins (<code>plugins/</code>)
+                </label>
+            </div>
+
+            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                <button type="submit" class="btn btn-primary" style="padding: 9px 18px; font-weight: 600;">
+                    &#128190; Generate Full Backup (.zip)
+                </button>
+                <a href="/admin/tools/export" class="btn" style="background: #f1f5f9; color: #334155; border: 1px solid #cbd5e1; padding: 9px 14px; text-decoration: none; border-radius: 4px; font-weight: 500; font-size: 13px;">
+                    Download DB JSON
+                </a>
+            </div>
+        </form>
     </div>
 
-    <!-- Diagnostic Health -->
-    <div class="form-card">
-        <h2 style="font-size: 16px; font-weight: 600; margin-bottom: 12px;">System Environment Health</h2>
-        <p style="color: var(--wp-text-muted); font-size: 13px; margin-bottom: 16px;">
-            Verify your server meets all requirements for shared hosting stability.
+    <!-- Restore Backup Card -->
+    <div class="form-card" style="background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
+        <h2 style="font-size: 17px; font-weight: 700; margin: 0 0 10px; color: #0f172a;">&#128229; Restore Site from Backup</h2>
+        <p style="color: #64748b; font-size: 13px; margin: 0 0 16px; line-height: 1.5;">
+            Restore your database and files from a <code>favorite_cms_backup_*.zip</code> package. Domain references are automatically migrated.
         </p>
-        <table class="wp-table">
+
+        <form method="POST" action="/admin/tools/restore" enctype="multipart/form-data" onsubmit="return confirm('WARNING: Restoring will overwrite existing database tables and files. Are you sure you want to proceed?');">
+            <input type="hidden" name="_token" value="<?php echo $h($csrfToken); ?>">
+
+            <div style="margin-bottom: 12px;">
+                <label style="display: block; font-size: 12px; font-weight: 600; color: #334155; margin-bottom: 5px;">Upload Backup Archive (.zip)</label>
+                <input type="file" name="restore_file" accept=".zip" required style="width: 100%; font-size: 13px;">
+            </div>
+
+            <div style="margin-bottom: 16px;">
+                <label style="display: block; font-size: 12px; font-weight: 600; color: #334155; margin-bottom: 5px;">Target Site URL</label>
+                <input type="text" name="new_site_url" value="<?php echo $h(env('APP_URL', 'http://localhost')); ?>" style="width: 100%; padding: 7px 10px; border: 1px solid #cbd5e1; border-radius: 4px; font-size: 13px;">
+                <span style="font-size: 11px; color: #64748b;">All database URLs and image paths will be updated to this URL.</span>
+            </div>
+
+            <button type="submit" class="btn" style="background: #059669; color: #fff; border: none; padding: 9px 18px; font-weight: 600; border-radius: 4px; cursor: pointer;">
+                &#9888; Restore &amp; Migrate
+            </button>
+        </form>
+    </div>
+</div>
+
+<!-- Available Backups List -->
+<div class="form-card" style="background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 24px; margin-bottom: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
+    <h2 style="font-size: 17px; font-weight: 700; margin: 0 0 14px; color: #0f172a;">Existing Site Backups (<code>storage/backups/</code>)</h2>
+
+    <?php if (empty($backups)): ?>
+        <p style="color: #64748b; font-size: 13px; margin: 0;">No backups generated yet. Click "Generate Full Backup" above to create your first snapshot.</p>
+    <?php else: ?>
+        <table class="wp-table" style="width: 100%; border-collapse: collapse; font-size: 13px;">
+            <thead>
+                <tr style="border-bottom: 2px solid #e2e8f0; text-align: left; color: #475569;">
+                    <th style="padding: 10px;">Archive File</th>
+                    <th style="padding: 10px;">Date Created</th>
+                    <th style="padding: 10px;">Size</th>
+                    <th style="padding: 10px;">CMS Version</th>
+                    <th style="padding: 10px;">Tables</th>
+                    <th style="padding: 10px; text-align: right;">Actions</th>
+                </tr>
+            </thead>
             <tbody>
-                <?php foreach ($diagnostics as $key => $val): ?>
-                    <tr>
-                        <td style="font-weight: 600; width: 160px;"><?php echo htmlspecialchars($key, ENT_QUOTES, 'UTF-8'); ?></td>
-                        <td><?php echo htmlspecialchars((string)$val, ENT_QUOTES, 'UTF-8'); ?></td>
+                <?php foreach ($backups as $b): ?>
+                    <tr style="border-bottom: 1px solid #f1f5f9;">
+                        <td style="padding: 10px; font-weight: 600; font-family: monospace;">
+                            <?php echo $h($b['filename']); ?>
+                        </td>
+                        <td style="padding: 10px; color: #64748b;">
+                            <?php echo date('Y-m-d H:i:s', $b['date']); ?>
+                        </td>
+                        <td style="padding: 10px; color: #64748b;">
+                            <?php echo round($b['size'] / 1024 / 1024, 2); ?> MB
+                        </td>
+                        <td style="padding: 10px;">
+                            <span style="background: #eff6ff; color: #1d4ed8; padding: 2px 6px; border-radius: 3px; font-size: 11px; font-weight: 600;">
+                                <?php echo $h($b['manifest']['cms_version'] ?? 'Universal'); ?>
+                            </span>
+                        </td>
+                        <td style="padding: 10px; color: #64748b;">
+                            <?php echo count($b['manifest']['tables'] ?? []); ?> tables
+                        </td>
+                        <td style="padding: 10px; text-align: right;">
+                            <a href="/admin/tools/backup/download?file=<?php echo urlencode($b['filename']); ?>" class="btn" style="background: #2563eb; color: #fff; padding: 4px 10px; font-size: 12px; text-decoration: none; border-radius: 3px;">
+                                &#128229; Download
+                            </a>
+                            <form method="POST" action="/admin/tools/backup/delete" style="display: inline;" onsubmit="return confirm('Delete this backup archive permanently?');">
+                                <input type="hidden" name="_token" value="<?php echo $h($csrfToken); ?>">
+                                <input type="hidden" name="file" value="<?php echo $h($b['filename']); ?>">
+                                <button type="submit" style="background: #ef4444; color: #fff; border: none; padding: 4px 8px; font-size: 12px; border-radius: 3px; cursor: pointer; margin-left: 4px;">
+                                    &#128465;
+                                </button>
+                            </form>
+                        </td>
                     </tr>
                 <?php endforeach; ?>
             </tbody>
         </table>
-    </div>
+    <?php endif; ?>
 </div>
 
+<!-- System Environment Health Card -->
+<div class="form-card" style="background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
+    <h2 style="font-size: 17px; font-weight: 700; margin: 0 0 10px; color: #0f172a;">&#129302; System Environment Health</h2>
+    <p style="color: #64748b; font-size: 13px; margin: 0 0 16px;">
+        Server and PHP runtime parameters evaluated for shared hosting compatibility.
+    </p>
+    <table class="wp-table" style="width: 100%; border-collapse: collapse; font-size: 13px;">
+        <tbody>
+            <?php foreach ($diagnostics as $key => $val): ?>
+                <tr style="border-bottom: 1px solid #f1f5f9;">
+                    <td style="font-weight: 600; width: 220px; padding: 8px 10px; color: #334155;"><?php echo $h($key); ?></td>
+                    <td style="padding: 8px 10px; color: #0f172a;"><?php echo $h((string)$val); ?></td>
+                </tr>
+            <?php endforeach; ?>
+        </tbody>
+    </table>
+</div>

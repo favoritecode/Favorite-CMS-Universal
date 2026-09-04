@@ -454,9 +454,13 @@ class Kernel
             }
             $ctrl = new ToolController($this->app);
             return match ($path) {
-                '/admin/tools'        => $ctrl->index($request),
-                '/admin/tools/export' => $ctrl->export($request),
-                default               => Response::redirect('/admin/tools'),
+                '/admin/tools'                 => $ctrl->index($request),
+                '/admin/tools/export'          => $ctrl->export($request),
+                '/admin/tools/backup/create'   => $ctrl->createBackup($request),
+                '/admin/tools/backup/download' => $ctrl->downloadBackup($request),
+                '/admin/tools/backup/delete'   => $ctrl->deleteBackup($request),
+                '/admin/tools/restore'         => $ctrl->restoreBackup($request),
+                default                        => Response::redirect('/admin/tools'),
             };
         }
 

@@ -69,7 +69,11 @@ are deliberately designed to be implemented as **Plugins** rather than bloated i
 ### Core Features
 - **Zero-Dependency Runtime**: No Node.js, Python, Ruby, or external worker processes required in production.
 - **Fast Request Dispatch**: Minimal execution overhead with optimized PSR-4 autoloading and lightweight PDO wrapper.
-- **Resilient Web Installer**: Automated browser setup with environment checks, URL auto-detection, optional automatic database creation, and manual configuration fallback.
+- **WordPress-Like Easy Web Installer**: 5-step intuitive wizard with Recommended Database mode (auto-defaulting `localhost:3306` and unique table prefix) requiring only database name, username, and password on shared hosting.
+- **Categorized Error Diagnostics**: Plain-language explanations for MySQL access denied, non-existent database, unreachable host, timeout, and permissions issues without exposing credentials.
+- **Core Site Backup & Restore Subsystem**: Native full-site portability engine generating structured `.zip` archives with `manifest.json`, chunked streaming SQL dump, media uploads, themes, and plugins.
+- **Format-Aware Domain Migration**: Seamlessly migrate sites between hosts or domains with format-safe URL replacements across settings, posts, pages, and theme options without corrupting JSON or serialized data.
+- **1-Click Restore During Installation**: Directly migrate an existing site onto a new server from the installer welcome screen.
 - **Persistent Installation State**: Lockfile and database checks work together to maintain installation state across server restarts.
 - **Clean Subdirectory & Subdomain Support**: Automatic base path normalization whether installed in domain root, a subdomain (`blog.example.com`), or a nested subdirectory (`example.com/subfolder/`).
 

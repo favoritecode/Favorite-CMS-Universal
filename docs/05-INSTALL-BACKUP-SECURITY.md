@@ -1,130 +1,132 @@
-# Favorite CMS — Installer, Backup, Migration and Security
+# Favorite CMS Universal &mdash; Installer, Backup, Migration & Security
 
-## Installer
-The first visit to an uninstalled site should enter the installer.
+## 1. WordPress-Like Easy Installation
 
-Installer stages:
-1. environment check
-2. filesystem check
-3. database check
-4. configuration setup
-5. schema migrations
-6. administrator creation
-7. initial settings
-8. installation verification
-9. installer lock/disable
+Favorite CMS Universal provides a streamlined, accessible 5-step web installation experience modeled after the simplicity of WordPress:
 
-Do not reinstall over an existing installation.
+```
+Step 1: Environment & Requirements Check
+                  ↓
+Step 2: Database Setup (Recommended / Minimal Input)
+                  ↓
+Step 3: Site Information (Name & Auto-Detected URL)
+                  ↓
+Step 4: Administrator Account (Username, Email, Password)
+                  ↓
+Step 5: Automatic Installation & Lock
+                  ↓
+Ready! Instant Redirect to Dashboard / Site
+```
 
-Fresh release archives must not include `storage/installed.lock`. The lock is created only after the schema, configuration, initial administrator, and required settings have been verified.
+---
 
-## Environment checks
-Give actionable messages for:
-- unsupported PHP version
-- missing required extensions
-- insufficient permissions
-- unavailable database
-- unwritable required directories
+## 2. Automatic & Recommended Database Setup
 
-Do not make optional features hard requirements.
+### Automatic Detection & Defaulting
+To remove technical friction for shared-hosting users, the installer automatically defaults or detects:
+- **Database Host**: Automatically defaults to `localhost` (the standard on Hostinger, cPanel, DirectAdmin, and XAMPP).
+- **Database Port**: Automatically defaults to `3306` (standard MySQL/MariaDB TCP port).
+- **Table Prefix**: Automatically generates a unique, isolated table prefix (e.g., `fvcms_a7b3_`) to prevent table collision without requiring user configuration.
+- **Environment Credentials**: Detects credentials if already provided via standard hosting environment variables (`DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD`, `DATABASE_URL`, or `MYSQL_DATABASE`).
+- **Site URL & Base Path**: Intelligently computed from the active HTTP request, respecting HTTPS, custom ports, subdomains (`blog.example.com`), and subdirectories (`example.com/cms/`).
 
-## Installation safety
-Use a lock/state mechanism so concurrent requests cannot create duplicate installations.
+### Technical Boundaries of Automatic Discovery
+> [!IMPORTANT]
+> **No Magic Password Discovery**: When running on shared hosting (such as Hostinger or cPanel), a PHP web application cannot magically discover MySQL passwords that the hosting environment does not expose. 
+> 
+> Therefore, in **Recommended Setup Mode**, the user is asked only for the minimum required information:
+> 1. **Database Name** (from hosting control panel, e.g. `u123456_mycms`)
+> 2. **Database Username** (e.g. `u123456_admin`)
+> 3. **Database Password**
+>
+> All other technical parameters (Host, Port, Table Prefix, Privileged Account) are pre-configured automatically and hidden from the normal path.
 
-Protect secrets and generated configuration files.
+### Advanced / Manual Database Setup
+For unusual hosting environments (remote database servers, non-standard ports, custom prefix requirements, or local development with privileged root accounts), an **Advanced Database Settings** toggle expands:
+- Custom Database Host (IP address or hostname)
+- Custom Database Port
+- Custom Table Prefix
+- Optional Privileged Database Account (`CREATE DATABASE`, `CREATE USER`, `GRANT`) for local environments or unmanaged VPS.
 
-Installation state must be persistent. A PHP session can protect the in-progress browser workflow, but it is not installation state. After a completed install, the CMS uses `storage/installed.lock`; if the lock is missing but the configured database clearly contains a valid Favorite CMS installation, the application may safely recreate the lock instead of reopening the normal installer.
+---
 
-Normal installation must never drop a database or unrelated tables. Existing Favorite CMS tables are detected, partial Favorite CMS tables are treated as repair/resume state, and unrelated application tables are left untouched.
+## 3. Humanized Database Error Handling
 
-## Database Setup
-The installer supports manual database credentials and best-effort automatic database creation.
+Database connection errors are categorized into plain-language, actionable instructions without ever exposing passwords or sensitive details in error messages:
+- **Access Denied (1045 / 28000)**: *"Incorrect database username or password. Please verify the credentials provided by your hosting control panel."*
+- **Unknown Database (1049 / 42000)**: *"The database '...' does not exist on host '...'. Please create the database first in your hosting control panel (e.g. cPanel MySQL Databases), or verify the spelling."*
+- **Host Unreachable (2002 / HY000)**: *"Could not reach database host '...'. On shared hosting (such as Hostinger or cPanel), the host should almost always be 'localhost'. Ensure the database service is active."*
+- **Server Timeout (2006)**: *"The connection to database host '...' timed out. Please verify that your hosting server allows local MySQL connections."*
+- **Insufficient Privileges (1142 / 42000)**: *"The database user has insufficient privileges. Please ensure your database user has been granted ALL PRIVILEGES in your hosting control panel."*
 
-Automatic creation depends on the database privileges granted by the host. If `CREATE DATABASE`, `CREATE USER`, or `GRANT` are denied, the installer must fall back to manual setup with a plain-language message.
+---
 
-The table prefix is configurable and validated. It must be used consistently for core CMS tables so multiple installations can share one database safely.
+## 4. Core CMS Backup & Restore Subsystem
 
-## URL Detection
-The installer detects the runtime scheme, host, and base path from the active request. It must preserve subdomains and subdirectories, for example `https://cms.example.com/` and `https://example.com/cms/`.
+Backup and Restore is built directly into Favorite CMS Core as a native portability engine (**not a plugin**).
 
-Redirects and form actions must be generated from the detected base path or trusted configured site URL. Do not hard-code production domains, local domains, `localhost`, or `127.0.0.1`.
+### Backup Package Format
+Backups are packaged as self-contained `.zip` archives saved under `storage/backups/`:
+- `manifest.json`: Structured metadata containing:
+  - `manifest_version`
+  - `cms_name` and `cms_version`
+  - `schema_version` (migration count)
+  - `created_at` (ISO 8601 timestamp)
+  - `site_name` and `site_url`
+  - `table_prefix`
+  - `tables` (dictionary of dumped tables and row counts)
+  - `file_count` and `sql_checksum` (SHA-256)
+- `database.sql`: Clean, portable SQL dump using chunked streaming (500 rows per query) to avoid high memory consumption on shared hosting.
+- `public/uploads/`: All user-uploaded media files.
+- `themes/`: Installed presentation themes.
+- `plugins/`: Installed extension plugins.
 
-## Updates
-Use:
-- version checks
-- compatibility checks
-- database migrations
-- atomic/rollback-safe file operations where practical
-- maintenance/recovery strategy
+### Production Backup Exclusions
+Backups strictly exclude:
+- `.git/` and `.github/`
+- `tests/` and test artifacts
+- `.env` and environment backups
+- `storage/installed.lock`
+- Runtime logs (`storage/logs/*.log`)
+- User session data (`storage/sessions/sess_*`)
+- Application caches (`storage/cache/*`)
 
-Never assume an update cannot fail.
+---
 
-## Backup
-The platform should support a practical backup strategy and make it clear what must be backed up:
-- application files
-- themes
-- plugins
-- user media/storage
-- database
-- necessary configuration/state
+## 5. Site Restoration & Domain Migration Workflow
 
-## Migration
-Avoid machine-specific assumptions.
+Sites can be restored from:
+1. **Admin Control Panel**: Under `/admin/tools` via the Restore Site from Backup interface.
+2. **Fresh Installation Wizard**: Directly at `/install` using the **Restore Existing Site from Backup** tab, allowing 1-click site migrations to a new host!
 
-After restoring to a new compatible hosting account, the CMS should be able to:
-- detect the environment
-- connect to the restored database
-- run required migrations
-- repair/rebuild caches
-- verify paths/configuration
-- continue serving the site
+### Format-Aware URL & Domain Migration
+When restoring to a different domain or protocol (e.g. `http://oldsite.com` &rarr; `https://newsite.com`):
+- Automatically updates `site_url` in the `settings` table.
+- Replaces old domain references across `posts` (content and excerpt) and `pages`.
+- Updates `media` file URLs.
+- **Structured String Preservation**: For `theme_options` and widget configurations containing JSON or serialized data, uses recursive format-aware replacement to ensure JSON data is not corrupted.
 
-## Security boundary
-Never rely on:
-- hidden UI buttons
-- JavaScript checks
-- filenames
-- client MIME types
-- obscurity
+---
 
-as the sole security mechanism.
+## 6. Security Architecture
 
-Authorization must be enforced server-side.
+### Zip-Slip & Path Traversal Shield
+The restore engine inspects all archive entries prior to extraction. Any entry containing directory traversal elements (`../`, `..\`, leading `/`, or absolute drive paths `C:`) is immediately rejected with a `SecurityException`.
 
-## Uploaded extensions
-Never blindly trust extension code or archive paths.
+### Uploads Protection
+Whenever uploads are restored, an Apache `.htaccess` security barrier is written into `public/uploads/` disabling PHP script execution:
+```apache
+<IfModule mod_php.c>
+    php_flag engine off
+</IfModule>
+<IfModule mod_php7.c>
+    php_flag engine off
+</IfModule>
+<IfModule mod_php8.c>
+    php_flag engine off
+</IfModule>
+RemoveHandler .php .phtml .php3 .php4 .php5 .phar .cgi .pl .py .sh
+```
 
-Validate package metadata and filesystem targets before changing the installation.
-
-## Sessions
-Use secure session settings appropriate to HTTPS and hosting environment.
-
-Prevent session fixation and unauthorized privilege escalation.
-
-Session cookies should use an application-specific name and the detected base path. Avoid hard-coded cookie domains so a Favorite CMS subdomain does not collide with a WordPress site or another application on the parent domain.
-
-## Passwords
-Use modern proven password hashing/password verification APIs.
-
-Never store plaintext passwords.
-
-## CSRF
-Protect browser-based state-changing operations.
-
-Installer pages must send no-cache headers so browsers and proxies do not reuse stale CSRF tokens. Expired installer tokens should rotate safely and show a clear retry message; token validation must not be disabled or bypassed.
-
-## Output
-Escape untrusted data according to output context.
-
-## Errors
-Production error responses must not expose:
-- stack traces
-- database credentials
-- secrets
-- private paths
-- internal tokens
-
-Provide a safe user-facing error and an actionable server-side diagnostic.
-
-## Recovery
-A failed migration/update/theme/plugin activation should leave the site in the safest recoverable state available.
+### Installation Locking
+Once installation or restoration completes, `storage/installed.lock` is written and installer routes are permanently locked. All subsequent visits to `/install` are redirected to the home page or admin login.

@@ -152,6 +152,16 @@ class Database
         return $this->pdo->rollBack();
     }
 
+    public function getPdo(): PDO
+    {
+        return $this->pdo;
+    }
+
+    public function prefix(): string
+    {
+        return $this->prefix;
+    }
+
     public function lastInsertId(): string
     {
         return $this->pdo->lastInsertId();
