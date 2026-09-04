@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace FavoriteCMS\Pay;
 
 use FavoriteCMS\Core\Application;
+use FavoriteCMS\Core\Database;
+use FavoriteCMS\Core\Migrator;
 use FavoriteCMS\Pay\Contracts\CurrencyServiceInterface;
 use FavoriteCMS\Pay\Contracts\PaymentServiceInterface;
 use FavoriteCMS\Pay\Contracts\RefundServiceInterface;
@@ -105,6 +107,14 @@ final class FavoritePayPlugin
 
     public function onActivate(): void
     {
+        try {
+            $this->runMigrations();
+        } catch (\Throwable $e) {
+            if (function_exists('cms_log')) {
+                cms_log("Favorite Pay migration failed on activation: " . $e->getMessage(), 'error', ['plugin' => 'favorite-pay']);
+            }
+        }
+
         if (function_exists('cms_log')) {
             cms_log('Favorite Pay plugin activated successfully.', 'info', ['plugin' => 'favorite-pay']);
         }
@@ -115,5 +125,17 @@ final class FavoritePayPlugin
         if (function_exists('cms_log')) {
             cms_log('Favorite Pay plugin deactivated.', 'info', ['plugin' => 'favorite-pay']);
         }
+    }
+
+    public function runMigrations(): array
+    {
+        if (!$this->app->has(Database::class)) {
+            return [];
+        }
+
+        $db = $this->app->make(Database::class);
+        $migrator = new Migrator($db);
+        $migrationsPath = __DIR__ . '/../database/migrations';
+        return $migrator->migrate($migrationsPath);
     }
 }

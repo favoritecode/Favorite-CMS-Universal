@@ -80,12 +80,47 @@ Favorite Pay dispatches standard Favorite CMS actions via `FavoriteCMS\Core\Hook
 
 ---
 
-## 6. Phase 2 & Future Roadmap
+## 6. Phase 2 Database Schema & Migrations
 
-- **Phase 2**: Production database schema migrations (`favorite_pay_*` tables) using Core `Migrator`.
+Favorite Pay owns 7 dedicated, isolated relational tables created via Core `Migrator`:
+Migration file: `plugins/favorite-pay/database/migrations/001_create_favorite_pay_tables.php`
+
+### Relational Schema Overview
+
+1. **`favorite_pay_gateways`**:
+   - Stores configured gateway providers (`id`, `title`, `type`, `is_enabled`, `supported_currencies`, `config`, `sort_order`).
+   - Sensitive credentials policy: No raw PAN, CVV, or PINs stored.
+
+2. **`favorite_pay_rates`**:
+   - Currency rate tables and historical operator locks (`id`, `base_currency`, `quote_currency`, `rate`, `rate_factor`, `rate_scale`, `is_authoritative`, `source`, `operator_id`, `effective_at`).
+   - Precision: `DECIMAL(18, 6)` and scaled integer `rate_factor` with scale `1000000` (zero float storage).
+
+3. **`favorite_pay_transactions`**:
+   - Authoritative intent and settled transactions (`id`, `transaction_id`, `source_plugin`, `source_reference`, `user_id`, `base_amount`, `base_currency`, `charge_amount`, `charge_currency`, `exchange_rate`, `status`, `idempotency_key`, `external_reference`).
+   - Monetary precision: `base_amount` (BDT Poisha) and `charge_amount` (payment currency subunits) stored as `BIGINT`.
+
+4. **`favorite_pay_attempts`**:
+   - Individual gateway execution attempts (`id`, `attempt_id`, `transaction_id`, `gateway_id`, `amount`, `currency`, `status`, `provider_reference`, `verified_by`, `verified_at`).
+   - Duplicate prevention: Unique index `(gateway_id, provider_reference)` prevents reuse of submitted customer TrxIDs.
+
+5. **`favorite_pay_refunds`**:
+   - Full and partial refunds (`id`, `refund_id`, `transaction_id`, `amount`, `currency`, `status`, `provider_refund_reference`, `reason`, `operator_id`).
+   - Monetary precision: `amount` stored as `BIGINT` minor units.
+
+6. **`favorite_pay_wallets`**:
+   - BDT customer balance accounts (`id`, `user_id` [UNIQUE], `balance` [BIGINT Poisha], `currency` ['BDT'], `status`).
+
+7. **`favorite_pay_wallet_entries`**:
+   - Append-only single-user financial ledger entries (`id`, `entry_id`, `wallet_id`, `user_id`, `type`, `amount`, `balance_after`, `reference_type`, `reference_id`, `idempotency_key` [UNIQUE], `description`).
+
+---
+
+## 7. Phase 3 & Future Roadmap
+
 - **Phase 3**: Gateway driver implementations:
   - Manual BD Drivers: `BkashManualGateway`, `NagadManualGateway`, `BankTransferGateway`.
   - International Card Driver: `StripeCardGateway`.
   - Crypto Driver: `BinancePayGateway`.
 - **Phase 4**: Operator Admin Console UI module for pending manual transaction verification.
 - **Phase 5**: Theme checkout template tags and API endpoints for Favorite Web Theme.
+
