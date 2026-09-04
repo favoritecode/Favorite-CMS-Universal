@@ -480,4 +480,142 @@ class PaymentService implements PaymentServiceInterface
     {
         return $this->hasTransactions() || $this->hasAttempts();
     }
+
+    /**
+     * Resolve a payment attempt for incoming webhook notifications.
+     */
+    public function findAttemptForWebhook(
+        string $gatewayId,
+        ?string $attemptOrTxId = null,
+        ?string $providerRef = null
+    ): ?PaymentAttempt {
+        // 1. Direct attempt ID lookup
+        if ($attemptOrTxId !== null && $attemptOrTxId !== '') {
+            $attempt = $this->getAttempt($attemptOrTxId);
+            if ($attempt !== null && $attempt->getGatewayId() === $gatewayId) {
+                return $attempt;
+            }
+
+            // 2. Transaction / Intent ID lookup
+            $intent = $this->getIntent($attemptOrTxId);
+            if ($intent !== null) {
+                // Check memory attempts
+                foreach ($this->attempts as $att) {
+                    if ($att->getIntentId() === $intent->getId() && $att->getGatewayId() === $gatewayId) {
+                        return $att;
+                    }
+                }
+
+                // Check database
+                if ($this->db !== null && $this->db->tableExists('favorite_pay_attempts')) {
+                    $row = $this->db->selectOne(
+                        "SELECT * FROM favorite_pay_attempts WHERE transaction_id = ? AND gateway_id = ? ORDER BY id DESC LIMIT 1",
+                        [$intent->getId(), $gatewayId]
+                    );
+                    if ($row) {
+                        return $this->getAttempt((string)$row->attempt_id);
+                    }
+                }
+            }
+        }
+
+        // 3. Gateway + Provider Reference lookup
+        if ($providerRef !== null && $providerRef !== '') {
+            $compositeKey = strtolower($gatewayId . ':' . trim($providerRef));
+            if (isset($this->providerReferences[$compositeKey])) {
+                return $this->getAttempt($this->providerReferences[$compositeKey]);
+            }
+
+            if ($this->db !== null && $this->db->tableExists('favorite_pay_attempts')) {
+                $row = $this->db->selectOne(
+                    "SELECT * FROM favorite_pay_attempts WHERE gateway_id = ? AND provider_reference = ? LIMIT 1",
+                    [$gatewayId, trim($providerRef)]
+                );
+                if ($row) {
+                    return $this->getAttempt((string)$row->attempt_id);
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Mark a payment attempt as successfully completed via a verified webhook.
+     * Enforces idempotency and status transition guards.
+     */
+    public function markAttemptSuccessfulViaWebhook(
+        string $attemptId,
+        ?string $providerReference = null,
+        array $metadata = []
+    ): PaymentAttempt {
+        $attempt = $this->getAttempt($attemptId);
+        if (!$attempt) {
+            throw new InvalidArgumentException("Payment attempt not found: {$attemptId}");
+        }
+
+        // Idempotency: if already SUCCEEDED, return cleanly
+        if ($attempt->getStatus() === PaymentStatus::SUCCEEDED) {
+            return $attempt;
+        }
+
+        if (!$attempt->getStatus()->canTransitionTo(PaymentStatus::SUCCEEDED)) {
+            throw new RuntimeException(
+                "Cannot transition attempt from {$attempt->getStatus()->value} to succeeded."
+            );
+        }
+
+        $succeededAttempt = $attempt->markSucceeded($providerReference, $metadata);
+        $this->attempts[$attemptId] = $succeededAttempt;
+
+        if ($this->db !== null && $this->db->tableExists('favorite_pay_attempts')) {
+            $this->db->update('favorite_pay_attempts', [
+                'status'             => PaymentStatus::SUCCEEDED->value,
+                'provider_reference' => $providerReference ?? $attempt->getTransactionReference(),
+                'verified_at'        => date('Y-m-d H:i:s'),
+                'updated_at'         => date('Y-m-d H:i:s'),
+            ], ['attempt_id' => $attemptId]);
+        }
+
+        // Transition the parent PaymentIntent to SUCCEEDED
+        // This fires 'favorite.pay.payment.succeeded' which triggers WalletService auto-settlement
+        $this->updateIntentStatus($attempt->getIntentId(), PaymentStatus::SUCCEEDED);
+
+        return $succeededAttempt;
+    }
+
+    /**
+     * Mark a payment attempt as failed via a verified webhook.
+     */
+    public function markAttemptFailedViaWebhook(
+        string $attemptId,
+        string $errorMessage,
+        ?string $providerReference = null,
+        array $metadata = []
+    ): PaymentAttempt {
+        $attempt = $this->getAttempt($attemptId);
+        if (!$attempt) {
+            throw new InvalidArgumentException("Payment attempt not found: {$attemptId}");
+        }
+
+        if ($attempt->getStatus() === PaymentStatus::SUCCEEDED) {
+            throw new RuntimeException("Cannot mark already succeeded payment attempt as failed.");
+        }
+
+        $failedAttempt = $attempt->markFailed($errorMessage, $providerReference, $metadata);
+        $this->attempts[$attemptId] = $failedAttempt;
+
+        if ($this->db !== null && $this->db->tableExists('favorite_pay_attempts')) {
+            $this->db->update('favorite_pay_attempts', [
+                'status'             => PaymentStatus::FAILED->value,
+                'provider_reference' => $providerReference ?? $attempt->getTransactionReference(),
+                'error_message'      => $errorMessage,
+                'updated_at'         => date('Y-m-d H:i:s'),
+            ], ['attempt_id' => $attemptId]);
+        }
+
+        $this->updateIntentStatus($attempt->getIntentId(), PaymentStatus::FAILED);
+
+        return $failedAttempt;
+    }
 }

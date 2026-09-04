@@ -154,4 +154,33 @@ final class PaymentAttempt
         $clone->errorMessage = $reason;
         return $clone;
     }
+
+    public function markSucceeded(?string $providerReference = null, array $metadata = []): self
+    {
+        $clone = clone $this;
+        $clone->status = PaymentStatus::SUCCEEDED;
+        $clone->verifiedAt = date('Y-m-d H:i:s');
+        if ($providerReference !== null && $providerReference !== '') {
+            $clone->transactionReference = $providerReference;
+        }
+        if (!empty($metadata)) {
+            $clone->metadata = array_merge($clone->metadata, $metadata);
+        }
+        return $clone;
+    }
+
+    public function markFailed(string $errorMessage, ?string $providerReference = null, array $metadata = []): self
+    {
+        $clone = clone $this;
+        $clone->status = PaymentStatus::FAILED;
+        $clone->verifiedAt = date('Y-m-d H:i:s');
+        $clone->errorMessage = $errorMessage;
+        if ($providerReference !== null && $providerReference !== '') {
+            $clone->transactionReference = $providerReference;
+        }
+        if (!empty($metadata)) {
+            $clone->metadata = array_merge($clone->metadata, $metadata);
+        }
+        return $clone;
+    }
 }

@@ -154,7 +154,31 @@ final class FavoritePayPlugin
 
         // Bind Refund Service
         $this->app->singleton(RefundServiceInterface::class, function ($app) {
-            return new RefundService($app->make(PaymentServiceInterface::class));
+            $db = $app->has(Database::class) ? $app->make(Database::class) : null;
+            return new RefundService(
+                $app->make(PaymentServiceInterface::class),
+                $app->make(GatewayRegistry::class),
+                $db
+            );
+        });
+
+        // Bind Webhook Service
+        $this->app->singleton(\FavoriteCMS\Pay\Contracts\WebhookServiceInterface::class, function ($app) {
+            return new \FavoriteCMS\Pay\Services\WebhookService(
+                $app->make(GatewayRegistry::class),
+                $app->make(PaymentServiceInterface::class)
+            );
+        });
+        $this->app->singleton(\FavoriteCMS\Pay\Services\WebhookService::class, function ($app) {
+            return $app->make(\FavoriteCMS\Pay\Contracts\WebhookServiceInterface::class);
+        });
+
+        // Bind Payment Webhook Controller
+        $this->app->singleton(\FavoriteCMS\Pay\Controllers\PaymentWebhookController::class, function ($app) {
+            return new \FavoriteCMS\Pay\Controllers\PaymentWebhookController(
+                $app,
+                $app->make(\FavoriteCMS\Pay\Contracts\WebhookServiceInterface::class)
+            );
         });
 
         // Bind Payment Attempt Repository
@@ -207,6 +231,14 @@ final class FavoritePayPlugin
                     \FavoriteCMS\Pay\Permissions\PaymentPermission::VIEW
                 );
             }
+        }
+
+        // Register Webhook Endpoint Route
+        if (function_exists('add_route')) {
+            add_route(['POST'], '/api/favorite-pay/webhook/{gateway}', function (\FavoriteCMS\Core\Request $request, string $gateway) {
+                $controller = $this->app->make(\FavoriteCMS\Pay\Controllers\PaymentWebhookController::class);
+                return $controller->handle($request, $gateway);
+            });
         }
 
         // Hook lifecycle actions

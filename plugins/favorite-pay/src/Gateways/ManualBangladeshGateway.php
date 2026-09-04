@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace FavoriteCMS\Pay\Gateways;
 
+use FavoriteCMS\Pay\Contracts\ConfigurableGatewayInterface;
 use FavoriteCMS\Pay\Contracts\PaymentGatewayInterface;
 use FavoriteCMS\Pay\Domain\PaymentAttempt;
 use FavoriteCMS\Pay\Domain\PaymentIntent;
@@ -22,7 +23,7 @@ use RuntimeException;
  *
  * Completely offline with ZERO external network/API requests.
  */
-class ManualBangladeshGateway implements PaymentGatewayInterface
+class ManualBangladeshGateway implements PaymentGatewayInterface, ConfigurableGatewayInterface
 {
     protected string $id;
     protected string $title;
@@ -152,5 +153,59 @@ class ManualBangladeshGateway implements PaymentGatewayInterface
         }
 
         throw new InvalidArgumentException("Unknown verification action: {$action}");
+    }
+
+    public function getConfigSchema(): array
+    {
+        return [
+            'channel' => [
+                'type'        => 'text',
+                'label'       => 'Payment Channel',
+                'required'    => true,
+                'secret'      => false,
+                'description' => 'Identifier for the payment channel (e.g. bkash, nagad, bank).',
+            ],
+            'account_name' => [
+                'type'        => 'text',
+                'label'       => 'Merchant Account Name',
+                'required'    => false,
+                'secret'      => false,
+                'description' => 'Account holder or organization name.',
+            ],
+            'account_number' => [
+                'type'        => 'text',
+                'label'       => 'Account Number / Phone',
+                'required'    => false,
+                'secret'      => false,
+                'description' => 'Receiving account number or mobile wallet number.',
+            ],
+            'instructions' => [
+                'type'        => 'textarea',
+                'label'       => 'Customer Instructions',
+                'required'    => false,
+                'secret'      => false,
+                'description' => 'Instructions displayed to customer on checkout.',
+            ],
+        ];
+    }
+
+    public function validateConfig(array $config): array
+    {
+        $validated = [];
+        $validated['channel'] = trim((string)($config['channel'] ?? 'manual_bd'));
+        $validated['account_name'] = trim((string)($config['account_name'] ?? ''));
+        $validated['account_number'] = trim((string)($config['account_number'] ?? ''));
+        $validated['instructions'] = trim((string)($config['instructions'] ?? ''));
+        return $validated;
+    }
+
+    public function getConfig(): array
+    {
+        return $this->config;
+    }
+
+    public function setConfig(array $config): void
+    {
+        $this->config = array_merge($this->config, $this->validateConfig($config));
     }
 }
