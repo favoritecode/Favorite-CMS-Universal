@@ -56,9 +56,14 @@ final class GatewayRegistry
         $this->gateways[$bank->getId()] = $bank;
         $this->defaults[$bank->getId()] = true;
 
+        $binance = new \FavoriteCMS\Pay\Gateways\Binance\BinancePayGateway();
+        $this->gateways[$binance->getId()] = $binance;
+        $this->defaults[$binance->getId()] = true;
+
         $this->aliases['bkash_manual'] = 'manual_bkash';
         $this->aliases['nagad_manual'] = 'manual_nagad';
         $this->aliases['bank_manual'] = 'manual_bank';
+        $this->aliases['binance'] = 'binance_pay';
     }
 
     public function register(PaymentGatewayInterface $gateway, array $aliases = [], bool $overwrite = false): void
@@ -105,6 +110,11 @@ final class GatewayRegistry
     {
         $resolvedId = $this->aliases[$id] ?? $id;
         return isset($this->gateways[$resolvedId]);
+    }
+
+    public function resolveId(string $id): string
+    {
+        return $this->aliases[$id] ?? $id;
     }
 
     public function unregister(string $id): bool

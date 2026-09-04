@@ -62,6 +62,11 @@ final class PaymentIntent
         return $this->sourceReference;
     }
 
+    public function getSourceId(): string
+    {
+        return $this->sourceReference;
+    }
+
     public function getCustomerId(): ?int
     {
         return $this->customerId;
@@ -78,6 +83,11 @@ final class PaymentIntent
     }
 
     public function getChargeAmount(): Money
+    {
+        return $this->chargeAmount;
+    }
+
+    public function getAmount(): Money
     {
         return $this->chargeAmount;
     }

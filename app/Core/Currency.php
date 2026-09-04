@@ -97,6 +97,18 @@ class Currency
             'symbol'   => '¥',
             'decimals' => 2,
         ],
+        'USDT' => [
+            'code'     => 'USDT',
+            'name'     => 'Tether USD',
+            'symbol'   => '₮',
+            'decimals' => 2,
+        ],
+        'USDC' => [
+            'code'     => 'USDC',
+            'name'     => 'USD Coin',
+            'symbol'   => '$',
+            'decimals' => 2,
+        ],
     ];
 
     /**

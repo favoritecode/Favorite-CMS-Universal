@@ -54,6 +54,11 @@ final class GatewayRefundResult
         return $this->refundedAmount;
     }
 
+    public function getAmount(): ?Money
+    {
+        return $this->refundedAmount;
+    }
+
     public function getErrorMessage(): ?string
     {
         return $this->errorMessage;

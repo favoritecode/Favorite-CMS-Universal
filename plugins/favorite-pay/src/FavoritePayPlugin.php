@@ -119,6 +119,9 @@ final class FavoritePayPlugin
             $registry->register($manualNagad);
             $registry->register($manualBank);
 
+            $binancePay = new \FavoriteCMS\Pay\Gateways\Binance\BinancePayGateway();
+            $registry->register($binancePay, ['binance']);
+
             // Backward compatibility aliases for Phase 1 tests
             $registry->registerAlias('bkash_manual', 'manual_bkash');
             $registry->registerAlias('nagad_manual', 'manual_nagad');

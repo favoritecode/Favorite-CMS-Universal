@@ -35,6 +35,11 @@ final class Money
         'JPY' => 0,
         'KRW' => 0,
         'CNY' => 2,
+        'USDT' => 2,
+        'USDC' => 2,
+        'BTC' => 8,
+        'ETH' => 8,
+        'BNB' => 8,
     ];
 
     private int $amount;
@@ -43,8 +48,8 @@ final class Money
     public function __construct(int $amountInMinorUnits, string $currency = 'BDT')
     {
         $cur = strtoupper(trim($currency));
-        if ($cur === '' || strlen($cur) !== 3) {
-            throw new InvalidArgumentException("Invalid currency code: {$currency}. Must be 3-letter ISO code.");
+        if ($cur === '' || !preg_match('/^[A-Z0-9]{3,6}$/', $cur)) {
+            throw new InvalidArgumentException("Invalid currency code: {$currency}. Must be 3-6 character currency code.");
         }
 
         $this->amount = $amountInMinorUnits;
