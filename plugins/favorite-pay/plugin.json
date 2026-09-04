@@ -1,0 +1,10 @@
+{
+    "id": "favorite-pay",
+    "name": "Favorite Pay",
+    "version": "1.0.0",
+    "description": "Authoritative shared payment orchestration, digital wallet, and exchange-rate management plugin for Favorite CMS.",
+    "author": "Favorite CMS Team",
+    "requires_php": "8.1.0",
+    "dependencies": [],
+    "entry_point": "plugin.php"
+}

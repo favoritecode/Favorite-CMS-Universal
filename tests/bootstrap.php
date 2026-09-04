@@ -12,6 +12,9 @@ $_SERVER['HTTP_HOST']      = 'favorite-cms.local';
 
 require APP_ROOT . '/vendor/autoload.php';
 require APP_ROOT . '/app/Core/helpers.php';
+if (file_exists(APP_ROOT . '/plugins/favorite-pay/autoload.php')) {
+    require_once APP_ROOT . '/plugins/favorite-pay/autoload.php';
+}
 
 // Load .env
 if (file_exists(APP_ROOT . '/.env')) {
