@@ -20,7 +20,7 @@ class CreatePostsTable
                 `slug`             VARCHAR(500) NOT NULL UNIQUE,
                 `content`          LONGTEXT     NULL,
                 `excerpt`          TEXT         NULL,
-                `status`           ENUM(\'draft\',\'published\',\'scheduled\',\'archived\',\'pending\',\'rejected\') DEFAULT \'draft\',
+                `status`           ENUM(\'draft\',\'published\',\'scheduled\',\'archived\',\'pending\',\'rejected\',\'trash\') DEFAULT \'draft\',
                 `type`             VARCHAR(50)  DEFAULT \'post\',
                 `author_id`        BIGINT       NOT NULL,
                 `featured_image_id` BIGINT      NULL,

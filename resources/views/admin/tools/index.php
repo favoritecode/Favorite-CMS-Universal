@@ -79,7 +79,114 @@ $h = static fn ($val): string => htmlspecialchars((string)$val, ENT_QUOTES, 'UTF
     </div>
 </div>
 
-<!-- Available Backups List -->
+<!-- Blogger Content Importer Card -->
+<div id="blogger-import" class="form-card" style="background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 24px; margin-bottom: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
+    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; flex-wrap: wrap; gap: 10px;">
+        <h2 style="font-size: 17px; font-weight: 700; margin: 0; color: #0f172a;">
+            &#128221; Google Blogger Content Importer
+        </h2>
+        <span style="font-size: 11px; background: #e0e7ff; color: #3730a3; padding: 3px 8px; border-radius: 4px; font-weight: 600;">Atom XML v1.0</span>
+    </div>
+
+    <p style="color: #64748b; font-size: 13px; margin: 0 0 18px; line-height: 1.5;">
+        Seamlessly migrate your blog from Google Blogger (Blogspot) into Favorite CMS. Export your content from Blogger via <strong>Settings &rarr; Manage blog &rarr; Back up content</strong> (generates a <code>feed.xml</code> or <code>blog-*.xml</code> file), then upload it below.
+    </p>
+
+    <?php if (!empty($bloggerPreview)): ?>
+        <!-- Blogger Preview State -->
+        <div style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; padding: 16px; margin-bottom: 20px;">
+            <div style="font-weight: 600; font-size: 14px; color: #1e293b; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+                <span>&#9989; Blogger Backup Analysis Ready</span>
+            </div>
+
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; margin-bottom: 16px;">
+                <div style="background: #fff; border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px; text-align: center;">
+                    <div style="font-size: 22px; font-weight: 700; color: #2563eb;"><?php echo (int)($bloggerPreview['counts']['posts'] ?? 0); ?></div>
+                    <div style="font-size: 12px; color: #64748b; font-weight: 500;">Posts</div>
+                </div>
+                <div style="background: #fff; border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px; text-align: center;">
+                    <div style="font-size: 22px; font-weight: 700; color: #059669;"><?php echo (int)($bloggerPreview['counts']['pages'] ?? 0); ?></div>
+                    <div style="font-size: 12px; color: #64748b; font-weight: 500;">Pages</div>
+                </div>
+                <div style="background: #fff; border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px; text-align: center;">
+                    <div style="font-size: 22px; font-weight: 700; color: #d97706;"><?php echo (int)($bloggerPreview['counts']['comments'] ?? 0); ?></div>
+                    <div style="font-size: 12px; color: #64748b; font-weight: 500;">Comments</div>
+                </div>
+                <div style="background: #fff; border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px; text-align: center;">
+                    <div style="font-size: 22px; font-weight: 700; color: #7c3aed;"><?php echo (int)($bloggerPreview['counts']['tags'] ?? 0); ?></div>
+                    <div style="font-size: 12px; color: #64748b; font-weight: 500;">Tags / Labels</div>
+                </div>
+            </div>
+
+            <?php if (!empty($bloggerPreview['sample_posts'])): ?>
+                <div style="margin-bottom: 16px;">
+                    <div style="font-size: 12px; font-weight: 600; color: #475569; margin-bottom: 6px;">Sample Posts Detected:</div>
+                    <ul style="margin: 0; padding-left: 18px; font-size: 12px; color: #334155; line-height: 1.6;">
+                        <?php foreach ($bloggerPreview['sample_posts'] as $sp): ?>
+                            <li>
+                                <strong><?php echo $h($sp['title'] ?: '(Untitled)'); ?></strong>
+                                <span style="color: #64748b;">(<?php echo $h($sp['date']); ?>, <?php echo $h($sp['status']); ?>)</span>
+                                <?php if (!empty($sp['tags'])): ?>
+                                    <span style="color: #0284c7; font-size: 11px;">[<?php echo $h(implode(', ', $sp['tags'])); ?>]</span>
+                                <?php endif; ?>
+                            </li>
+                        <?php endforeach; ?>
+                    </ul>
+                </div>
+            <?php endif; ?>
+
+            <form method="POST" action="/admin/tools/import/blogger">
+                <input type="hidden" name="_token" value="<?php echo $h($csrfToken); ?>">
+                <input type="hidden" name="import_token" value="<?php echo $h($bloggerToken); ?>">
+
+                <div style="margin-bottom: 14px; font-size: 13px; color: #334155;">
+                    <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px; cursor: pointer;">
+                        <input type="checkbox" name="import_posts" value="1" checked> Import Posts
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px; cursor: pointer;">
+                        <input type="checkbox" name="import_pages" value="1" checked> Import Standalone Pages
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px; cursor: pointer;">
+                        <input type="checkbox" name="import_comments" value="1" checked> Import Approved Comments
+                    </label>
+                </div>
+
+                <div style="margin-bottom: 16px;">
+                    <label style="display: block; font-size: 12px; font-weight: 600; color: #334155; margin-bottom: 4px;">Status Handling</label>
+                    <select name="default_status" style="padding: 6px 10px; border: 1px solid #cbd5e1; border-radius: 4px; font-size: 13px; background: #fff;">
+                        <option value="preserve">Preserve Blogger Status (Published stays Published, Draft stays Draft)</option>
+                        <option value="draft">Import All as Draft (Review manually before publishing)</option>
+                    </select>
+                </div>
+
+                <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                    <button type="submit" class="btn" style="background: #059669; color: #fff; border: none; padding: 9px 20px; font-weight: 600; border-radius: 4px; cursor: pointer;">
+                        &#128640; Run Full Import
+                    </button>
+                    <a href="/admin/tools" class="btn" style="background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; padding: 8px 14px; text-decoration: none; border-radius: 4px; font-size: 13px;">
+                        Cancel
+                    </a>
+                </div>
+            </form>
+        </div>
+    <?php endif; ?>
+
+    <!-- XML Upload & Preview Form -->
+    <form method="POST" action="/admin/tools/import/blogger/preview" enctype="multipart/form-data">
+        <input type="hidden" name="_token" value="<?php echo $h($csrfToken); ?>">
+
+        <div style="margin-bottom: 14px;">
+            <label style="display: block; font-size: 12px; font-weight: 600; color: #334155; margin-bottom: 6px;">
+                Select Blogger Export XML (<code>feed.xml</code> or <code>blog-*.xml</code>)
+            </label>
+            <input type="file" name="blogger_file" accept=".xml,text/xml" required style="font-size: 13px; padding: 6px 0;">
+        </div>
+
+        <button type="submit" class="btn btn-primary" style="padding: 8px 16px; font-weight: 600; font-size: 13px;">
+            &#128269; Analyze &amp; Preview Blogger XML
+        </button>
+    </form>
+</div>
 <div class="form-card" style="background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 24px; margin-bottom: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
     <h2 style="font-size: 17px; font-weight: 700; margin: 0 0 14px; color: #0f172a;">Existing Site Backups (<code>storage/backups/</code>)</h2>
 

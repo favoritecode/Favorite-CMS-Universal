@@ -10,72 +10,129 @@
     <li><a href="/admin/comments?status=trash" class="<?php echo $status === 'trash' ? 'current' : ''; ?>">Trash (<?php echo $counts['trash'] ?? 0; ?>)</a></li>
 </ul>
 
-<div class="wp-table-wrap">
-    <table class="wp-table">
-        <thead>
-            <tr>
-                <th style="width: 180px;">Author</th>
-                <th>Comment</th>
-                <th style="width: 200px;">In Response To</th>
-                <th style="width: 140px;">Submitted On</th>
-            </tr>
-        </thead>
-        <tbody>
-            <?php if (empty($comments)): ?>
-                <tr>
-                    <td colspan="4" style="text-align: center; color: var(--wp-text-muted); padding: 24px;">No comments found.</td>
-                </tr>
+<form method="POST" action="/admin/comments/bulk" id="comments-bulk-form">
+    <input type="hidden" name="_token" value="<?php echo htmlspecialchars($_SESSION['_token'] ?? '', ENT_QUOTES, 'UTF-8'); ?>">
+    <input type="hidden" name="status" value="<?php echo htmlspecialchars($status, ENT_QUOTES, 'UTF-8'); ?>">
+
+    <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 12px;">
+        <select name="bulk_action" class="form-control" style="width: auto; max-width: 200px; display: inline-block;">
+            <option value="">Bulk Actions</option>
+            <?php if ($status === 'trash'): ?>
+                <option value="approve">Restore (Approve)</option>
+                <option value="delete">Delete Permanently</option>
             <?php else: ?>
-                <?php foreach ($comments as $comment): ?>
-                    <tr>
-                        <td>
-                            <strong><?php echo htmlspecialchars($comment->author_name, ENT_QUOTES, 'UTF-8'); ?></strong>
-                            <div style="font-size: 12px; color: var(--wp-text-muted);">
-                                <a href="mailto:<?php echo htmlspecialchars($comment->author_email, ENT_QUOTES, 'UTF-8'); ?>"><?php echo htmlspecialchars($comment->author_email, ENT_QUOTES, 'UTF-8'); ?></a>
-                            </div>
-                        </td>
-                        <td>
-                            <div style="margin-bottom: 6px;">
-                                <?php echo nl2br(htmlspecialchars($comment->content, ENT_QUOTES, 'UTF-8')); ?>
-                            </div>
-                            <div class="row-actions">
-                                <?php 
-                                $csrfToken = htmlspecialchars($_SESSION['_token'] ?? '', ENT_QUOTES, 'UTF-8'); 
-                                ?>
-                                <?php if ($comment->status === 'pending'): ?>
-                                    <a href="/admin/comments/approve?id=<?php echo (int)$comment->id; ?>&_token=<?php echo $csrfToken; ?>" style="color: var(--wp-success); font-weight: 600;">Approve</a> |
-                                <?php elseif ($comment->status === 'approved'): ?>
-                                    <a href="/admin/comments/unapprove?id=<?php echo (int)$comment->id; ?>&_token=<?php echo $csrfToken; ?>" style="color: #b35900;">Unapprove</a> |
-                                <?php endif; ?>
-
-                                <?php if ($comment->status !== 'spam'): ?>
-                                    <a href="/admin/comments/spam?id=<?php echo (int)$comment->id; ?>&_token=<?php echo $csrfToken; ?>" style="color: var(--wp-danger);">Spam</a> |
-                                <?php endif; ?>
-
-                                <?php if ($comment->status === 'trash'): ?>
-                                    <a href="/admin/comments/approve?id=<?php echo (int)$comment->id; ?>&_token=<?php echo $csrfToken; ?>&status=trash" style="color: var(--wp-success);">Restore</a> |
-                                    <a href="/admin/comments/delete?id=<?php echo (int)$comment->id; ?>&_token=<?php echo $csrfToken; ?>" onclick="return confirm('Permanently delete this comment?');" style="color: var(--wp-danger);">Delete Permanently</a>
-                                <?php else: ?>
-                                    <a href="/admin/comments/trash?id=<?php echo (int)$comment->id; ?>&_token=<?php echo $csrfToken; ?>" style="color: var(--wp-danger);">Trash</a>
-                                <?php endif; ?>
-                            </div>
-                        </td>
-                        <td>
-                            <?php if ($post = $comment->getPost()): ?>
-                                <a href="/post/<?php echo htmlspecialchars($post->slug, ENT_QUOTES, 'UTF-8'); ?>" target="_blank">
-                                    <?php echo htmlspecialchars($post->title, ENT_QUOTES, 'UTF-8'); ?>
-                                </a>
-                            <?php else: ?>
-                                <span style="color: var(--wp-text-muted);">&mdash;</span>
-                            <?php endif; ?>
-                        </td>
-                        <td>
-                            <?php echo date('Y/m/d \a\t g:i a', strtotime($comment->created_at)); ?>
-                        </td>
-                    </tr>
-                <?php endforeach; ?>
+                <option value="approve">Approve</option>
+                <option value="unapprove">Unapprove</option>
+                <option value="spam">Mark as Spam</option>
+                <option value="trash">Move to Trash</option>
+                <option value="delete">Delete Permanently</option>
             <?php endif; ?>
-        </tbody>
-    </table>
-</div>
+        </select>
+        <button type="submit" class="btn btn-secondary" onclick="return confirmBulkAction('comments-bulk-form')">Apply</button>
+    </div>
+
+    <div class="wp-table-wrap">
+        <table class="wp-table">
+            <thead>
+                <tr>
+                    <th style="width: 32px; text-align: center;">
+                        <input type="checkbox" id="select-all-comments" onclick="toggleSelectAll(this, 'ids[]')">
+                    </th>
+                    <th style="width: 180px;">Author</th>
+                    <th>Comment</th>
+                    <th style="width: 200px;">In Response To</th>
+                    <th style="width: 140px;">Submitted On</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php if (empty($comments)): ?>
+                    <tr>
+                        <td colspan="5" style="text-align: center; color: var(--wp-text-muted); padding: 24px;">No comments found.</td>
+                    </tr>
+                <?php else: ?>
+                    <?php foreach ($comments as $comment): ?>
+                        <tr>
+                            <td style="text-align: center;">
+                                <input type="checkbox" name="ids[]" value="<?php echo (int)$comment->id; ?>" class="bulk-cb">
+                            </td>
+                            <td>
+                                <strong><?php echo htmlspecialchars($comment->author_name, ENT_QUOTES, 'UTF-8'); ?></strong>
+                                <div style="font-size: 12px; color: var(--wp-text-muted);">
+                                    <a href="mailto:<?php echo htmlspecialchars($comment->author_email, ENT_QUOTES, 'UTF-8'); ?>"><?php echo htmlspecialchars($comment->author_email, ENT_QUOTES, 'UTF-8'); ?></a>
+                                </div>
+                            </td>
+                            <td>
+                                <div style="margin-bottom: 6px;">
+                                    <?php echo nl2br(htmlspecialchars($comment->content, ENT_QUOTES, 'UTF-8')); ?>
+                                </div>
+                                <div class="row-actions">
+                                    <?php 
+                                    $csrfToken = htmlspecialchars($_SESSION['_token'] ?? '', ENT_QUOTES, 'UTF-8'); 
+                                    ?>
+                                    <?php if ($comment->status === 'pending'): ?>
+                                        <a href="/admin/comments/approve?id=<?php echo (int)$comment->id; ?>&_token=<?php echo $csrfToken; ?>" style="color: var(--wp-success); font-weight: 600;">Approve</a> |
+                                    <?php elseif ($comment->status === 'approved'): ?>
+                                        <a href="/admin/comments/unapprove?id=<?php echo (int)$comment->id; ?>&_token=<?php echo $csrfToken; ?>" style="color: #b35900;">Unapprove</a> |
+                                    <?php endif; ?>
+
+                                    <?php if ($comment->status !== 'spam'): ?>
+                                        <a href="/admin/comments/spam?id=<?php echo (int)$comment->id; ?>&_token=<?php echo $csrfToken; ?>" style="color: var(--wp-danger);">Spam</a> |
+                                    <?php endif; ?>
+
+                                    <?php if ($comment->status === 'trash'): ?>
+                                        <a href="/admin/comments/approve?id=<?php echo (int)$comment->id; ?>&_token=<?php echo $csrfToken; ?>&status=trash" style="color: var(--wp-success);">Restore</a> |
+                                        <a href="/admin/comments/delete?id=<?php echo (int)$comment->id; ?>&_token=<?php echo $csrfToken; ?>" onclick="return confirm('Permanently delete this comment?');" style="color: var(--wp-danger);">Delete Permanently</a>
+                                    <?php else: ?>
+                                        <a href="/admin/comments/trash?id=<?php echo (int)$comment->id; ?>&_token=<?php echo $csrfToken; ?>" style="color: var(--wp-danger);">Trash</a>
+                                    <?php endif; ?>
+                                </div>
+                            </td>
+                            <td>
+                                <?php if ($post = $comment->getPost()): ?>
+                                    <a href="/post/<?php echo htmlspecialchars($post->slug, ENT_QUOTES, 'UTF-8'); ?>" target="_blank">
+                                        <?php echo htmlspecialchars($post->title, ENT_QUOTES, 'UTF-8'); ?>
+                                    </a>
+                                <?php else: ?>
+                                    <span style="color: var(--wp-text-muted);">&mdash;</span>
+                                <?php endif; ?>
+                            </td>
+                            <td>
+                                <?php echo date('Y/m/d \a\t g:i a', strtotime($comment->created_at)); ?>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                <?php endif; ?>
+            </tbody>
+        </table>
+    </div>
+</form>
+
+<script>
+function toggleSelectAll(master, groupName) {
+    var cbs = document.getElementsByName(groupName);
+    for (var i = 0; i < cbs.length; i++) {
+        cbs[i].checked = master.checked;
+    }
+}
+function confirmBulkAction(formId) {
+    var form = document.getElementById(formId);
+    var action = form.querySelector('select[name="bulk_action"]').value;
+    if (!action) {
+        alert('Please select a bulk action.');
+        return false;
+    }
+    var checked = form.querySelectorAll('input[name="ids[]"]:checked');
+    if (checked.length === 0) {
+        alert('Please select at least one item.');
+        return false;
+    }
+    if (action === 'delete') {
+        return confirm('Are you sure you want to permanently delete ' + checked.length + ' comment(s)?');
+    }
+    if (action === 'trash') {
+        return confirm('Are you sure you want to move ' + checked.length + ' comment(s) to trash?');
+    }
+    return true;
+}
+</script>
 

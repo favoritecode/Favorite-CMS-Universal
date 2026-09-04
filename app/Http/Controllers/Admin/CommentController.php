@@ -123,5 +123,70 @@ class CommentController
             exit;
         }
     }
+
+    public function bulkAction(Request $request): Response
+    {
+        $this->validateCsrf($request);
+
+        $action = trim((string)$request->post('bulk_action', ''));
+        $rawIds = (array)$request->post('ids', []);
+        $ids = array_filter(array_map('intval', $rawIds), fn($id) => $id > 0);
+        $redirectStatus = trim((string)$request->post('status', ''));
+        $redirectUrl = '/admin/comments' . ($redirectStatus !== '' ? '?status=' . urlencode($redirectStatus) : '');
+
+        if (empty($action) || empty($ids)) {
+            $_SESSION['flash_error'] = 'Please select at least one comment and a bulk action.';
+            return Response::redirect($redirectUrl);
+        }
+
+        $count = 0;
+        $now = date('Y-m-d H:i:s');
+
+        foreach ($ids as $id) {
+            $comment = Comment::find($id);
+            if (!$comment) {
+                continue;
+            }
+
+            switch ($action) {
+                case 'approve':
+                    $comment->update(['status' => 'approved', 'updated_at' => $now]);
+                    $count++;
+                    break;
+                case 'unapprove':
+                    $comment->update(['status' => 'pending', 'updated_at' => $now]);
+                    $count++;
+                    break;
+                case 'spam':
+                    $comment->update(['status' => 'spam', 'updated_at' => $now]);
+                    $count++;
+                    break;
+                case 'trash':
+                    $comment->update(['status' => 'trash', 'updated_at' => $now]);
+                    $count++;
+                    break;
+                case 'delete':
+                    $comment->delete();
+                    $count++;
+                    break;
+            }
+        }
+
+        if ($count > 0) {
+            $label = match ($action) {
+                'approve'   => 'approved',
+                'unapprove' => 'unapproved',
+                'spam'      => 'marked as spam',
+                'trash'     => 'moved to trash',
+                'delete'    => 'permanently deleted',
+                default     => 'processed',
+            };
+            $_SESSION['flash_success'] = "{$count} comment(s) successfully {$label}.";
+        } else {
+            $_SESSION['flash_error'] = 'No comments were updated.';
+        }
+
+        return Response::redirect($redirectUrl);
+    }
 }
 

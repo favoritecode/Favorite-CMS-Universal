@@ -489,4 +489,92 @@ class PostController
 
         return Response::redirect('/admin');
     }
+
+    public function bulkAction(Request $request): Response
+    {
+        $token = (string)$request->post('_token', '');
+        if (empty($_SESSION['_token']) || !hash_equals($_SESSION['_token'], $token)) {
+            $_SESSION['flash_error'] = 'Security verification failed (invalid CSRF token).';
+            return Response::redirect('/admin/posts');
+        }
+
+        $currentUser = isset($_SESSION['auth_user_id']) ? User::find((int)$_SESSION['auth_user_id']) : null;
+        if (!$currentUser || !$currentUser->isActive()) {
+            $_SESSION['flash_error'] = 'Your account is inactive or suspended.';
+            return Response::redirect('/admin/posts');
+        }
+
+        $action = trim((string)$request->post('bulk_action', ''));
+        $rawIds = (array)$request->post('ids', []);
+        $ids = array_filter(array_map('intval', $rawIds), fn($id) => $id > 0);
+        $redirectStatus = trim((string)$request->post('status', ''));
+        $redirectUrl = '/admin/posts' . ($redirectStatus !== '' ? '?status=' . urlencode($redirectStatus) : '');
+
+        if (empty($action) || empty($ids)) {
+            $_SESSION['flash_error'] = 'Please select at least one post and a bulk action.';
+            return Response::redirect($redirectUrl);
+        }
+
+        if (in_array($action, ['approve', 'reject'], true) && !$currentUser->canModeratePosts()) {
+            $_SESSION['flash_error'] = 'You do not have permission to approve or reject posts.';
+            return Response::redirect($redirectUrl);
+        }
+
+        $db = $this->app->make(Database::class);
+        $count = 0;
+
+        foreach ($ids as $id) {
+            $post = Post::find($id);
+            if (!$post) {
+                continue;
+            }
+
+            if (!$currentUser->canModeratePosts() && (int)$post->author_id !== (int)$currentUser->id) {
+                continue;
+            }
+
+            switch ($action) {
+                case 'trash':
+                    $post->update(['status' => 'trash', 'updated_at' => date('Y-m-d H:i:s')]);
+                    $count++;
+                    break;
+                case 'restore':
+                    $post->update(['status' => 'draft', 'updated_at' => date('Y-m-d H:i:s')]);
+                    $count++;
+                    break;
+                case 'delete':
+                    $db->execute("DELETE FROM `post_taxonomies` WHERE `post_id` = ?", [$id]);
+                    $db->execute("DELETE FROM `seo_meta` WHERE `object_type` = 'post' AND `object_id` = ?", [$id]);
+                    $db->execute("DELETE FROM `comments` WHERE `post_id` = ?", [$id]);
+                    $post->delete();
+                    $count++;
+                    break;
+                case 'approve':
+                    $post->approve();
+                    $count++;
+                    break;
+                case 'reject':
+                    $post->reject();
+                    $count++;
+                    break;
+            }
+        }
+
+        if ($count > 0) {
+            $label = match ($action) {
+                'trash'   => 'moved to trash',
+                'restore' => 'restored from trash',
+                'delete'  => 'permanently deleted',
+                'approve' => 'approved and published',
+                'reject'  => 'rejected',
+                default   => 'processed',
+            };
+            $_SESSION['flash_success'] = "{$count} post(s) successfully {$label}.";
+        } else {
+            $_SESSION['flash_error'] = 'No posts were updated.';
+        }
+
+        return Response::redirect($redirectUrl);
+    }
 }
+

@@ -5,7 +5,8 @@ $metaTitle = $metaTitle ?? $siteTitle;
 $metaDesc = $metaDescription ?? \FavoriteCMS\Models\Setting::get('seo', 'meta_description', '');
 $currentUri = $_SERVER['REQUEST_URI'] ?? '/';
 
-$siteLogoUrl = get_theme_mod('site_logo_url');
+$siteLogoUrl = function_exists('get_site_logo_url') ? get_site_logo_url() : get_theme_mod('site_logo_url');
+$siteFaviconUrl = function_exists('get_site_favicon_url') ? get_site_favicon_url() : get_theme_mod('site_favicon_url');
 $accentColor = get_theme_mod('accent_color');
 $siteLayout  = get_theme_mod('site_layout', 'right');
 ?>
@@ -17,6 +18,9 @@ $siteLayout  = get_theme_mod('site_layout', 'right');
     <title><?php echo htmlspecialchars($metaTitle, ENT_QUOTES, 'UTF-8'); ?></title>
     <?php if (!empty($metaDesc)): ?>
         <meta name="description" content="<?php echo htmlspecialchars($metaDesc, ENT_QUOTES, 'UTF-8'); ?>">
+    <?php endif; ?>
+    <?php if (!empty($siteFaviconUrl)): ?>
+        <link rel="icon" href="<?php echo htmlspecialchars($siteFaviconUrl, ENT_QUOTES, 'UTF-8'); ?>">
     <?php endif; ?>
     <link rel="stylesheet" href="/themes/default/assets/css/style.css">
     <?php if (!empty($accentColor)): ?>

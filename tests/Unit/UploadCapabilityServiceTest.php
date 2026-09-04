@@ -10,6 +10,14 @@ use PHPUnit\Framework\TestCase;
 
 class UploadCapabilityServiceTest extends TestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $_SESSION = [];
+        $_POST = [];
+        $_GET = [];
+    }
+
     public function testParseByteStringHandlesVariousUnits(): void
     {
         $this->assertSame(1024, UploadCapabilityService::parseByteString('1K'));

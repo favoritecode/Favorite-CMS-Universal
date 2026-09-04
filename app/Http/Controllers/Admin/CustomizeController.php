@@ -27,6 +27,13 @@ class CustomizeController
         $sections = $this->layoutService->getSections($themeId);
         $mods = $this->layoutService->getAllThemeMods($themeId);
 
+        if (empty($mods['site_logo_url'])) {
+            $mods['site_logo_url'] = \FavoriteCMS\Models\Setting::get('general', 'site_logo_url', '');
+        }
+        if (empty($mods['site_favicon_url'])) {
+            $mods['site_favicon_url'] = \FavoriteCMS\Models\Setting::get('general', 'site_favicon_url', '');
+        }
+
         $viewData = [
             'pageTitle'   => 'Customize Theme',
             'activeMenu'  => 'customize',

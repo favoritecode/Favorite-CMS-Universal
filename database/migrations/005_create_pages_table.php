@@ -20,7 +20,7 @@ class CreatePagesTable
                 `slug`             VARCHAR(500) NOT NULL UNIQUE,
                 `content`          LONGTEXT     NULL,
                 `excerpt`          TEXT         NULL,
-                `status`           ENUM(\'draft\',\'published\') DEFAULT \'draft\',
+                `status`           ENUM(\'draft\',\'published\',\'trash\') DEFAULT \'draft\',
                 `parent_id`        BIGINT       NULL,
                 `template`         VARCHAR(100) NULL,
                 `author_id`        BIGINT       NOT NULL,

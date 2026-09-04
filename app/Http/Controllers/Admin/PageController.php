@@ -10,6 +10,7 @@ use FavoriteCMS\Core\Request;
 use FavoriteCMS\Core\Response;
 use FavoriteCMS\Models\Page;
 use FavoriteCMS\Models\Media;
+use FavoriteCMS\Models\User;
 use FavoriteCMS\Services\ContentSanitizer;
 
 class PageController
@@ -271,6 +272,77 @@ class PageController
             $_SESSION['flash_success'] = 'Page permanently deleted.';
         }
         return Response::redirect('/admin/pages?status=trash');
+    }
+
+    public function bulkAction(Request $request): Response
+    {
+        $token = (string)$request->post('_token', '');
+        if (empty($_SESSION['_token']) || !hash_equals($_SESSION['_token'], $token)) {
+            $_SESSION['flash_error'] = 'Security verification failed (invalid CSRF token).';
+            return Response::redirect('/admin/pages');
+        }
+
+        $currentUser = isset($_SESSION['auth_user_id']) ? User::find((int)$_SESSION['auth_user_id']) : null;
+        if (!$currentUser || !$currentUser->isActive()) {
+            $_SESSION['flash_error'] = 'Your account is inactive or suspended.';
+            return Response::redirect('/admin/pages');
+        }
+
+        if (!$currentUser->canManagePages()) {
+            $_SESSION['flash_error'] = 'You do not have permission to manage pages.';
+            return Response::redirect('/admin/pages');
+        }
+
+        $action = trim((string)$request->post('bulk_action', ''));
+        $rawIds = (array)$request->post('ids', []);
+        $ids = array_filter(array_map('intval', $rawIds), fn($id) => $id > 0);
+        $redirectStatus = trim((string)$request->post('status', ''));
+        $redirectUrl = '/admin/pages' . ($redirectStatus !== '' ? '?status=' . urlencode($redirectStatus) : '');
+
+        if (empty($action) || empty($ids)) {
+            $_SESSION['flash_error'] = 'Please select at least one page and a bulk action.';
+            return Response::redirect($redirectUrl);
+        }
+
+        $db = $this->app->make(Database::class);
+        $count = 0;
+
+        foreach ($ids as $id) {
+            $page = Page::find($id);
+            if (!$page) {
+                continue;
+            }
+
+            switch ($action) {
+                case 'trash':
+                    $page->update(['status' => 'trash', 'updated_at' => date('Y-m-d H:i:s')]);
+                    $count++;
+                    break;
+                case 'restore':
+                    $page->update(['status' => 'draft', 'updated_at' => date('Y-m-d H:i:s')]);
+                    $count++;
+                    break;
+                case 'delete':
+                    $db->execute("DELETE FROM `seo_meta` WHERE `object_type` = 'page' AND `object_id` = ?", [$id]);
+                    $page->delete();
+                    $count++;
+                    break;
+            }
+        }
+
+        if ($count > 0) {
+            $label = match ($action) {
+                'trash'   => 'moved to trash',
+                'restore' => 'restored from trash',
+                'delete'  => 'permanently deleted',
+                default   => 'processed',
+            };
+            $_SESSION['flash_success'] = "{$count} page(s) successfully {$label}.";
+        } else {
+            $_SESSION['flash_error'] = 'No pages were updated.';
+        }
+
+        return Response::redirect($redirectUrl);
     }
 }
 

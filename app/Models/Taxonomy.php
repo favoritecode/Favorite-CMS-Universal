@@ -15,6 +15,32 @@ class Taxonomy extends BaseModel
         return $result ? new static((array)$result) : null;
     }
 
+    public static function findOrCreate(string $name, string $taxonomy = 'tag'): ?self
+    {
+        $name = trim($name);
+        if ($name === '') {
+            return null;
+        }
+        $slug = str_slug($name);
+        $existing = static::findBySlug($slug, $taxonomy);
+        if ($existing) {
+            return $existing;
+        }
+
+        $db = \FavoriteCMS\Core\Container::getInstance()->get(\FavoriteCMS\Core\Database::class);
+        $id = $db->insert('taxonomies', [
+            'name'        => $name,
+            'slug'        => $slug,
+            'taxonomy'    => $taxonomy,
+            'description' => '',
+            'post_count'  => 0,
+            'created_at'  => date('Y-m-d H:i:s'),
+            'updated_at'  => date('Y-m-d H:i:s'),
+        ]);
+
+        return $id > 0 ? static::find((int)$id) : null;
+    }
+
     public static function getByTaxonomy(string $taxonomy): array
     {
         $db = \FavoriteCMS\Core\Container::getInstance()->get(\FavoriteCMS\Core\Database::class);

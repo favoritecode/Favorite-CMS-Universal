@@ -323,5 +323,82 @@ class UserController
 
         return Response::redirect('/admin/users');
     }
+
+    public function bulkAction(Request $request): Response
+    {
+        $token = (string)$request->post('_token', '');
+        if (empty($_SESSION['_token']) || !hash_equals($_SESSION['_token'], $token)) {
+            $_SESSION['flash_error'] = 'Security verification failed (invalid CSRF token).';
+            return Response::redirect('/admin/users');
+        }
+
+        $currentId = (int)($_SESSION['auth_user_id'] ?? 0);
+        $currentUser = User::find($currentId);
+        if (!$currentUser || !$currentUser->canManageUsers()) {
+            return Response::make('<h1>403 Access Denied</h1><p>You do not have permission to manage users.</p>', 403);
+        }
+
+        $action = trim((string)$request->post('bulk_action', ''));
+        $rawIds = (array)$request->post('ids', []);
+        $ids = array_filter(array_map('intval', $rawIds), fn($id) => $id > 0);
+
+        if (empty($action) || empty($ids)) {
+            $_SESSION['flash_error'] = 'Please select at least one user and a bulk action.';
+            return Response::redirect('/admin/users');
+        }
+
+        $targetStatus = match ($action) {
+            'activate' => 'active',
+            'suspend'  => 'suspended',
+            'ban'      => 'banned',
+            default    => null,
+        };
+
+        if ($targetStatus === null) {
+            $_SESSION['flash_error'] = 'Invalid user bulk action specified.';
+            return Response::redirect('/admin/users');
+        }
+
+        $count = 0;
+        $now = date('Y-m-d H:i:s');
+        $isSuperAdmin = $currentUser->hasRole('super-admin');
+
+        foreach ($ids as $id) {
+            // Guard: Cannot modify self
+            if ($id === $currentId) {
+                continue;
+            }
+
+            $targetUser = User::find($id);
+            if (!$targetUser) {
+                continue;
+            }
+
+            // Guard: Cannot suspend or ban a super-admin unless acting user is super-admin
+            if ($targetUser->hasRole('super-admin') && !$isSuperAdmin) {
+                continue;
+            }
+
+            $targetUser->update([
+                'status'     => $targetStatus,
+                'updated_at' => $now,
+            ]);
+            $count++;
+        }
+
+        if ($count > 0) {
+            $label = match ($action) {
+                'activate' => 'activated',
+                'suspend'  => 'suspended',
+                'ban'      => 'banned',
+                default    => 'processed',
+            };
+            $_SESSION['flash_success'] = "{$count} user(s) successfully {$label}.";
+        } else {
+            $_SESSION['flash_error'] = 'No users were updated (you cannot modify your own account or protected accounts).';
+        }
+
+        return Response::redirect('/admin/users');
+    }
 }
 

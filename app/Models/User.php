@@ -180,6 +180,18 @@ class User extends BaseModel
             || $this->hasPermission('manage_users');
     }
 
+    public function canManagePages(): bool
+    {
+        if (!$this->isActive()) {
+            return false;
+        }
+
+        return $this->hasRole('super-admin')
+            || $this->hasRole('admin')
+            || $this->hasRole('editor')
+            || $this->hasPermission('manage_pages');
+    }
+
     public function getPostCount(): int
     {
         $row = $this->db->selectOne(

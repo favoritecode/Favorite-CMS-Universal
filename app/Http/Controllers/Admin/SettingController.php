@@ -32,6 +32,8 @@ class SettingController
             'site_name'             => Setting::get('general', 'site_name', 'Favorite CMS'),
             'site_description'      => Setting::get('general', 'site_description', 'Fast, secure, modular CMS'),
             'site_url'              => Setting::get('general', 'site_url', config('app.url', 'http://favorite-cms.local')),
+            'site_logo_url'         => Setting::get('general', 'site_logo_url', ''),
+            'site_favicon_url'      => Setting::get('general', 'site_favicon_url', ''),
             'admin_email'           => Setting::get('general', 'admin_email', 'admin@example.com'),
             'timezone'              => Setting::get('general', 'timezone', 'UTC'),
             'primary_currency'      => Currency::getPrimaryCurrency(),
@@ -75,6 +77,8 @@ class SettingController
         Setting::set('general', 'site_name', trim((string)$request->post('site_name', 'Favorite CMS')));
         Setting::set('general', 'site_description', trim((string)$request->post('site_description', '')));
         Setting::set('general', 'site_url', trim((string)$request->post('site_url', 'http://favorite-cms.local')));
+        Setting::set('general', 'site_logo_url', trim((string)$request->post('site_logo_url', '')));
+        Setting::set('general', 'site_favicon_url', trim((string)$request->post('site_favicon_url', '')));
         Setting::set('general', 'admin_email', trim((string)$request->post('admin_email', 'admin@example.com')));
         Setting::set('general', 'timezone', trim((string)$request->post('timezone', 'UTC')));
         Setting::set('general', 'allow_registration', $request->post('allow_registration') ? 1 : 0, 'bool');

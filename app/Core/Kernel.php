@@ -250,6 +250,7 @@ class Kernel
                 '/admin/posts/trash'       => $ctrl->trash($request),
                 '/admin/posts/restore'     => $ctrl->restore($request),
                 '/admin/posts/delete'      => $ctrl->delete($request),
+                '/admin/posts/bulk'        => $ctrl->bulkAction($request),
                 '/admin/posts/quick-draft' => $ctrl->quickDraft($request),
                 default                    => Response::redirect('/admin/posts'),
             };
@@ -268,6 +269,7 @@ class Kernel
                 '/admin/pages/trash'   => $ctrl->trash($request),
                 '/admin/pages/restore' => $ctrl->restore($request),
                 '/admin/pages/delete'  => $ctrl->delete($request),
+                '/admin/pages/bulk'    => $ctrl->bulkAction($request),
                 default                => Response::redirect('/admin/pages'),
             };
         }
@@ -312,6 +314,7 @@ class Kernel
                 '/admin/comments/spam'      => $ctrl->spam($request),
                 '/admin/comments/trash'     => $ctrl->trash($request),
                 '/admin/comments/delete'    => $ctrl->delete($request),
+                '/admin/comments/bulk'      => $ctrl->bulkAction($request),
                 default                     => Response::redirect('/admin/comments'),
             };
         }
@@ -336,6 +339,7 @@ class Kernel
                 '/admin/users/status'         => $ctrl->changeStatus($request),
                 '/admin/users/role'           => $ctrl->changeRole($request),
                 '/admin/users/delete'         => $ctrl->delete($request),
+                '/admin/users/bulk'           => $ctrl->bulkAction($request),
                 default                       => Response::redirect('/admin/users'),
             };
         }
@@ -461,10 +465,12 @@ class Kernel
                 '/admin/tools'                 => $ctrl->index($request),
                 '/admin/tools/export'          => $ctrl->export($request),
                 '/admin/tools/backup/create'   => $ctrl->createBackup($request),
-                '/admin/tools/backup/download' => $ctrl->downloadBackup($request),
-                '/admin/tools/backup/delete'   => $ctrl->deleteBackup($request),
-                '/admin/tools/restore'         => $ctrl->restoreBackup($request),
-                default                        => Response::redirect('/admin/tools'),
+                '/admin/tools/backup/download'        => $ctrl->downloadBackup($request),
+                '/admin/tools/backup/delete'          => $ctrl->deleteBackup($request),
+                '/admin/tools/restore'                => $ctrl->restoreBackup($request),
+                '/admin/tools/import/blogger/preview' => $ctrl->bloggerImportPreview($request),
+                '/admin/tools/import/blogger'         => $ctrl->bloggerImportProcess($request),
+                default                               => Response::redirect('/admin/tools'),
             };
         }
 

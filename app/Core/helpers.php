@@ -438,4 +438,67 @@ if (!function_exists('set_theme_mod')) {
     }
 }
 
+if (!function_exists('get_site_logo_url')) {
+    /**
+     * Retrieve the site logo URL.
+     * Checks general setting first, then theme mod fallback, then default.
+     */
+    function get_site_logo_url(string $default = ''): string
+    {
+        try {
+            $setting = \FavoriteCMS\Models\Setting::get('general', 'site_logo_url', '');
+            if (!empty($setting)) {
+                return (string)$setting;
+            }
+        } catch (\Throwable $e) {
+            // DB might not be connected yet during installer
+        }
+
+        try {
+            if (function_exists('get_theme_mod')) {
+                $themeMod = get_theme_mod('site_logo_url');
+                if (!empty($themeMod)) {
+                    return (string)$themeMod;
+                }
+            }
+        } catch (\Throwable $e) {
+            // Ignore
+        }
+
+        return $default;
+    }
+}
+
+if (!function_exists('get_site_favicon_url')) {
+    /**
+     * Retrieve the site favicon URL.
+     * Checks general setting first, then theme mod fallback, then default.
+     */
+    function get_site_favicon_url(string $default = '/favicon.ico'): string
+    {
+        try {
+            $setting = \FavoriteCMS\Models\Setting::get('general', 'site_favicon_url', '');
+            if (!empty($setting)) {
+                return (string)$setting;
+            }
+        } catch (\Throwable $e) {
+            // DB might not be connected yet during installer
+        }
+
+        try {
+            if (function_exists('get_theme_mod')) {
+                $themeMod = get_theme_mod('site_favicon_url');
+                if (!empty($themeMod)) {
+                    return (string)$themeMod;
+                }
+            }
+        } catch (\Throwable $e) {
+            // Ignore
+        }
+
+        return $default;
+    }
+}
+
+
 

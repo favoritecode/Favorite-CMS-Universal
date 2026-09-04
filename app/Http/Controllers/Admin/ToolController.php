@@ -9,6 +9,7 @@ use FavoriteCMS\Core\Database;
 use FavoriteCMS\Core\Request;
 use FavoriteCMS\Core\Response;
 use FavoriteCMS\Services\BackupService;
+use FavoriteCMS\Services\BloggerImportService;
 use FavoriteCMS\Services\RestoreService;
 use Throwable;
 
@@ -58,11 +59,13 @@ class ToolController
             'pageTitle'   => 'Tools & Backup Manager',
             'activeMenu'  => 'tools',
             'diagnostics' => $diagnostics,
-            'backups'     => $backups,
-            'notice'      => $notice,
-            'error'       => $error,
-            'csrfToken'   => $_SESSION['_token'] ?? '',
-            'contentView' => APP_ROOT . '/resources/views/admin/tools/index.php',
+            'backups'        => $backups,
+            'notice'         => $notice,
+            'error'          => $error,
+            'bloggerPreview' => $_SESSION['blogger_import_preview'] ?? null,
+            'bloggerToken'   => $_SESSION['blogger_import_token'] ?? '',
+            'csrfToken'      => $_SESSION['_token'] ?? '',
+            'contentView'    => APP_ROOT . '/resources/views/admin/tools/index.php',
         ];
 
         extract($viewData, EXTR_SKIP);
@@ -202,6 +205,99 @@ class ToolController
         $response->header('Content-Type', 'application/json');
         $response->header('Content-Disposition', 'attachment; filename="' . $filename . '"');
         return $response;
+    }
+
+    public function bloggerImportPreview(Request $request): Response
+    {
+        $this->validateCsrf($request);
+
+        $xmlContent = '';
+        if (!empty($_FILES['blogger_file']['tmp_name']) && is_uploaded_file($_FILES['blogger_file']['tmp_name'])) {
+            $xmlContent = (string)file_get_contents($_FILES['blogger_file']['tmp_name']);
+        } elseif ($request->post('xml_content')) {
+            $xmlContent = (string)$request->post('xml_content');
+        }
+
+        if (trim($xmlContent) === '') {
+            $_SESSION['_flash_error'] = 'Please choose a valid Blogger XML backup file or provide XML content.';
+            return Response::redirect('/admin/tools#blogger-import');
+        }
+
+        try {
+            $service = new BloggerImportService($this->app);
+            $preview = $service->preview($xmlContent);
+
+            if (!$preview['success']) {
+                $_SESSION['_flash_error'] = 'Blogger XML Parse Error: ' . ($preview['error'] ?? 'Unknown error.');
+                return Response::redirect('/admin/tools#blogger-import');
+            }
+
+            // Stash XML in temporary storage for process step
+            $tempDir = APP_ROOT . '/storage/cache';
+            if (!is_dir($tempDir)) {
+                @mkdir($tempDir, 0775, true);
+            }
+            $importToken = bin2hex(random_bytes(16));
+            file_put_contents($tempDir . '/blogger_' . $importToken . '.xml', $xmlContent);
+
+            $_SESSION['blogger_import_token'] = $importToken;
+            $_SESSION['blogger_import_preview'] = $preview;
+            $_SESSION['_flash_notice'] = "Blogger XML analyzed: {$preview['counts']['posts']} posts, {$preview['counts']['pages']} pages, and {$preview['counts']['comments']} comments found.";
+        } catch (Throwable $e) {
+            $_SESSION['_flash_error'] = 'Failed to analyze Blogger XML: ' . $e->getMessage();
+        }
+
+        return Response::redirect('/admin/tools#blogger-import');
+    }
+
+    public function bloggerImportProcess(Request $request): Response
+    {
+        $this->validateCsrf($request);
+
+        $importToken = (string)$request->post('import_token', $_SESSION['blogger_import_token'] ?? '');
+        $tempFile = APP_ROOT . '/storage/cache/blogger_' . basename($importToken) . '.xml';
+
+        $xmlContent = '';
+        if ($importToken !== '' && file_exists($tempFile)) {
+            $xmlContent = (string)file_get_contents($tempFile);
+        } elseif (!empty($_FILES['blogger_file']['tmp_name']) && is_uploaded_file($_FILES['blogger_file']['tmp_name'])) {
+            $xmlContent = (string)file_get_contents($_FILES['blogger_file']['tmp_name']);
+        }
+
+        if (trim($xmlContent) === '') {
+            $_SESSION['_flash_error'] = 'Import session expired or no XML file found. Please upload your Blogger XML file again.';
+            return Response::redirect('/admin/tools#blogger-import');
+        }
+
+        try {
+            $service = new BloggerImportService($this->app);
+            $options = [
+                'author_id'       => (int)$request->post('author_id', $_SESSION['auth_user_id'] ?? 1),
+                'import_posts'    => $request->post('import_posts', '1') === '1',
+                'import_pages'    => $request->post('import_pages', '1') === '1',
+                'import_comments' => $request->post('import_comments', '1') === '1',
+                'default_status'  => (string)$request->post('default_status', 'preserve'),
+            ];
+
+            $result = $service->import($xmlContent, $options);
+
+            // Clean up temporary file
+            if (file_exists($tempFile)) {
+                @unlink($tempFile);
+            }
+            unset($_SESSION['blogger_import_token'], $_SESSION['blogger_import_preview']);
+
+            if ($result['success']) {
+                $c = $result['counts'];
+                $_SESSION['_flash_notice'] = "Blogger import complete! Imported {$c['posts']} post(s), {$c['pages']} page(s), {$c['comments']} comment(s), and {$c['tags']} tag(s).";
+            } else {
+                $_SESSION['_flash_error'] = "Import completed with warnings/errors: " . implode('; ', array_slice($result['errors'], 0, 3));
+            }
+        } catch (Throwable $e) {
+            $_SESSION['_flash_error'] = 'Blogger import failed: ' . $e->getMessage();
+        }
+
+        return Response::redirect('/admin/tools#blogger-import');
     }
 
     protected function validateCsrf(Request $request): void

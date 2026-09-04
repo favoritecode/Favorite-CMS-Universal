@@ -27,6 +27,28 @@
         </div>
 
         <div class="form-group">
+            <label for="site_logo_url">Site Logo URL</label>
+            <input type="url" id="site_logo_url" name="site_logo_url" class="form-control" value="<?php echo htmlspecialchars($settings['site_logo_url'] ?? '', ENT_QUOTES, 'UTF-8'); ?>" placeholder="https://example.com/uploads/logo.png">
+            <span class="description">URL or media link to the site logo image. Displays in theme header and brand sections.</span>
+            <?php if (!empty($settings['site_logo_url'])): ?>
+                <div style="margin-top: 8px; padding: 8px; background: #fff; border: 1px solid var(--wp-border); display: inline-block; border-radius: 4px;">
+                    <img src="<?php echo htmlspecialchars($settings['site_logo_url'], ENT_QUOTES, 'UTF-8'); ?>" alt="Site Logo Preview" style="max-height: 44px; max-width: 220px; object-fit: contain; display: block;">
+                </div>
+            <?php endif; ?>
+        </div>
+
+        <div class="form-group">
+            <label for="site_favicon_url">Site Favicon URL</label>
+            <input type="url" id="site_favicon_url" name="site_favicon_url" class="form-control" value="<?php echo htmlspecialchars($settings['site_favicon_url'] ?? '', ENT_QUOTES, 'UTF-8'); ?>" placeholder="https://example.com/uploads/favicon.png">
+            <span class="description">URL to the site icon / favicon (.ico, .png, or .svg). Used by browsers, bookmarks, and admin dashboard.</span>
+            <?php if (!empty($settings['site_favicon_url'])): ?>
+                <div style="margin-top: 8px; padding: 6px; background: #fff; border: 1px solid var(--wp-border); display: inline-block; border-radius: 4px;">
+                    <img src="<?php echo htmlspecialchars($settings['site_favicon_url'], ENT_QUOTES, 'UTF-8'); ?>" alt="Favicon Preview" style="width: 24px; height: 24px; object-fit: contain; display: block;">
+                </div>
+            <?php endif; ?>
+        </div>
+
+        <div class="form-group">
             <label for="admin_email">Administration Email Address</label>
             <input type="email" id="admin_email" name="admin_email" class="form-control" value="<?php echo htmlspecialchars($settings['admin_email'], ENT_QUOTES, 'UTF-8'); ?>" required>
             <span class="description">This address is used for admin purposes.</span>

@@ -15,6 +15,7 @@ $flashError = $_SESSION['flash_error'] ?? null;
 unset($_SESSION['flash_success'], $_SESSION['flash_error']);
 
 $activeMenu = $activeMenu ?? 'dashboard';
+$siteFaviconUrl = function_exists('get_site_favicon_url') ? get_site_favicon_url('') : '';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -22,6 +23,9 @@ $activeMenu = $activeMenu ?? 'dashboard';
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?php echo htmlspecialchars($pageTitle ?? 'Admin', ENT_QUOTES, 'UTF-8'); ?> &lsaquo; <?php echo htmlspecialchars($siteName, ENT_QUOTES, 'UTF-8'); ?> &mdash; Favorite CMS</title>
+    <?php if (!empty($siteFaviconUrl)): ?>
+        <link rel="icon" href="<?php echo htmlspecialchars($siteFaviconUrl, ENT_QUOTES, 'UTF-8'); ?>">
+    <?php endif; ?>
     <style>
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
         :root {

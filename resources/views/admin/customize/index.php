@@ -54,6 +54,13 @@
                 <span class="description">Leave blank to display the standard text site title and icon.</span>
             </div>
 
+            <!-- Favicon Image URL -->
+            <div class="form-group">
+                <label for="mod-site-favicon">Site Favicon URL</label>
+                <input type="url" name="mods[site_favicon_url]" id="mod-site-favicon" class="form-control" placeholder="https://example.com/uploads/favicon.png" value="<?php echo htmlspecialchars($mods['site_favicon_url'] ?? ''); ?>">
+                <span class="description">Custom browser favicon image URL (32x32 or 512x512 icon).</span>
+            </div>
+
             <!-- Custom Copyright Notice -->
             <div class="form-group">
                 <label for="mod-footer-copyright">Footer Copyright Text</label>
