@@ -108,14 +108,41 @@ Favorite Pay features a complete three-tier financial separation:
 
 ---
 
-## 9. Secret Handling & Privacy Rules
+## 9. Operator Exchange Rate Management
+
+To ensure financial safety and regulatory compliance, Favorite Pay allows authorized operators to configure and audit exchange rates directly in the admin panel:
+
+### 1. Permission Requirements
+- Only administrators with `super-admin`, `admin`, or the specific `favorite_pay.rates.manage` permission can access exchange rate management.
+- Users with view-only or payment-verification permissions are denied access with HTTP 403.
+
+### 2. Admin Navigation
+- Navigate to **Favorite Pay -> Exchange Rates** (`/admin/page/favorite-pay-rates`).
+
+### 3. Clear Rate Direction Convention
+- Rate definition follows standard financial quotation:
+  $$\text{Base Currency} = \text{USDT}, \quad \text{Quote Currency} = \text{BDT}, \quad \text{Rate} = 122.500000$$
+  Meaning: **1 USDT = 122.50 BDT**.
+- When a customer checks out an order priced in BDT, the system converts BDT to USDT using exact integer-scaled factor arithmetic (e.g., $120.00\text{ BDT} \rightarrow 1.00\text{ USDT}$ at $120.00\text{ BDT/USDT}$).
+
+### 4. Overlap Prevention & Immutability
+- **Historical Records Preserved**: Historical exchange rates are NEVER deleted (`DELETE` queries are forbidden).
+- **Safe Replacement**: Setting a new active rate automatically retires prior active rates for that currency pair by setting their expiration date to the new rate's effective date, ensuring zero overlapping windows.
+- **Deactivation**: Operators can deactivate an active rate at any time, immediately marking it as inactive and retiring future use.
+
+### 5. Fail-Closed Protection
+- If no active, authoritative, non-expired rate is configured for a currency pair, checkout fails closed immediately with `UnauthoritativeRateException`. No `PaymentIntent`, `PaymentAttempt`, or Binance API call is executed.
+
+---
+
+## 10. Secret Handling & Privacy Rules
 - **Zero Display**: The `API Secret Key` is never displayed in HTML inputs, view sources, JavaScript, logs, exceptions, or debug responses.
 - **Preservation on Edit**: When editing gateway settings, leaving the `API Secret Key` field blank preserves the previously saved secret. Submitting a new value replaces it.
 - **Storage**: Credentials are stored in the core `settings` table under group `favorite_pay_binance`. They are never stored in transaction logs, order records, or wallet ledgers.
 
 ---
 
-## 10. Troubleshooting Configuration Problems
+## 11. Troubleshooting Configuration Problems
 | Problem | Cause | Resolution |
 | :--- | :--- | :--- |
 | Status shows `NOT READY` | Missing credentials or missing exchange rate | Check that Certificate-SN and Secret are configured, and exchange rates exist between Primary Currency and Binance Payment Currency. |
@@ -126,7 +153,7 @@ Favorite Pay features a complete three-tier financial separation:
 
 ---
 
-## 11. Summary: Binance Merchant Dashboard Setup Checklist
+## 12. Summary: Binance Merchant Dashboard Setup Checklist
 1. Create and verify your Binance Merchant Account at [https://merchant.binance.com](https://merchant.binance.com).
 2. Generate API Credentials (`Certificate-SN` and `API Secret Key`).
 3. Set Webhook URL to: `https://YOUR-DOMAIN/api/favorite-pay/webhook/binance_pay`.

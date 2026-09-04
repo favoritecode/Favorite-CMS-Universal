@@ -228,7 +228,8 @@ class CurrencyService implements CurrencyServiceInterface
         string $rateMajorString,
         int $operatorUserId,
         ?string $toCurrency = null,
-        ?string $expiresAt = null
+        ?string $expiresAt = null,
+        ?string $notes = null
     ): ConversionSnapshot {
         $from = strtoupper(trim($fromCurrency));
         $to = $toCurrency !== null ? strtoupper(trim($toCurrency)) : $this->getBaseCurrency();
@@ -249,19 +250,40 @@ class CurrencyService implements CurrencyServiceInterface
         if ($this->db !== null && $this->db->tableExists('favorite_pay_rates')) {
             try {
                 $now = date('Y-m-d H:i:s');
-                $this->db->insert('favorite_pay_rates', [
+                // First retire overlapping active rate for the same pair
+                if ($this->provider instanceof DatabaseRateProvider) {
+                    $this->provider->retireActiveRates($from, $to, $now);
+                } else {
+                    $this->db->execute(
+                        "UPDATE favorite_pay_rates 
+                         SET status = 'retired', expires_at = ? 
+                         WHERE base_currency = ? 
+                           AND quote_currency = ? 
+                           AND is_authoritative = 1 
+                           AND (status = 'active' OR status IS NULL)
+                           AND (expires_at IS NULL OR expires_at > ?)",
+                        [$now, $from, $to, $now]
+                    );
+                }
+
+                $insertData = [
                     'base_currency'    => $from,
                     'quote_currency'   => $to,
                     'rate'             => (float)$rateMajorString,
                     'rate_factor'      => $snapshot->getRateFactor(),
                     'rate_scale'       => $snapshot->getRateScale(),
                     'is_authoritative' => 1,
+                    'status'           => 'active',
                     'source'           => 'operator',
                     'operator_id'      => $operatorUserId,
                     'effective_at'     => $now,
                     'expires_at'       => $expiresAt,
                     'created_at'       => $now,
-                ]);
+                ];
+                if ($notes !== null) {
+                    $insertData['notes'] = $notes;
+                }
+                $this->db->insert('favorite_pay_rates', $insertData);
             } catch (\Throwable) {
                 // In-memory snapshot still holds
             }
@@ -275,6 +297,7 @@ class CurrencyService implements CurrencyServiceInterface
                 'rate'        => $rateMajorString,
                 'operator_id' => $operatorUserId,
                 'expires_at'  => $expiresAt,
+                'notes'       => $notes,
             ]);
         }
 

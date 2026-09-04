@@ -210,6 +210,14 @@ final class FavoritePayPlugin
                 $app->make(GatewayRegistry::class)
             );
         });
+
+        // Bind Payment Rate Controller
+        $this->app->singleton(\FavoriteCMS\Pay\Controllers\PaymentRateController::class, function ($app) {
+            return new \FavoriteCMS\Pay\Controllers\PaymentRateController(
+                $app,
+                $app->make(CurrencyServiceInterface::class)
+            );
+        });
     }
 
     public function boot(): void
@@ -241,6 +249,17 @@ final class FavoritePayPlugin
                     'Payments',
                     $handler,
                     \FavoriteCMS\Pay\Permissions\PaymentPermission::VIEW
+                );
+
+                add_admin_submenu(
+                    'favorite-pay',
+                    'favorite-pay-rates',
+                    'Exchange Rates',
+                    function (\FavoriteCMS\Core\Request $request) {
+                        $controller = $this->app->make(\FavoriteCMS\Pay\Controllers\PaymentRateController::class);
+                        return $controller->handle($request);
+                    },
+                    \FavoriteCMS\Pay\Permissions\PaymentPermission::MANAGE_RATES
                 );
 
                 add_admin_submenu(

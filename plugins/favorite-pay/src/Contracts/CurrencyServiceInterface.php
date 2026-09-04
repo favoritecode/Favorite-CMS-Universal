@@ -32,7 +32,8 @@ interface CurrencyServiceInterface
         string $rateMajorString,
         int $operatorUserId,
         ?string $toCurrency = null,
-        ?string $expiresAt = null
+        ?string $expiresAt = null,
+        ?string $notes = null
     ): ConversionSnapshot;
 
     /**

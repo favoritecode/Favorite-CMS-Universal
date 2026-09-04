@@ -52,6 +52,28 @@ final class PaymentPermission
         return $user->hasPermission(self::VERIFY);
     }
 
+    public const MANAGE_RATES = 'favorite_pay.rates.manage';
+
+    /**
+     * Check if a user has permission to configure and manage authoritative exchange rates.
+     */
+    public static function canManageRates(?User $user = null): bool
+    {
+        if ($user === null && function_exists('current_user')) {
+            $user = current_user();
+        }
+
+        if (!$user || !$user->isActive()) {
+            return false;
+        }
+
+        if ($user->hasRole('super-admin') || $user->hasRole('admin')) {
+            return true;
+        }
+
+        return $user->hasPermission(self::MANAGE_RATES);
+    }
+
     public const MANAGE_SETTINGS = 'favorite_pay.settings.manage';
 
     /**
@@ -94,6 +116,12 @@ final class PaymentPermission
                 'name'        => 'Verify Favorite Pay',
                 'slug'        => self::VERIFY,
                 'description' => 'Approve or reject Favorite Pay manual payment verification requests',
+                'group_name'  => 'payment',
+            ],
+            [
+                'name'        => 'Manage Favorite Pay Rates',
+                'slug'        => self::MANAGE_RATES,
+                'description' => 'Configure and manage authoritative exchange rates in Favorite Pay',
                 'group_name'  => 'payment',
             ],
             [
