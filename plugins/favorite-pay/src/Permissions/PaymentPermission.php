@@ -71,7 +71,7 @@ final class PaymentPermission
             return true;
         }
 
-        return $user->hasPermission(self::MANAGE_RATES);
+        return $user->hasPermission(self::MANAGE_RATES) || $user->hasPermission('manage_settings');
     }
 
     public const MANAGE_SETTINGS = 'favorite_pay.settings.manage';
@@ -136,6 +136,28 @@ final class PaymentPermission
             $exists = $db->selectOne("SELECT id FROM permissions WHERE slug = ? LIMIT 1", [$def['slug']]);
             if (!$exists) {
                 $db->insert('permissions', $def);
+            }
+        }
+
+        // Link default payment permissions to the Admin role if tables exist
+        if ($db->tableExists('roles') && $db->tableExists('role_permissions')) {
+            $adminRole = $db->selectOne("SELECT id FROM roles WHERE slug = 'admin' LIMIT 1");
+            if ($adminRole) {
+                foreach ($definitions as $def) {
+                    $perm = $db->selectOne("SELECT id FROM permissions WHERE slug = ? LIMIT 1", [$def['slug']]);
+                    if ($perm) {
+                        $rpExists = $db->selectOne(
+                            "SELECT 1 FROM role_permissions WHERE role_id = ? AND permission_id = ? LIMIT 1",
+                            [$adminRole->id, $perm->id]
+                        );
+                        if (!$rpExists) {
+                            $db->insert('role_permissions', [
+                                'role_id'       => $adminRole->id,
+                                'permission_id' => $perm->id,
+                            ]);
+                        }
+                    }
+                }
             }
         }
     }

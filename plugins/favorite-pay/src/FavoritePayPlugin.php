@@ -259,7 +259,7 @@ final class FavoritePayPlugin
                         $controller = $this->app->make(\FavoriteCMS\Pay\Controllers\PaymentRateController::class);
                         return $controller->handle($request);
                     },
-                    \FavoriteCMS\Pay\Permissions\PaymentPermission::MANAGE_RATES
+                    'manage_settings'
                 );
 
                 add_admin_submenu(
@@ -345,6 +345,11 @@ final class FavoritePayPlugin
                 }
                 return false;
             }, 10, 1);
+        }
+
+        // Ensure default permissions and role mappings are registered if database is ready
+        if ($this->app->has(Database::class)) {
+            \FavoriteCMS\Pay\Permissions\PaymentPermission::registerDefaultPermissions($this->app->make(Database::class));
         }
 
         $this->booted = true;

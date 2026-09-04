@@ -22,6 +22,8 @@ use FavoriteCMS\Pay\Permissions\PaymentPermission;
 use FavoriteCMS\Pay\Providers\DatabaseRateProvider;
 use FavoriteCMS\Pay\Services\CurrencyService;
 use FavoriteCMS\Pay\Services\GatewayRegistry;
+use FavoriteCMS\Core\AdminMenu;
+use FavoriteCMS\Pay\FavoritePayPlugin;
 use PDO;
 use PHPUnit\Framework\TestCase;
 
@@ -210,6 +212,41 @@ class OperatorExchangeRateTest extends TestCase
 
         $this->assertIsString($output);
         $this->assertStringContainsString('Authoritative Rates Audit Log', $output);
+    }
+
+    public function testAdminRoleCanAccessIndex(): void
+    {
+        $_SESSION['auth_user_id'] = 2;
+        $admin = new OperatorUserStub(
+            ['id' => 2, 'status' => 'active'],
+            ['admin'],
+            []
+        );
+        $GLOBALS['_test_current_user'] = $admin;
+
+        $request = new Request([], [], [], [], [], ['REQUEST_METHOD' => 'GET']);
+        $output = $this->controller->handle($request);
+
+        $this->assertIsString($output);
+        $this->assertStringContainsString('Authoritative Rates Audit Log', $output);
+        $this->assertStringContainsString('Configure Authoritative Exchange Rate', $output);
+    }
+
+    public function testAdminWithManageSettingsCanAccessIndex(): void
+    {
+        $_SESSION['auth_user_id'] = 3;
+        $adminUser = new OperatorUserStub(
+            ['id' => 3, 'status' => 'active'],
+            ['admin'],
+            ['manage_settings']
+        );
+        $GLOBALS['_test_current_user'] = $adminUser;
+
+        $request = new Request([], [], [], [], [], ['REQUEST_METHOD' => 'GET']);
+        $output = $this->controller->handle($request);
+
+        $this->assertIsString($output);
+        $this->assertStringContainsString('Configure Authoritative Exchange Rate', $output);
     }
 
     // ==========================================
@@ -554,5 +591,148 @@ class OperatorExchangeRateTest extends TestCase
         $this->assertSame('READY', $diag2['state']);
         $this->assertTrue($diag2['currency_compatible']);
         $this->assertSame('Valid (Fresh)', $diag2['rate_status']);
+    }
+
+    // ==========================================
+    // 8. Admin Menu & Route Dispatch Integration Tests
+    // ==========================================
+
+    public function testFavoritePayPluginRegistersExchangeRatesSubmenu(): void
+    {
+        AdminMenu::reset();
+        $plugin = FavoritePayPlugin::bootstrap($this->app);
+
+        $menus = AdminMenu::getMenus();
+        $this->assertArrayHasKey('favorite-pay', $menus);
+        $this->assertArrayHasKey('submenus', $menus['favorite-pay']);
+
+        $submenus = $menus['favorite-pay']['submenus'];
+        $this->assertArrayHasKey('favorite-pay-payments', $submenus);
+        $this->assertArrayHasKey('favorite-pay-rates', $submenus);
+        $this->assertArrayHasKey('favorite-pay-gateways', $submenus);
+
+        $ratesSubmenu = $submenus['favorite-pay-rates'];
+        $this->assertSame('Exchange Rates', $ratesSubmenu['title']);
+        $this->assertSame('favorite-pay-rates', $ratesSubmenu['slug']);
+        $this->assertSame('manage_settings', $ratesSubmenu['capability']);
+        $this->assertIsCallable($ratesSubmenu['handler']);
+
+        $page = AdminMenu::findPage('favorite-pay-rates');
+        $this->assertNotNull($page);
+        $this->assertSame('Exchange Rates', $page['title']);
+    }
+
+    public function testAdminRoleCanAccessRatesPageViaSubmenuRoute(): void
+    {
+        AdminMenu::reset();
+        FavoritePayPlugin::bootstrap($this->app);
+
+        $_SESSION['auth_user_id'] = 2;
+        $admin = new OperatorUserStub(
+            ['id' => 2, 'status' => 'active'],
+            ['admin'],
+            ['manage_settings']
+        );
+        $GLOBALS['_test_current_user'] = $admin;
+
+        $page = AdminMenu::findPage('favorite-pay-rates');
+        $this->assertNotNull($page);
+
+        $request = new Request([], [], [], [], [], ['REQUEST_METHOD' => 'GET']);
+        $handler = $page['handler'];
+        $response = $handler($request);
+
+        $this->assertIsString($response);
+        $this->assertStringContainsString('Exchange Rate Management', $response);
+        $this->assertStringContainsString('Configure Authoritative Exchange Rate', $response);
+    }
+
+    public function testSuperAdminCanAccessRatesPageViaSubmenuRoute(): void
+    {
+        AdminMenu::reset();
+        FavoritePayPlugin::bootstrap($this->app);
+
+        $_SESSION['auth_user_id'] = 1;
+        $superAdmin = new OperatorUserStub(
+            ['id' => 1, 'status' => 'active'],
+            ['super-admin'],
+            []
+        );
+        $GLOBALS['_test_current_user'] = $superAdmin;
+
+        $page = AdminMenu::findPage('favorite-pay-rates');
+        $this->assertNotNull($page);
+
+        $request = new Request([], [], [], [], [], ['REQUEST_METHOD' => 'GET']);
+        $handler = $page['handler'];
+        $response = $handler($request);
+
+        $this->assertIsString($response);
+        $this->assertStringContainsString('Exchange Rate Management', $response);
+    }
+
+    public function testViewOnlyUserIsDeniedRatesPageAccessViaSubmenuRoute(): void
+    {
+        AdminMenu::reset();
+        FavoritePayPlugin::bootstrap($this->app);
+
+        $_SESSION['auth_user_id'] = 4;
+        $viewer = new OperatorUserStub(
+            ['id' => 4, 'status' => 'active'],
+            ['payment-viewer'],
+            [PaymentPermission::VIEW]
+        );
+        $GLOBALS['_test_current_user'] = $viewer;
+
+        $page = AdminMenu::findPage('favorite-pay-rates');
+        $this->assertNotNull($page);
+
+        $request = new Request([], [], [], [], [], ['REQUEST_METHOD' => 'GET']);
+        $handler = $page['handler'];
+        $response = $handler($request);
+
+        $this->assertInstanceOf(Response::class, $response);
+        $this->assertSame(403, $response->getStatusCode());
+        $this->assertStringContainsString('Access Denied', $response->getContent());
+    }
+
+    public function testAdminRoleCanSubmitExchangeRateFormViaSubmenuRoute(): void
+    {
+        AdminMenu::reset();
+        FavoritePayPlugin::bootstrap($this->app);
+        $this->app->instance(PaymentRateController::class, $this->controller);
+
+        $_SESSION['auth_user_id'] = 2;
+        $_SESSION['_token'] = 'valid_token_abc';
+        $admin = new OperatorUserStub(
+            ['id' => 2, 'status' => 'active'],
+            ['admin'],
+            ['manage_settings']
+        );
+        $GLOBALS['_test_current_user'] = $admin;
+
+        $page = AdminMenu::findPage('favorite-pay-rates');
+        $this->assertNotNull($page);
+
+        $request = new Request([], [
+            '_token'         => 'valid_token_abc',
+            'action'         => 'save',
+            'base_currency'  => 'USDT',
+            'quote_currency' => 'BDT',
+            'rate'           => '123.45',
+            'notes'          => 'Route test quote',
+        ], ['REQUEST_METHOD' => 'POST']);
+
+        $handler = $page['handler'];
+        $response = $handler($request);
+
+        $this->assertInstanceOf(Response::class, $response);
+        $this->assertSame(302, $response->getStatusCode());
+        $this->assertSame('/admin/page/favorite-pay-rates', $response->getHeaders()['Location'] ?? '');
+
+        // Verify persisted rate
+        $this->assertTrue($this->currencyService->hasRate('USDT', 'BDT'));
+        $snapshot = $this->currencyService->getRate('USDT', 'BDT');
+        $this->assertSame('123.45', $snapshot->getRateDecimalString());
     }
 }
