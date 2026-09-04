@@ -59,7 +59,7 @@ final class FavoritePayPlugin
     public function register(): void
     {
         // Bind Gateway Registry with default Manual Bangladesh Gateway drivers
-        $this->app->singleton(GatewayRegistry::class, function () {
+        $this->app->singleton(GatewayRegistry::class, function ($app) {
             $registry = new GatewayRegistry();
 
             // Default Manual Bangladesh Gateways
@@ -119,7 +119,9 @@ final class FavoritePayPlugin
             $registry->register($manualNagad);
             $registry->register($manualBank);
 
-            $binancePay = new \FavoriteCMS\Pay\Gateways\Binance\BinancePayGateway();
+            $db = $app->has(Database::class) ? $app->make(Database::class) : null;
+            $currencyService = $app->has(CurrencyServiceInterface::class) ? $app->make(CurrencyServiceInterface::class) : null;
+            $binancePay = new \FavoriteCMS\Pay\Gateways\Binance\BinancePayGateway([], null, $db, $currencyService);
             $registry->register($binancePay, ['binance']);
 
             // Backward compatibility aliases for Phase 1 tests

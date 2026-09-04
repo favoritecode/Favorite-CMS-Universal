@@ -735,4 +735,200 @@ class OperatorExchangeRateTest extends TestCase
         $snapshot = $this->currencyService->getRate('USDT', 'BDT');
         $this->assertSame('123.45', $snapshot->getRateDecimalString());
     }
+
+    // ==========================================
+    // 9. Effective Date & Gateway Discovery Regression Tests
+    // ==========================================
+
+    public function testBlankEffectiveAtCreatesImmediatelyEffectiveAuthoritativeRate(): void
+    {
+        $_SESSION['auth_user_id'] = 1;
+        $_SESSION['_token'] = 'csrf_test_blank';
+        $user = new OperatorUserStub(['id' => 1, 'status' => 'active'], ['super-admin']);
+        $GLOBALS['_test_current_user'] = $user;
+
+        $request = new Request([], [
+            '_token'         => 'csrf_test_blank',
+            'action'         => 'save',
+            'base_currency'  => 'USDT',
+            'quote_currency' => 'BDT',
+            'rate'           => '127',
+            'effective_at'   => '', // Blank => immediate
+            'notes'          => 'Treasury rate immediate',
+        ], ['REQUEST_METHOD' => 'POST']);
+
+        $response = $this->controller->handle($request);
+        $this->assertInstanceOf(Response::class, $response);
+        $this->assertSame(302, $response->getStatusCode());
+
+        // Immediately effective
+        $this->assertTrue($this->currencyService->hasRate('USDT', 'BDT'));
+        $snapshot = $this->currencyService->getRate('USDT', 'BDT');
+        $this->assertSame(127000000, $snapshot->getRateFactor());
+        $this->assertTrue($snapshot->isValidForPayment());
+        $this->assertTrue($snapshot->isAuthoritative());
+    }
+
+    public function testFutureEffectiveAtCreatesScheduledRateAndIsNotReturnedByDatabaseRateProvider(): void
+    {
+        $_SESSION['auth_user_id'] = 1;
+        $_SESSION['_token'] = 'csrf_test_future';
+        $user = new OperatorUserStub(['id' => 1, 'status' => 'active'], ['super-admin']);
+        $GLOBALS['_test_current_user'] = $user;
+
+        $futureTimestamp = date('Y-m-d H:i:s', time() + 7200); // 2 hours ahead
+
+        $request = new Request([], [
+            '_token'         => 'csrf_test_future',
+            'action'         => 'save',
+            'base_currency'  => 'USDT',
+            'quote_currency' => 'BDT',
+            'rate'           => '130.00',
+            'effective_at'   => $futureTimestamp,
+            'notes'          => 'Scheduled next-window rate',
+        ], ['REQUEST_METHOD' => 'POST']);
+
+        $response = $this->controller->handle($request);
+        $this->assertInstanceOf(Response::class, $response);
+
+        // DatabaseRateProvider must NOT return future rate
+        $this->assertNull($this->rateProvider->getRate('USDT', 'BDT'));
+
+        // CurrencyService must fail closed
+        $this->assertFalse($this->currencyService->hasRate('USDT', 'BDT'));
+
+        // But audit log MUST retain the scheduled record
+        $allRates = $this->rateProvider->getAllRates();
+        $this->assertNotEmpty($allRates);
+        $this->assertSame($futureTimestamp, $allRates[0]['effective_at']);
+        $this->assertSame('active', $allRates[0]['status']);
+
+        // View rendering should mark future active rate as SCHEDULED
+        $getRequest = new Request([], [], [], [], [], ['REQUEST_METHOD' => 'GET']);
+        $viewHtml = $this->controller->handle($getRequest);
+        $this->assertIsString($viewHtml);
+        $this->assertStringContainsString('SCHEDULED', $viewHtml);
+    }
+
+    public function testCurrentOrPastEffectiveAtIsReturnedCorrectly(): void
+    {
+        $_SESSION['auth_user_id'] = 1;
+        $_SESSION['_token'] = 'csrf_test_past';
+        $user = new OperatorUserStub(['id' => 1, 'status' => 'active'], ['super-admin']);
+        $GLOBALS['_test_current_user'] = $user;
+
+        $pastTimestamp = date('Y-m-d H:i:s', time() - 300); // 5 minutes in the past
+
+        $request = new Request([], [
+            '_token'         => 'csrf_test_past',
+            'action'         => 'save',
+            'base_currency'  => 'USDT',
+            'quote_currency' => 'BDT',
+            'rate'           => '125.50',
+            'effective_at'   => $pastTimestamp,
+            'notes'          => 'Explicit past effective time',
+        ], ['REQUEST_METHOD' => 'POST']);
+
+        $response = $this->controller->handle($request);
+        $this->assertInstanceOf(Response::class, $response);
+
+        $snap = $this->rateProvider->getRate('USDT', 'BDT');
+        $this->assertNotNull($snap);
+        $this->assertSame(125500000, $snap->getRateFactor());
+        $this->assertSame($pastTimestamp, $snap->getLockedAt());
+    }
+
+    public function testSavedRateIsDiscoveredByBinanceConversionDiagnosticOnceEffective(): void
+    {
+        // 1. Save 1 USDT = 127 BDT with blank effective_at
+        $_SESSION['auth_user_id'] = 1;
+        $_SESSION['_token'] = 'csrf_test_diag';
+        $user = new OperatorUserStub(['id' => 1, 'status' => 'active'], ['super-admin']);
+        $GLOBALS['_test_current_user'] = $user;
+
+        $request = new Request([], [
+            '_token'         => 'csrf_test_diag',
+            'action'         => 'save',
+            'base_currency'  => 'USDT',
+            'quote_currency' => 'BDT',
+            'rate'           => '127',
+            'effective_at'   => '',
+            'notes'          => 'Binance Pay discovery rate',
+        ], ['REQUEST_METHOD' => 'POST']);
+
+        $this->controller->handle($request);
+
+        // 2. Wire GatewayRegistry and BinancePayGateway with explicit DI
+        $binance = new BinancePayGateway([
+            'enabled'            => true,
+            'certificate_sn'     => 'cert_sn_valid',
+            'api_secret'         => 'secret_key_valid',
+            'preferred_currency' => 'USDT',
+        ], null, $this->db, $this->currencyService);
+
+        // 3. Check diagnostic status
+        $status = $binance->getConfigurationStatus('BDT');
+        $this->assertSame('READY', $status['currency_conversion']);
+        $this->assertTrue($status['currency_compatible']);
+        $this->assertSame('Derived_inverse:operator', $status['rate_source']);
+        $this->assertSame('Valid (Fresh)', $status['rate_status']);
+    }
+
+    public function testInverseBdtToUsdtLookupWorks(): void
+    {
+        // Operator stores 1 USDT = 127 BDT
+        $_SESSION['auth_user_id'] = 1;
+        $_SESSION['_token'] = 'csrf_test_inv';
+        $user = new OperatorUserStub(['id' => 1, 'status' => 'active'], ['super-admin']);
+        $GLOBALS['_test_current_user'] = $user;
+
+        $request = new Request([], [
+            '_token'         => 'csrf_test_inv',
+            'action'         => 'save',
+            'base_currency'  => 'USDT',
+            'quote_currency' => 'BDT',
+            'rate'           => '127',
+            'effective_at'   => '',
+        ], ['REQUEST_METHOD' => 'POST']);
+
+        $this->controller->handle($request);
+
+        // Inverse lookup: BDT -> USDT
+        $this->assertTrue($this->currencyService->hasRate('BDT', 'USDT'));
+        $inverseSnap = $this->currencyService->getRate('BDT', 'USDT');
+
+        $this->assertSame('BDT', $inverseSnap->getFromCurrency());
+        $this->assertSame('USDT', $inverseSnap->getToCurrency());
+        // scale = 1,000,000; invFactor = 127,000,000; derivedFactor = intdiv((10^12) + 63500000, 127000000) = 7874
+        $this->assertSame(7874, $inverseSnap->getRateFactor());
+        $this->assertTrue($inverseSnap->isAuthoritative());
+        $this->assertTrue($inverseSnap->isValidForPayment());
+    }
+
+    public function testExpiredRateRemainsRejected(): void
+    {
+        $_SESSION['auth_user_id'] = 1;
+        $_SESSION['_token'] = 'csrf_test_exp';
+        $user = new OperatorUserStub(['id' => 1, 'status' => 'active'], ['super-admin']);
+        $GLOBALS['_test_current_user'] = $user;
+
+        $pastEffective = date('Y-m-d H:i:s', time() - 3600);
+        $pastExpiry = date('Y-m-d H:i:s', time() - 60);
+
+        $request = new Request([], [
+            '_token'         => 'csrf_test_exp',
+            'action'         => 'save',
+            'base_currency'  => 'USDT',
+            'quote_currency' => 'BDT',
+            'rate'           => '120.00',
+            'effective_at'   => $pastEffective,
+            'expires_at'     => $pastExpiry,
+        ], ['REQUEST_METHOD' => 'POST']);
+
+        $this->controller->handle($request);
+
+        // Provider must reject expired rate
+        $this->assertNull($this->rateProvider->getRate('USDT', 'BDT'));
+        $this->assertFalse($this->currencyService->hasRate('USDT', 'BDT'));
+    }
 }

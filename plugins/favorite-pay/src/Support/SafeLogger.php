@@ -56,6 +56,11 @@ final class SafeLogger
         return $sanitized;
     }
 
+    public static function debug(string $message, array $context = []): void
+    {
+        self::log($message, 'debug', $context);
+    }
+
     public static function info(string $message, array $context = []): void
     {
         self::log($message, 'info', $context);

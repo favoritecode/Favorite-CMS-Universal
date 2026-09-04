@@ -645,7 +645,8 @@ class BinancePayGateway implements
                     $rateSource = ucfirst($snapshot->getSource());
                     $rateStatus = 'Non-authoritative';
                 }
-            } catch (\Throwable) {
+            } catch (\Throwable $e) {
+                SafeLogger::debug("Binance Pay configuration status rate check: " . $e->getMessage());
                 $conversionReady = false;
                 $rateSource = 'None';
                 $rateStatus = 'No valid authoritative rate';

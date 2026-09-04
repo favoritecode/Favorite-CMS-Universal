@@ -82,8 +82,8 @@
 
                     <div class="col-md-3">
                         <label for="effective_at" class="form-label font-weight-bold"><strong>Effective From</strong></label>
-                        <input type="datetime-local" name="effective_at" id="effective_at" class="form-control" value="<?php echo date('Y-m-d\TH:i'); ?>">
-                        <div class="form-text small text-muted">When rate becomes valid</div>
+                        <input type="datetime-local" name="effective_at" id="effective_at" class="form-control" placeholder="Leave blank to take effect immediately.">
+                        <div class="form-text small text-muted">Leave blank to take effect immediately.</div>
                     </div>
                 </div>
 
@@ -174,6 +174,8 @@
                                             <span class="badge bg-secondary">RETIRED</span>
                                         <?php elseif ($isExpired): ?>
                                             <span class="badge bg-danger">EXPIRED</span>
+                                        <?php elseif ($status === 'active' && !empty($row['effective_at']) && $row['effective_at'] > $now): ?>
+                                            <span class="badge bg-warning text-dark">SCHEDULED</span>
                                         <?php elseif ($status === 'active'): ?>
                                             <span class="badge bg-success">ACTIVE</span>
                                         <?php else: ?>
