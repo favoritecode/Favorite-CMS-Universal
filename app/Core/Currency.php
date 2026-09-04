@@ -6,6 +6,7 @@ namespace FavoriteCMS\Core;
 
 use FavoriteCMS\Models\Setting;
 use InvalidArgumentException;
+use RuntimeException;
 
 /**
  * Currency Central Definition & Site Primary Currency Service
@@ -181,12 +182,80 @@ class Currency
     }
 
     /**
+     * Check if the site's primary currency is locked against modifications.
+     * Returns true if existing financial activity or system rules prevent changing it.
+     */
+    public static function isPrimaryCurrencyLocked(?string &$reason = null): bool
+    {
+        if (function_exists('apply_filters')) {
+            $lockResult = apply_filters('currency.is_primary_locked', false);
+            if ($lockResult === true) {
+                $reason = 'Primary Currency cannot be changed after financial activity has started.';
+                return true;
+            }
+            if (is_array($lockResult) && !empty($lockResult['locked'])) {
+                $reason = $lockResult['reason'] ?? 'Primary Currency cannot be changed after financial activity has started.';
+                return true;
+            }
+
+            // Also probe can_change_primary with an alternative currency
+            $current = self::getPrimaryCurrency();
+            $probe = ($current === 'USD') ? 'EUR' : 'USD';
+            $changeResult = apply_filters('currency.can_change_primary', true, $probe, $current);
+            if ($changeResult === false) {
+                $reason = 'Primary Currency cannot be changed after financial activity has started.';
+                return true;
+            }
+            if (is_array($changeResult) && isset($changeResult['allowed']) && !$changeResult['allowed']) {
+                $reason = $changeResult['reason'] ?? 'Primary Currency cannot be changed after financial activity has started.';
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Check if the site's primary currency can be changed to a new currency code.
+     */
+    public static function canChangePrimaryCurrency(string $newCurrency, ?string &$reason = null): bool
+    {
+        $normalized = self::normalize($newCurrency);
+        $current = self::getPrimaryCurrency();
+
+        if ($normalized === $current) {
+            return true;
+        }
+
+        if (!preg_match('/^[A-Z]{3}$/', $normalized) || !self::isSupported($normalized)) {
+            $reason = "Unsupported or invalid currency code: '{$newCurrency}'.";
+            return false;
+        }
+
+        if (function_exists('apply_filters')) {
+            $result = apply_filters('currency.can_change_primary', true, $normalized, $current);
+            if ($result === false) {
+                $reason = $reason ?? 'Primary Currency cannot be changed after financial activity has started.';
+                return false;
+            }
+            if (is_array($result) && isset($result['allowed']) && !$result['allowed']) {
+                $reason = $result['reason'] ?? 'Primary Currency cannot be changed after financial activity has started.';
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
      * Set the site's authoritative Primary Accounting Currency.
      *
      * Validates that the code is a valid supported ISO currency.
+     * Validates that changing the currency is permitted (no existing financial records).
      * Persists as uppercase string in Core Settings.
      *
      * @throws InvalidArgumentException If the currency code is unsupported or invalid.
+     * @throws RuntimeException If primary currency cannot be changed due to financial activity.
      */
     public static function setPrimaryCurrency(string $code): void
     {
@@ -199,6 +268,16 @@ class Currency
         }
 
         $oldCurrency = self::getPrimaryCurrency();
+        if ($normalized === $oldCurrency) {
+            return;
+        }
+
+        $reason = null;
+        if (!self::canChangePrimaryCurrency($normalized, $reason)) {
+            throw new RuntimeException(
+                $reason ?? "Cannot change primary currency once financial activity has started."
+            );
+        }
 
         Setting::set('general', 'primary_currency', $normalized, 'string');
 

@@ -48,15 +48,20 @@ class SettingController
         $pages = Page::published();
         $categories = Taxonomy::getByTaxonomy('category');
 
+        $lockReason = null;
+        $primaryCurrencyLocked = Currency::isPrimaryCurrencyLocked($lockReason);
+
         $viewData = [
-            'pageTitle'           => 'Settings',
-            'activeMenu'          => 'settings',
-            'settings'            => $settings,
-            'supportedCurrencies' => Currency::getSupportedCurrencies(),
-            'serverLimits'        => $serverLimits,
-            'pages'               => $pages,
-            'categories'          => $categories,
-            'contentView'         => APP_ROOT . '/resources/views/admin/settings/index.php',
+            'pageTitle'                 => 'Settings',
+            'activeMenu'                => 'settings',
+            'settings'                  => $settings,
+            'supportedCurrencies'       => Currency::getSupportedCurrencies(),
+            'primaryCurrencyLocked'     => $primaryCurrencyLocked,
+            'primaryCurrencyLockReason' => $lockReason,
+            'serverLimits'              => $serverLimits,
+            'pages'                     => $pages,
+            'categories'                => $categories,
+            'contentView'               => APP_ROOT . '/resources/views/admin/settings/index.php',
         ];
 
         extract($viewData, EXTR_SKIP);
@@ -81,7 +86,22 @@ class SettingController
             $_SESSION['flash_error'] = "Invalid Primary Currency '{$rawCurrency}'. Please select a supported currency.";
             return Response::redirect('/admin/settings');
         }
-        Currency::setPrimaryCurrency($normalizedCurrency);
+
+        $currentCurrency = Currency::getPrimaryCurrency();
+        if ($normalizedCurrency !== $currentCurrency) {
+            $reason = null;
+            if (!Currency::canChangePrimaryCurrency($normalizedCurrency, $reason)) {
+                $_SESSION['flash_error'] = $reason ?? "Primary Currency cannot be changed after financial activity has started.";
+                return Response::redirect('/admin/settings');
+            }
+
+            try {
+                Currency::setPrimaryCurrency($normalizedCurrency);
+            } catch (\Throwable $e) {
+                $_SESSION['flash_error'] = $e->getMessage();
+                return Response::redirect('/admin/settings');
+            }
+        }
 
         Setting::set('reading', 'posts_per_page', (int)$request->post('posts_per_page', 10), 'int');
         Setting::set('reading', 'front_page_type', (string)$request->post('front_page_type', 'posts'));

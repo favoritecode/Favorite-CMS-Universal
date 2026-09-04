@@ -41,6 +41,10 @@ final class FavoritePayPlugin
     public static function reset(): void
     {
         self::$instance = null;
+        if (class_exists(\FavoriteCMS\Core\Hook::class)) {
+            \FavoriteCMS\Core\Hook::removeFilter('currency.can_change_primary');
+            \FavoriteCMS\Core\Hook::removeFilter('currency.is_primary_locked');
+        }
     }
 
     public static function bootstrap(Application $app): self
@@ -240,7 +244,90 @@ final class FavoritePayPlugin
             });
         }
 
+        // Filter hook: Block Primary Currency change if financial activity exists
+        if (function_exists('add_filter')) {
+            add_filter('currency.can_change_primary', function ($allowed, string $newCurrency, string $oldCurrency) {
+                if ($newCurrency === $oldCurrency) {
+                    return true;
+                }
+                if ($this->hasFinancialActivity()) {
+                    return [
+                        'allowed' => false,
+                        'reason'  => 'Primary Currency cannot be changed after financial activity has started. Existing wallets, transactions, and ledger records use the current accounting currency.',
+                    ];
+                }
+                return $allowed;
+            }, 10, 3);
+
+            add_filter('currency.is_primary_locked', function ($locked) {
+                if ($locked) {
+                    return true;
+                }
+                if ($this->hasFinancialActivity()) {
+                    return [
+                        'locked' => true,
+                        'reason' => 'Primary Currency cannot be changed after financial activity has started. Existing wallets, transactions, and ledger records use the current accounting currency.',
+                    ];
+                }
+                return false;
+            }, 10, 1);
+        }
+
         $this->booted = true;
+    }
+
+    /**
+     * Check if any financial records or transactions exist within Favorite Pay.
+     * Checks database tables (transactions, attempts, refunds, wallets, wallet entries)
+     * and in-memory services.
+     * Note: Gateway configuration alone does NOT count as financial activity.
+     */
+    public function hasFinancialActivity(): bool
+    {
+        // 1. Check database tables if database is available
+        if ($this->app->has(Database::class)) {
+            $db = $this->app->make(Database::class);
+            $tables = [
+                'favorite_pay_transactions',
+                'favorite_pay_attempts',
+                'favorite_pay_refunds',
+                'favorite_pay_wallets',
+                'favorite_pay_wallet_entries',
+            ];
+
+            foreach ($tables as $table) {
+                if ($db->tableExists($table)) {
+                    $row = $db->selectOne("SELECT 1 FROM {$table} LIMIT 1");
+                    if ($row !== null) {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        // 2. Check in-memory services if registered
+        if ($this->app->has(PaymentServiceInterface::class)) {
+            $paymentService = $this->app->make(PaymentServiceInterface::class);
+            if (method_exists($paymentService, 'hasFinancialActivity') && $paymentService->hasFinancialActivity()) {
+                return true;
+            }
+        }
+
+        if ($this->app->has(WalletServiceInterface::class)) {
+            $walletService = $this->app->make(WalletServiceInterface::class);
+            if (method_exists($walletService, 'hasActivity') && $walletService->hasActivity()) {
+                return true;
+            }
+        }
+
+        if ($this->app->has(RefundServiceInterface::class)) {
+            $refundService = $this->app->make(RefundServiceInterface::class);
+            if (method_exists($refundService, 'hasRefunds') && $refundService->hasRefunds()) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public function onActivate(): void

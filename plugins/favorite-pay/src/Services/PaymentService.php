@@ -451,4 +451,33 @@ class PaymentService implements PaymentServiceInterface
 
         return null;
     }
+
+    public function hasTransactions(): bool
+    {
+        if ($this->db !== null && $this->db->tableExists('favorite_pay_transactions')) {
+            $row = $this->db->selectOne("SELECT 1 FROM favorite_pay_transactions LIMIT 1");
+            if ($row !== null) {
+                return true;
+            }
+        }
+
+        return !empty($this->intents);
+    }
+
+    public function hasAttempts(): bool
+    {
+        if ($this->db !== null && $this->db->tableExists('favorite_pay_attempts')) {
+            $row = $this->db->selectOne("SELECT 1 FROM favorite_pay_attempts LIMIT 1");
+            if ($row !== null) {
+                return true;
+            }
+        }
+
+        return !empty($this->attempts);
+    }
+
+    public function hasFinancialActivity(): bool
+    {
+        return $this->hasTransactions() || $this->hasAttempts();
+    }
 }

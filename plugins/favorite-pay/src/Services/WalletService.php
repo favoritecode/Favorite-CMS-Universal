@@ -639,4 +639,33 @@ class WalletService implements WalletServiceInterface
         $list = $this->ledgers[$userId] ?? [];
         return array_slice(array_reverse($list), $offset, $limit);
     }
+
+    public function hasWallets(): bool
+    {
+        if ($this->db !== null && $this->db->tableExists('favorite_pay_wallets')) {
+            $row = $this->db->selectOne("SELECT 1 FROM favorite_pay_wallets LIMIT 1");
+            if ($row !== null) {
+                return true;
+            }
+        }
+
+        return !empty($this->balances) || !empty($this->walletCurrencies);
+    }
+
+    public function hasLedgerEntries(): bool
+    {
+        if ($this->db !== null && $this->db->tableExists('favorite_pay_wallet_entries')) {
+            $row = $this->db->selectOne("SELECT 1 FROM favorite_pay_wallet_entries LIMIT 1");
+            if ($row !== null) {
+                return true;
+            }
+        }
+
+        return !empty($this->ledgers) || !empty($this->settledTransactions);
+    }
+
+    public function hasActivity(): bool
+    {
+        return $this->hasWallets() || $this->hasLedgerEntries();
+    }
 }

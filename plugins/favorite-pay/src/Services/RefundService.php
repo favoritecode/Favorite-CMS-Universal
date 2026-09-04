@@ -74,4 +74,9 @@ class RefundService implements RefundServiceInterface
     {
         return $this->refunds[$intentId] ?? [];
     }
+
+    public function hasRefunds(): bool
+    {
+        return !empty($this->refunds);
+    }
 }

@@ -276,9 +276,16 @@ class ConfigurablePrimaryCurrencyTest extends TestCase
         $this->assertSame(80000, (int)$ledgerBefore->amount);
         $this->assertSame(80000, (int)$ledgerBefore->balance_after);
 
-        // 2. Administrator changes site Primary Currency to USD
-        Currency::setPrimaryCurrency('USD');
-        $this->assertSame('USD', Currency::getPrimaryCurrency());
+        // 2. Administrator attempts to change site Primary Currency to USD - blocked in Phase 5C
+        try {
+            Currency::setPrimaryCurrency('USD');
+            $this->fail("Expected RuntimeException when changing primary currency with existing financial activity.");
+        } catch (RuntimeException $e) {
+            $this->assertStringContainsString('financial activity', $e->getMessage());
+        }
+
+        // Authoritative currency remains BDT
+        $this->assertSame('BDT', Currency::getPrimaryCurrency());
 
         // 3. Verify that existing wallet, balance, transaction, and ledger entry are UNCHANGED
         $walletAfter = $this->db->selectOne("SELECT * FROM favorite_pay_wallets WHERE user_id = ?", [$userId]);
@@ -297,7 +304,7 @@ class ConfigurablePrimaryCurrencyTest extends TestCase
         $this->assertSame(80000, (int)$ledgerAfter->amount);
         $this->assertSame(80000, (int)$ledgerAfter->balance_after);
 
-        // 4. Financial safety guard: Trying to settle a new USD payment to the existing BDT wallet
+        // 4. Financial safety guard: Trying to settle a transaction with currency mismatch
         // must fail with an explicit exception rather than corrupting the wallet balance
         $intent2 = $this->paymentService->createIntent(
             'favorite_shop',
@@ -307,8 +314,19 @@ class ConfigurablePrimaryCurrencyTest extends TestCase
         );
         $this->paymentService->updateIntentStatus($intent2->getId(), PaymentStatus::SUCCEEDED);
 
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage("wallet currency 'BDT' does not match transaction base currency 'USD'");
-        $this->walletService->settleSuccessfulPayment($intent2->getId());
+        try {
+            $this->walletService->settleSuccessfulPayment($intent2->getId());
+            $this->fail("Expected exception when settling mismatched currency transaction.");
+        } catch (\Throwable $e) {
+            $this->assertTrue(
+                $e instanceof RuntimeException || $e instanceof InvalidArgumentException,
+                "Exception should be RuntimeException or InvalidArgumentException"
+            );
+        }
+
+        // Wallet balance remains completely unmutated
+        $balanceFinal = $this->walletService->getBalance($userId);
+        $this->assertSame('BDT', $balanceFinal->getCurrency());
+        $this->assertSame(80000, $balanceFinal->getAmount());
     }
 }

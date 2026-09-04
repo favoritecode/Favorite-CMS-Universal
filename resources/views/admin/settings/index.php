@@ -40,14 +40,28 @@
 
         <div class="form-group">
             <label for="primary_currency">Primary Currency</label>
-            <select id="primary_currency" name="primary_currency" class="form-control" style="max-width: 340px;">
-                <?php foreach (($supportedCurrencies ?? []) as $code => $info): ?>
-                    <option value="<?php echo htmlspecialchars($code, ENT_QUOTES, 'UTF-8'); ?>" <?php echo (($settings['primary_currency'] ?? 'BDT') === $code) ? 'selected' : ''; ?>>
-                        <?php echo htmlspecialchars("{$code} — {$info['name']} ({$info['symbol']})", ENT_QUOTES, 'UTF-8'); ?>
-                    </option>
-                <?php endforeach; ?>
-            </select>
-            <span class="description">The site's authoritative accounting and base currency. Default is BDT (৳).</span>
+            <?php if (!empty($primaryCurrencyLocked)): ?>
+                <input type="hidden" name="primary_currency" value="<?php echo htmlspecialchars($settings['primary_currency'] ?? 'BDT', ENT_QUOTES, 'UTF-8'); ?>">
+                <select id="primary_currency" class="form-control" style="max-width: 340px;" disabled>
+                    <?php foreach (($supportedCurrencies ?? []) as $code => $info): ?>
+                        <option value="<?php echo htmlspecialchars($code, ENT_QUOTES, 'UTF-8'); ?>" <?php echo (($settings['primary_currency'] ?? 'BDT') === $code) ? 'selected' : ''; ?>>
+                            <?php echo htmlspecialchars("{$code} — {$info['name']} ({$info['symbol']})", ENT_QUOTES, 'UTF-8'); ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+                <span class="description" style="color: #b32d2e; font-weight: 500; margin-top: 6px; display: block;">
+                    🔒 <?php echo htmlspecialchars(!empty($primaryCurrencyLockReason) ? $primaryCurrencyLockReason : "Primary Currency cannot be changed after financial activity has started. Existing wallets, transactions, and ledger records use the current accounting currency.", ENT_QUOTES, 'UTF-8'); ?>
+                </span>
+            <?php else: ?>
+                <select id="primary_currency" name="primary_currency" class="form-control" style="max-width: 340px;">
+                    <?php foreach (($supportedCurrencies ?? []) as $code => $info): ?>
+                        <option value="<?php echo htmlspecialchars($code, ENT_QUOTES, 'UTF-8'); ?>" <?php echo (($settings['primary_currency'] ?? 'BDT') === $code) ? 'selected' : ''; ?>>
+                            <?php echo htmlspecialchars("{$code} — {$info['name']} ({$info['symbol']})", ENT_QUOTES, 'UTF-8'); ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+                <span class="description">The site's authoritative accounting and base currency. Default is BDT (৳).</span>
+            <?php endif; ?>
         </div>
 
         <div class="form-group">

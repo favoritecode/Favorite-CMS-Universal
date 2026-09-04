@@ -29,11 +29,6 @@ class CurrencyService implements CurrencyServiceInterface
         $this->rates['USD_BDT'] = ConversionSnapshot::create('USD', 'BDT', '117.50', false);
         $this->rates['EUR_BDT'] = ConversionSnapshot::create('EUR', 'BDT', '128.20', false);
         $this->rates['GBP_BDT'] = ConversionSnapshot::create('GBP', 'BDT', '150.00', false);
-        $this->rates['BDT_BDT'] = ConversionSnapshot::create('BDT', 'BDT', '1.00', true);
-        $this->rates['USD_USD'] = ConversionSnapshot::create('USD', 'USD', '1.00', true);
-        $this->rates['EUR_EUR'] = ConversionSnapshot::create('EUR', 'EUR', '1.00', true);
-        $this->rates['GBP_GBP'] = ConversionSnapshot::create('GBP', 'GBP', '1.00', true);
-        $this->rates['INR_INR'] = ConversionSnapshot::create('INR', 'INR', '1.00', true);
     }
 
     public function getBaseCurrency(): string
