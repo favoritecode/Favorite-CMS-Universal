@@ -99,13 +99,15 @@ class PaymentGatewaySettingsController
         $enabled = (bool)$request->post('enabled', false);
         $certSn = trim((string)$request->post('certificate_sn', ''));
         $submittedSecret = trim((string)$request->post('api_secret', ''));
+        $preferredCurrency = trim((string)$request->post('preferred_currency', 'USDT'));
         $sandbox = (bool)$request->post('sandbox', false);
 
         // Prepare config payload
         $configPayload = [
-            'enabled'        => $enabled,
-            'certificate_sn' => $certSn,
-            'sandbox'        => $sandbox,
+            'enabled'            => $enabled,
+            'certificate_sn'     => $certSn,
+            'preferred_currency' => $preferredCurrency,
+            'sandbox'            => $sandbox,
         ];
 
         // Secret handling:
@@ -129,6 +131,7 @@ class PaymentGatewaySettingsController
                 if (!empty($validated['api_secret'])) {
                     Setting::set('favorite_pay_binance', 'api_secret', $validated['api_secret'], 'string');
                 }
+                Setting::set('favorite_pay_binance', 'preferred_currency', $validated['preferred_currency'], 'string');
                 Setting::set('favorite_pay_binance', 'sandbox', $validated['sandbox'] ? 1 : 0, 'bool');
             }
 

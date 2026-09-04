@@ -137,9 +137,15 @@ final class Money
         return $this->currency;
     }
 
+    public static function getCurrencyDecimals(string $currency): int
+    {
+        $cur = strtoupper(trim($currency));
+        return self::CURRENCY_SUBUNITS[$cur] ?? 2;
+    }
+
     public function getDecimals(): int
     {
-        return self::CURRENCY_SUBUNITS[$this->currency] ?? 2;
+        return self::getCurrencyDecimals($this->currency);
     }
 
     public function isZero(): bool

@@ -400,7 +400,7 @@ class BinancePayConfigurationTest extends TestCase
     // 5. Primary Currency Compatibility
     // =========================================================================
 
-    public function testUnsupportedPrimaryCurrencyReportsNotReady(): void
+    public function testUnsupportedPrimaryCurrencyWithoutRateReportsNotReady(): void
     {
         $this->gateway->setConfig([
             'enabled'        => true,
@@ -408,14 +408,17 @@ class BinancePayConfigurationTest extends TestCase
             'api_secret'     => 'sec_key_test',
         ]);
 
+        // When no rate is configured for BDT to USDT, status reports NOT_READY
         $status = $this->gateway->getConfigurationStatus('BDT');
         $this->assertSame('NOT_READY', $status['state']);
         $this->assertFalse($status['currency_compatible']);
         $this->assertFalse($status['is_ready']);
-        $this->assertStringContainsString('Binance Pay is not available for the current Primary Currency (BDT)', $status['message']);
+        $this->assertSame('NOT_READY', $status['currency_conversion']);
+        $this->assertSame('None', $status['rate_source']);
+        $this->assertStringContainsString('Exchange rate conversion is not available', $status['message']);
     }
 
-    public function testSupportedPrimaryCurrencyReportsReady(): void
+    public function testPrimaryCurrencyWithAuthoritativeRateReportsReady(): void
     {
         $this->gateway->setConfig([
             'enabled'        => true,
@@ -423,12 +426,36 @@ class BinancePayConfigurationTest extends TestCase
             'api_secret'     => 'sec_key_test',
         ]);
 
-        foreach (['USDT', 'USDC', 'BTC', 'ETH', 'BNB', 'USD', 'EUR'] as $curr) {
-            $status = $this->gateway->getConfigurationStatus($curr);
-            $this->assertSame('READY', $status['state'], "Failed for currency: {$curr}");
-            $this->assertTrue($status['currency_compatible'], "Currency not compatible: {$curr}");
-            $this->assertTrue($status['is_ready'], "Gateway not ready for: {$curr}");
-        }
+        $provider = new \FavoriteCMS\Pay\Providers\InMemoryExchangeRateProvider();
+        $provider->setRate('BDT', 'USDT', '0.010417', true, null, 'operator');
+        $currencyService = new \FavoriteCMS\Pay\Services\CurrencyService($provider);
+        $this->gateway->setCurrencyService($currencyService);
+
+        $status = $this->gateway->getConfigurationStatus('BDT');
+        $this->assertSame('READY', $status['state']);
+        $this->assertTrue($status['currency_compatible']);
+        $this->assertTrue($status['is_ready']);
+        $this->assertSame('READY', $status['currency_conversion']);
+        $this->assertSame('Operator', $status['rate_source']);
+        $this->assertSame('Valid (Fresh)', $status['rate_status']);
+        $this->assertStringContainsString('Orders in BDT will be converted to USDT', $status['message']);
+    }
+
+    public function testNativeAcquiringCurrencyReportsReadyWithoutConversion(): void
+    {
+        $this->gateway->setConfig([
+            'enabled'        => true,
+            'certificate_sn' => 'cert_sn_test',
+            'api_secret'     => 'sec_key_test',
+        ]);
+
+        // USDT is preferred acquiring currency, so primary currency USDT requires no conversion
+        $status = $this->gateway->getConfigurationStatus('USDT');
+        $this->assertSame('READY', $status['state']);
+        $this->assertTrue($status['currency_compatible']);
+        $this->assertTrue($status['is_ready']);
+        $this->assertSame('READY', $status['currency_conversion']);
+        $this->assertSame('Identity', $status['rate_source']);
     }
 
     // =========================================================================

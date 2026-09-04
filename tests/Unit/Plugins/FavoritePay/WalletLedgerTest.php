@@ -12,12 +12,13 @@ use RuntimeException;
 
 class WalletLedgerTest extends TestCase
 {
+    private CurrencyService $currencyService;
     private WalletService $walletService;
 
     protected function setUp(): void
     {
-        $currency = new CurrencyService();
-        $this->walletService = new WalletService($currency);
+        $this->currencyService = new CurrencyService();
+        $this->walletService = new WalletService($this->currencyService);
     }
 
     public function testWalletStartsAtZero(): void
@@ -40,6 +41,9 @@ class WalletLedgerTest extends TestCase
 
     public function testDepositForeignCurrencyConvertsAndLocksToBdt(): void
     {
+        // Set operator rate for USD -> BDT = 117.50
+        $this->currencyService->setOperatorRate('USD', '117.50', 1, 'BDT');
+
         // Deposit $10.00 USD -> converted at 117.50 BDT = 117,500 Poisha
         $usdDeposit = Money::fromMajorString('10.00', 'USD');
         $entry = $this->walletService->deposit(20, $usdDeposit, 'DEP-USD-201');

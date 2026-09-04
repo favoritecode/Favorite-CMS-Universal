@@ -6,6 +6,7 @@ namespace FavoriteCMS\Pay\Services;
 
 use FavoriteCMS\Core\Database;
 use FavoriteCMS\Pay\Contracts\CurrencyServiceInterface;
+use FavoriteCMS\Pay\Exceptions\UnauthoritativeRateException;
 use FavoriteCMS\Pay\Contracts\PaymentServiceInterface;
 use FavoriteCMS\Pay\Domain\Money;
 use FavoriteCMS\Pay\Domain\PaymentAttempt;
@@ -64,12 +65,37 @@ class PaymentService implements PaymentServiceInterface
         }
 
         $id = 'pi_' . bin2hex(random_bytes(10));
-        $chargeCurrency = strtoupper($options['charge_currency'] ?? $baseAmount->getCurrency());
+        $chargeCurrency = null;
+        if (isset($options['charge_currency']) && trim((string)$options['charge_currency']) !== '') {
+            $chargeCurrency = strtoupper(trim((string)$options['charge_currency']));
+        } elseif (isset($options['gateway_id']) || isset($options['gateway'])) {
+            $gwId = trim((string)($options['gateway_id'] ?? $options['gateway']));
+            if ($this->gatewayRegistry->has($gwId)) {
+                $gw = $this->gatewayRegistry->get($gwId);
+                if ($gw instanceof \FavoriteCMS\Pay\Gateways\Binance\BinancePayGateway) {
+                    $pref = $gw->getPreferredPaymentCurrency();
+                    if ($baseAmount->getCurrency() !== $pref) {
+                        $chargeCurrency = $pref;
+                    }
+                }
+            }
+        }
+
+        if ($chargeCurrency === null) {
+            $chargeCurrency = $baseAmount->getCurrency();
+        }
 
         // Lock conversion snapshot if foreign charge currency
         $snapshot = null;
         if ($chargeCurrency !== $baseAmount->getCurrency()) {
             $snapshot = $this->currencyService->createLockedSnapshot($baseAmount->getCurrency(), $chargeCurrency);
+            if (!$snapshot->isValidForPayment()) {
+                throw new UnauthoritativeRateException(
+                    "Cannot create payment intent: Exchange rate for {$baseAmount->getCurrency()} to {$chargeCurrency} is not valid for payment.",
+                    $baseAmount->getCurrency(),
+                    $chargeCurrency
+                );
+            }
             $chargeAmount = $snapshot->convert($baseAmount);
         } else {
             $chargeAmount = $baseAmount;
@@ -450,6 +476,15 @@ class PaymentService implements PaymentServiceInterface
         }
 
         return null;
+    }
+
+    public function recordAttempt(PaymentAttempt $attempt): void
+    {
+        $this->attempts[$attempt->getId()] = $attempt;
+        if ($attempt->getTransactionReference() !== null) {
+            $compositeKey = strtolower($attempt->getGatewayId() . ':' . trim($attempt->getTransactionReference()));
+            $this->providerReferences[$compositeKey] = $attempt->getId();
+        }
     }
 
     public function hasTransactions(): bool

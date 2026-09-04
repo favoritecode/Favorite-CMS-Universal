@@ -402,8 +402,8 @@ class BinancePayGatewayTest extends TestCase
             ['customer_id' => 1]
         );
 
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage("Binance Pay does not support payment currency 'BDT'");
+        $this->expectException(\FavoriteCMS\Pay\Exceptions\UnauthoritativeRateException::class);
+        $this->expectExceptionMessage("No valid authoritative exchange rate is available");
         $this->gateway->createAttempt($intent);
     }
 

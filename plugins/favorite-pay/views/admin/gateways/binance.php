@@ -16,6 +16,7 @@ $isReady = !empty($status['is_ready']);
 $isEnabled = !empty($status['enabled']);
 $currencyCompatible = !empty($status['currency_compatible']);
 $primaryCurrency = htmlspecialchars($status['primary_currency'] ?? 'BDT', ENT_QUOTES, 'UTF-8');
+$paymentCurrency = htmlspecialchars($status['payment_currency'] ?? 'USDT', ENT_QUOTES, 'UTF-8');
 $webhookUrl = htmlspecialchars($status['webhook_url'] ?? '', ENT_QUOTES, 'UTF-8');
 ?>
 
@@ -55,22 +56,30 @@ $webhookUrl = htmlspecialchars($status['webhook_url'] ?? '', ENT_QUOTES, 'UTF-8'
         </div>
         <div class="card-body">
             <div class="row">
-                <div class="col-md-6 mb-3">
-                    <strong>Primary Accounting Currency:</strong>
-                    <code><?php echo $primaryCurrency; ?></code>
-                    <?php if ($currencyCompatible): ?>
-                        <div class="text-success small mt-1">✓ Primary Currency is supported by Binance Pay.</div>
-                    <?php else: ?>
-                        <div class="text-danger small mt-1">⚠ Binance Pay is not available for the current Primary Currency (<?php echo $primaryCurrency; ?>). Orders in <?php echo $primaryCurrency; ?> cannot be processed through Binance Pay.</div>
-                    <?php endif; ?>
+                <div class="col-md-3 mb-3">
+                    <strong>Primary Currency:</strong>
+                    <div><code><?php echo $primaryCurrency; ?></code></div>
+                    <div class="text-muted small mt-1">Store accounting base</div>
                 </div>
-                <div class="col-md-6 mb-3">
-                    <strong>Supported Payment Currencies:</strong>
-                    <div class="mt-1">
-                        <?php foreach (($status['supported_currencies'] ?? []) as $c): ?>
-                            <span class="badge bg-info text-dark me-1"><?php echo htmlspecialchars($c, ENT_QUOTES, 'UTF-8'); ?></span>
-                        <?php endforeach; ?>
-                    </div>
+                <div class="col-md-3 mb-3">
+                    <strong>Acquiring Currency:</strong>
+                    <div><span class="badge bg-primary text-white" style="font-size: 0.95rem;"><?php echo $paymentCurrency; ?></span></div>
+                    <div class="text-muted small mt-1">Customer Binance charges</div>
+                </div>
+                <div class="col-md-3 mb-3">
+                    <strong>Rate Source:</strong>
+                    <div><span class="badge bg-secondary"><?php echo htmlspecialchars($status['rate_source'] ?? 'None', ENT_QUOTES, 'UTF-8'); ?></span></div>
+                    <div class="small mt-1 text-muted">Provider: <?php echo htmlspecialchars($status['rate_source'] ?? 'None', ENT_QUOTES, 'UTF-8'); ?></div>
+                </div>
+                <div class="col-md-3 mb-3">
+                    <strong>Conversion Status:</strong>
+                    <?php if ($currencyCompatible): ?>
+                        <div><span class="badge bg-success">READY</span></div>
+                        <div class="text-success small mt-1">✓ <?php echo htmlspecialchars($status['rate_status'] ?? 'Valid', ENT_QUOTES, 'UTF-8'); ?></div>
+                    <?php else: ?>
+                        <div><span class="badge bg-danger">NOT READY</span></div>
+                        <div class="text-danger small mt-1">⚠ <?php echo htmlspecialchars($status['rate_status'] ?? 'No valid rate', ENT_QUOTES, 'UTF-8'); ?></div>
+                    <?php endif; ?>
                 </div>
             </div>
             <div class="row">
@@ -137,6 +146,15 @@ $webhookUrl = htmlspecialchars($status['webhook_url'] ?? '', ENT_QUOTES, 'UTF-8'
                             <span class="text-danger">Required for live order signing and webhook verification.</span>
                         <?php endif; ?>
                     </div>
+                </div>
+
+                <div class="mb-3">
+                    <label for="preferred_currency" class="form-label fw-bold">Binance Acquiring / Payment Currency</label>
+                    <select class="form-select" id="preferred_currency" name="preferred_currency">
+                        <option value="USDT" <?php echo ($config['preferred_currency'] ?? 'USDT') === 'USDT' ? 'selected' : ''; ?>>USDT (Tether USD) - Recommended</option>
+                        <option value="USDC" <?php echo ($config['preferred_currency'] ?? 'USDT') === 'USDC' ? 'selected' : ''; ?>>USDC (USD Coin)</option>
+                    </select>
+                    <div class="form-text">Cryptocurrency asset charged to customer on Binance Pay. Site orders in fiat (BDT, EUR, etc.) are converted at locked checkout rates.</div>
                 </div>
 
                 <div class="mb-3">

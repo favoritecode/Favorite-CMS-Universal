@@ -88,14 +88,23 @@ Binance Pay Merchant OpenAPI supports major cryptocurrency assets and fiat quote
 
 ---
 
-## 8. Primary Currency Compatibility
-Favorite CMS operates on a single primary accounting currency.
-- If your Primary Currency is **USDT**, **USD**, or another supported currency:
-  - Binance Pay is compatible and reports `READY`.
-- If your Primary Currency is **BDT**:
-  - Binance Pay reports `NOT READY`: *"Binance Pay is not available for the current Primary Currency (BDT)."*
-  - Checkout rejects Binance Pay attempts for BDT orders.
-  - No automated exchange rates or fake 1:1 conversions are applied. To use Binance Pay, store orders or the CMS Primary Currency must match a supported asset.
+## 8. Multi-Currency Order Conversion & Primary Currency Compatibility
+Favorite Pay features a complete three-tier financial separation:
+1. **Original Order Currency & Amount**: Commercial customer-facing amount (e.g. `120.00 BDT`, `60.00 EUR`, `100.00 USD`, `50.00 GBP`).
+2. **Accounting / Primary Currency & Amount**: Site-level accounting and wallet denomination (e.g. `BDT`).
+3. **Binance Acquiring / Payment Currency & Amount**: The cryptocurrency token requested via Binance Pay OpenAPI (e.g. `1.25 USDT`, `70.26 USDT`).
+
+### Dynamic Locked Conversion at Checkout:
+- When a customer selects Binance Pay at checkout, Favorite Pay locks an immutable `ConversionSnapshot` converting the order amount into the configured Binance payment token (default: `USDT`).
+- **Examples**:
+  - `120 BDT` $\rightarrow$ Locked rate `0.010417` $\rightarrow$ `1.25 USDT` charged on Binance $\rightarrow$ Upon confirmation, recorded as **120 BDT PAID**.
+  - `60 EUR` $\rightarrow$ Locked rate `1.171` $\rightarrow$ `70.26 USDT` charged on Binance $\rightarrow$ Upon confirmation, recorded as **60 EUR PAID**.
+- **Financial Safety Guarantee**:
+  - Strict minor-unit integer arithmetic and integer-scaled rate factors (`rateFactor` / `rateScale`).
+  - Zero floating-point money math.
+  - No arbitrary or 1:1 conversions. If an exchange rate is not configured, the transaction fails safely.
+- **Wallet Settlement**:
+  - Successfully verified payments are settled into the customer's wallet in the site's primary accounting currency (`120 BDT`), maintaining accounting consistency.
 
 ---
 
@@ -109,7 +118,7 @@ Favorite CMS operates on a single primary accounting currency.
 ## 10. Troubleshooting Configuration Problems
 | Problem | Cause | Resolution |
 | :--- | :--- | :--- |
-| Status shows `NOT READY` | Missing credentials or incompatible currency | Check that Certificate-SN and Secret are saved, and Primary Currency is supported (e.g. USDT). |
+| Status shows `NOT READY` | Missing credentials or missing exchange rate | Check that Certificate-SN and Secret are configured, and exchange rates exist between Primary Currency and Binance Payment Currency. |
 | Error: `Disallowed Binance Pay API base URL` | Administrator entered an unapproved host | Only official Binance endpoints (`https://bpay.binanceapi.com`) are allowed (SSRF protection). |
 | Webhook returns HTTP 401 | Invalid HMAC signature | Verify that the `API Secret Key` configured in CMS matches the secret key in the Binance Merchant Portal. |
 | Webhook returns HTTP 422 | Currency or amount mismatch | Attempt was tampered with or received with a mismatched currency. Payment is rejected. |

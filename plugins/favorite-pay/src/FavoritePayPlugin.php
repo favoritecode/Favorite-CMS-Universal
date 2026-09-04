@@ -129,9 +129,10 @@ final class FavoritePayPlugin
             return $registry;
         });
 
-        // Bind Currency Service
-        $this->app->singleton(CurrencyServiceInterface::class, function () {
-            return new CurrencyService();
+        // Bind Currency Service with Database Rate Provider support
+        $this->app->singleton(CurrencyServiceInterface::class, function ($app) {
+            $db = $app->has(\FavoriteCMS\Core\Database::class) ? $app->make(\FavoriteCMS\Core\Database::class) : null;
+            return new CurrencyService(null, $db);
         });
 
         // Bind Wallet Service

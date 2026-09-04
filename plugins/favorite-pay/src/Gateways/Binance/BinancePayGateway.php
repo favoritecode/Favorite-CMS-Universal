@@ -6,6 +6,8 @@ namespace FavoriteCMS\Pay\Gateways\Binance;
 
 use FavoriteCMS\Core\Database;
 use FavoriteCMS\Pay\Contracts\ConfigurableGatewayInterface;
+use FavoriteCMS\Pay\Contracts\CurrencyServiceInterface;
+use FavoriteCMS\Pay\Exceptions\UnauthoritativeRateException;
 use FavoriteCMS\Pay\Contracts\PaymentGatewayInterface;
 use FavoriteCMS\Pay\Contracts\RedirectPaymentGatewayInterface;
 use FavoriteCMS\Pay\Contracts\RefundableGatewayInterface;
@@ -49,11 +51,13 @@ class BinancePayGateway implements
     private array $config;
     private BinancePayHttpClient $client;
     private ?Database $db;
+    private ?CurrencyServiceInterface $currencyService;
 
     public function __construct(
         array $config = [],
         ?BinancePayHttpClient $client = null,
-        ?Database $db = null
+        ?Database $db = null,
+        ?CurrencyServiceInterface $currencyService = null
     ) {
         $this->id = self::GATEWAY_ID;
         $this->title = 'Binance Pay';
@@ -63,10 +67,11 @@ class BinancePayGateway implements
                 $saved = \FavoriteCMS\Models\Setting::getGroup('favorite_pay_binance');
                 if (!empty($saved)) {
                     $config = [
-                        'enabled'        => !empty($saved['enabled']),
-                        'certificate_sn' => (string)($saved['certificate_sn'] ?? ''),
-                        'api_secret'     => (string)($saved['api_secret'] ?? ''),
-                        'sandbox'        => !empty($saved['sandbox']),
+                        'enabled'            => !empty($saved['enabled']),
+                        'certificate_sn'     => (string)($saved['certificate_sn'] ?? ''),
+                        'api_secret'         => (string)($saved['api_secret'] ?? ''),
+                        'sandbox'            => !empty($saved['sandbox']),
+                        'preferred_currency' => (string)($saved['preferred_currency'] ?? 'USDT'),
                     ];
                 }
             } catch (\Throwable) {
@@ -78,8 +83,16 @@ class BinancePayGateway implements
         $this->config = $config;
         $this->db = $db;
 
+        if ($currencyService === null && class_exists(\FavoriteCMS\Core\Application::class)) {
+            $app = \FavoriteCMS\Core\Application::getInstance();
+            if ($app && $app->has(CurrencyServiceInterface::class)) {
+                $currencyService = $app->make(CurrencyServiceInterface::class);
+            }
+        }
+        $this->currencyService = $currencyService;
+
         // Supported currencies: Binance Pay official supported payment assets & fiat quotes
-        $this->supportedCurrencies = ['USDT', 'USDC', 'BTC', 'ETH', 'BNB', 'USD', 'EUR'];
+        $this->supportedCurrencies = ['USDT', 'USDC', 'BTC', 'ETH', 'BNB'];
 
         $certSn = $config['certificate_sn'] ?? null;
         $apiSecret = $config['api_secret'] ?? null;
@@ -88,6 +101,30 @@ class BinancePayGateway implements
             : ($config['base_url'] ?? BinancePayHttpClient::DEFAULT_BASE_URL);
 
         $this->client = $client ?? new BinancePayHttpClient($certSn, $apiSecret, $baseUrl);
+    }
+
+    public function setCurrencyService(?CurrencyServiceInterface $currencyService): void
+    {
+        $this->currencyService = $currencyService;
+    }
+
+    public function getCurrencyService(): ?CurrencyServiceInterface
+    {
+        return $this->currencyService;
+    }
+
+    public function getPreferredPaymentCurrency(): string
+    {
+        $pref = strtoupper(trim((string)($this->config['preferred_currency'] ?? 'USDT')));
+        return in_array($pref, $this->supportedCurrencies, true) ? $pref : 'USDT';
+    }
+
+    public function setPreferredPaymentCurrency(string $currency): void
+    {
+        $cur = strtoupper(trim($currency));
+        if (in_array($cur, $this->supportedCurrencies, true)) {
+            $this->config['preferred_currency'] = $cur;
+        }
     }
 
     public function getId(): string
@@ -122,11 +159,13 @@ class BinancePayGateway implements
 
     public function getInstructions(array $context = []): array
     {
+        $preferred = $this->getPreferredPaymentCurrency();
         return [
-            'type'        => 'binance_pay',
-            'title'       => 'Pay with Binance Pay',
-            'description' => 'Fast, secure cryptocurrency payments directly through your Binance account or Binance App.',
-            'currencies'  => $this->supportedCurrencies,
+            'type'             => 'binance_pay',
+            'title'            => 'Pay with Binance Pay',
+            'description'      => "Fast, secure cryptocurrency payments directly through your Binance account or Binance App (charged in {$preferred}).",
+            'currencies'       => $this->supportedCurrencies,
+            'payment_currency' => $preferred,
         ];
     }
 
@@ -150,30 +189,53 @@ class BinancePayGateway implements
 
         $amount = $intent->getAmount();
         $currency = strtoupper($amount->getCurrency());
+        $snapshot = $intent->getConversionSnapshot();
 
-        // 3. Strict Currency verification
+        // 3. Strict Currency verification & automated conversion for supported site currencies (e.g. BDT, EUR)
         if (!in_array($currency, $this->supportedCurrencies, true)) {
-            throw new InvalidArgumentException(
-                "Binance Pay does not support payment currency '{$currency}'. Supported currencies include: "
-                . implode(', ', $this->supportedCurrencies) . "."
-            );
+            $preferred = $this->getPreferredPaymentCurrency();
+            if ($this->currencyService === null || !$this->currencyService->hasRate($currency, $preferred)) {
+                throw new UnauthoritativeRateException(
+                    "Cannot process payment: No valid authoritative exchange rate is available between order currency '{$currency}' and Binance acquiring currency '{$preferred}'.",
+                    $currency,
+                    $preferred
+                );
+            }
+            $snapshot = $this->currencyService->createLockedSnapshot($currency, $preferred);
+            if (!$snapshot->isValidForPayment()) {
+                throw new UnauthoritativeRateException(
+                    "Cannot process payment: Exchange rate between '{$currency}' and '{$preferred}' is not valid or has expired.",
+                    $currency,
+                    $preferred
+                );
+            }
+            $amount = $snapshot->convert($amount);
+            $currency = $amount->getCurrency();
+        } else {
+            if ($snapshot !== null && !$snapshot->isValidForPayment()) {
+                throw new UnauthoritativeRateException(
+                    "Cannot process payment: Payment conversion snapshot is non-authoritative or expired.",
+                    $snapshot->getFromCurrency(),
+                    $snapshot->getToCurrency()
+                );
+            }
         }
 
-        // 2. Strict Amount verification
+        // 4. Strict Amount verification
         if (!$amount->isPositive()) {
             throw new InvalidArgumentException("Payment amount must be strictly positive.");
         }
 
-        // 3. Generate unique alphanumeric merchantTradeNo (max 32 chars, no hyphens, underscores, slashes)
+        // 5. Generate unique alphanumeric merchantTradeNo (max 32 chars, no hyphens, underscores, slashes)
         // Format: 'FP' + 20 chars random hex + 8 chars random hex = 30 chars
         $attemptHex = bin2hex(random_bytes(10));
         $attemptId = 'att_' . $attemptHex;
         $merchantTradeNo = 'FP' . strtoupper($attemptHex) . strtoupper(bin2hex(random_bytes(4)));
 
-        // 4. Exact decimal amount formatting without floating point arithmetic
+        // 6. Exact decimal amount formatting without floating point arithmetic
         $decimalAmountStr = DecimalFormatter::minorUnitToDecimal($amount->getAmount(), 2);
 
-        // 5. Build Create Order payload (Binance Pay OpenAPI v3)
+        // 7. Build Create Order payload (Binance Pay OpenAPI v3)
         $orderData = [
             'env' => [
                 'terminalType' => $params['terminal_type'] ?? 'WEB',
@@ -204,7 +266,7 @@ class BinancePayGateway implements
             'amount'            => $decimalAmountStr,
         ]);
 
-        // 6. Execute request
+        // 8. Execute request
         $response = $this->client->request('POST', '/binancepay/openapi/v3/order', $orderData);
 
         $responseData = $response['data'] ?? [];
@@ -221,11 +283,17 @@ class BinancePayGateway implements
             'qrcode_link'       => $qrCodeLink,
             'qr_content'        => $qrContent,
             'universal_url'     => $universalUrl,
+            'charge_currency'   => $currency,
+            'charge_amount'     => $amount->getAmount(),
+            'base_currency'     => $intent->getBaseAmount()->getCurrency(),
+            'base_amount'       => $intent->getBaseAmount()->getAmount(),
+            'rate_factor'       => $snapshot?->getRateFactor(),
+            'rate_scale'        => $snapshot?->getRateScale(),
             'created_currency'  => $currency,
             'decimal_amount'    => $decimalAmountStr,
         ];
 
-        return new PaymentAttempt(
+        $attempt = new PaymentAttempt(
             $attemptId,
             $intent->getId(),
             $this->id,
@@ -240,6 +308,8 @@ class BinancePayGateway implements
             null,
             $metadata
         );
+
+        return $attempt;
     }
 
     public function verifyAttempt(PaymentAttempt $attempt, array $verificationData = []): PaymentAttempt
@@ -478,7 +548,19 @@ class BinancePayGateway implements
 
     public function isCurrencySupported(string $currency): bool
     {
-        return in_array(strtoupper(trim($currency)), $this->supportedCurrencies, true);
+        $cur = strtoupper(trim($currency));
+        if ($cur === $this->getPreferredPaymentCurrency()) {
+            return true;
+        }
+        if (in_array($cur, $this->supportedCurrencies, true)) {
+            return true;
+        }
+
+        if ($this->currencyService !== null) {
+            return $this->currencyService->hasRate($cur, $this->getPreferredPaymentCurrency());
+        }
+
+        return false;
     }
 
     public function isReady(?string $currency = null): bool
@@ -517,11 +599,12 @@ class BinancePayGateway implements
     public function getPublicConfig(): array
     {
         return [
-            'enabled'        => $this->isEnabled(),
-            'certificate_sn' => $this->config['certificate_sn'] ?? '',
-            'has_api_secret' => !empty($this->config['api_secret']),
-            'sandbox'        => !empty($this->config['sandbox']),
-            'base_url'       => $this->client->getBaseUrl(),
+            'enabled'            => $this->isEnabled(),
+            'certificate_sn'     => $this->config['certificate_sn'] ?? '',
+            'has_api_secret'     => !empty($this->config['api_secret']),
+            'sandbox'            => !empty($this->config['sandbox']),
+            'preferred_currency' => $this->getPreferredPaymentCurrency(),
+            'base_url'           => $this->client->getBaseUrl(),
         ];
     }
 
@@ -533,10 +616,41 @@ class BinancePayGateway implements
                 : 'BDT';
         }
         $primaryCurrency = strtoupper(trim($primaryCurrency));
+        $paymentCurrency = $this->getPreferredPaymentCurrency();
 
         $isConfigured = $this->isConfigured();
         $isEnabled = $this->isEnabled();
-        $isCurrencySupported = $this->isCurrencySupported($primaryCurrency);
+
+        $conversionReady = false;
+        $rateSource = 'None';
+        $rateStatus = 'No valid authoritative rate';
+
+        if ($primaryCurrency === $paymentCurrency) {
+            $conversionReady = true;
+            $rateSource = 'Identity';
+            $rateStatus = 'Native (No conversion needed)';
+        } elseif ($this->currencyService !== null) {
+            try {
+                $snapshot = $this->currencyService->getRate($primaryCurrency, $paymentCurrency);
+                if ($snapshot->isValidForPayment()) {
+                    $conversionReady = true;
+                    $rateSource = ucfirst($snapshot->getSource());
+                    $rateStatus = 'Valid (Fresh)';
+                } elseif ($snapshot->isExpired()) {
+                    $conversionReady = false;
+                    $rateSource = ucfirst($snapshot->getSource());
+                    $rateStatus = 'Expired';
+                } else {
+                    $conversionReady = false;
+                    $rateSource = ucfirst($snapshot->getSource());
+                    $rateStatus = 'Non-authoritative';
+                }
+            } catch (\Throwable) {
+                $conversionReady = false;
+                $rateSource = 'None';
+                $rateStatus = 'No valid authoritative rate';
+            }
+        }
 
         if (!$isEnabled) {
             $state = 'DISABLED';
@@ -551,12 +665,16 @@ class BinancePayGateway implements
                 $missing[] = 'API Secret Key';
             }
             $message = 'Binance Pay is enabled but incomplete. Missing: ' . implode(', ', $missing) . '.';
-        } elseif (!$isCurrencySupported) {
+        } elseif (!$conversionReady) {
             $state = 'NOT_READY';
-            $message = "Binance Pay is not available for the current Primary Currency ({$primaryCurrency}).";
+            $message = "Exchange rate conversion is not available between Primary Currency ({$primaryCurrency}) and Binance Acquiring Currency ({$paymentCurrency}). Rate status: {$rateStatus}.";
         } else {
             $state = 'READY';
-            $message = 'Binance Pay is enabled, configured, and ready to accept payments.';
+            if ($primaryCurrency === $paymentCurrency) {
+                $message = "Binance Pay is enabled, configured, and ready to accept payments directly in {$paymentCurrency}.";
+            } else {
+                $message = "Binance Pay is enabled, configured, and ready to accept payments. Orders in {$primaryCurrency} will be converted to {$paymentCurrency} at locked checkout rates.";
+            }
         }
 
         return [
@@ -570,13 +688,20 @@ class BinancePayGateway implements
             'has_certificate_sn'   => !empty($this->config['certificate_sn']),
             'has_api_secret'       => !empty($this->config['api_secret']),
             'certificate_sn'       => $this->config['certificate_sn'] ?? '',
+            'preferred_currency'   => $paymentCurrency,
+            'payment_currency'     => $paymentCurrency,
+            'currency_conversion'  => $conversionReady ? 'READY' : 'NOT_READY',
+            'rate_source'          => $rateSource,
+            'rate_status'          => $rateStatus,
             'webhook_url'          => $this->getWebhookUrl(),
             'supported_currencies' => $this->supportedCurrencies,
             'primary_currency'     => $primaryCurrency,
-            'currency_compatible'  => $isCurrencySupported,
-            'currency_message'     => $isCurrencySupported
-                ? "Primary Currency '{$primaryCurrency}' is supported by Binance Pay."
-                : "Binance Pay is not available for the current Primary Currency ({$primaryCurrency}).",
+            'currency_compatible'  => $conversionReady,
+            'currency_message'     => $conversionReady
+                ? ($primaryCurrency === $paymentCurrency
+                    ? "Primary Currency '{$primaryCurrency}' is supported natively by Binance Pay."
+                    : "Orders in Primary Currency '{$primaryCurrency}' will be converted to {$paymentCurrency} via locked checkout rates.")
+                : "Exchange rate conversion is not available between Primary Currency ({$primaryCurrency}) and {$paymentCurrency}. Rate status: {$rateStatus}.",
             'environment'          => !empty($this->config['sandbox']) ? 'sandbox' : 'production',
             'api_base_url'         => $this->client->getBaseUrl(),
         ];
@@ -602,6 +727,12 @@ class BinancePayGateway implements
                 'required' => true,
                 'secret'   => true,
             ],
+            'preferred_currency' => [
+                'type'    => 'select',
+                'label'   => 'Binance Acquiring / Payment Currency',
+                'options' => ['USDT', 'USDC'],
+                'default' => 'USDT',
+            ],
             'sandbox' => [
                 'type'    => 'boolean',
                 'label'   => 'Sandbox / Test Mode',
@@ -623,6 +754,9 @@ class BinancePayGateway implements
 
         $apiSecret = trim((string)($config['api_secret'] ?? ''));
         $validated['api_secret'] = $apiSecret;
+
+        $preferred = strtoupper(trim((string)($config['preferred_currency'] ?? 'USDT')));
+        $validated['preferred_currency'] = in_array($preferred, ['USDT', 'USDC', 'BTC', 'ETH', 'BNB', 'USD', 'EUR'], true) ? $preferred : 'USDT';
 
         $validated['sandbox'] = !empty($config['sandbox']);
 

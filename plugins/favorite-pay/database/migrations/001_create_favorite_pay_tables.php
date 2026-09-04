@@ -59,8 +59,8 @@ class CreateFavoritePayTables
         $this->db->execute("
             CREATE TABLE IF NOT EXISTS `favorite_pay_rates` (
                 `id`               {$pkBigint},
-                `base_currency`    VARCHAR(3)     NOT NULL DEFAULT 'BDT',
-                `quote_currency`   VARCHAR(3)     NOT NULL,
+                `base_currency`    VARCHAR(16)    NOT NULL DEFAULT 'BDT',
+                `quote_currency`   VARCHAR(16)    NOT NULL,
                 `rate`             DECIMAL(18, 6) NOT NULL,
                 `rate_factor`      BIGINT         NOT NULL,
                 `rate_scale`       INT            NOT NULL DEFAULT 1000000,
@@ -68,12 +68,14 @@ class CreateFavoritePayTables
                 `source`           VARCHAR(64)    NOT NULL DEFAULT 'operator',
                 `operator_id`      BIGINT         NULL,
                 `effective_at`     DATETIME       NOT NULL,
+                `expires_at`       DATETIME       NULL,
                 `created_at`       TIMESTAMP      DEFAULT CURRENT_TIMESTAMP
             ){$engine};
         ");
 
         $this->createIndexIfNotExists('favorite_pay_rates', 'idx_fpay_rates_pair', '`base_currency`, `quote_currency`');
         $this->createIndexIfNotExists('favorite_pay_rates', 'idx_fpay_rates_effective', '`effective_at`');
+        $this->createIndexIfNotExists('favorite_pay_rates', 'idx_fpay_rates_expires', '`expires_at`');
 
         // 3. favorite_pay_transactions
         $this->db->execute("
