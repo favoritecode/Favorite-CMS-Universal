@@ -305,6 +305,10 @@ class BinancePayGateway implements
             return VerifiedWebhookResult::rejected("Missing required Binance Pay webhook headers (timestamp, nonce, or signature).");
         }
 
+        if (is_string($payload) && trim($payload) === '') {
+            return VerifiedWebhookResult::rejected("Malformed or empty Binance Pay webhook payload.");
+        }
+
         $rawBody = is_array($payload)
             ? json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)
             : (string)$payload;
@@ -312,22 +316,16 @@ class BinancePayGateway implements
         $signPayload = $timestamp . "\n" . $nonce . "\n" . $rawBody . "\n";
 
         // Signature verification:
-        // 1. If RSA public key is configured, verify using openssl_verify with SHA256
-        // 2. Otherwise verify using HMAC-SHA512 with API secret and constant-time hash_equals
-        $isVerified = false;
-        $publicKey = $this->config['public_key'] ?? null;
+        // Exclusively HMAC-SHA512 with API secret and constant-time hash_equals according to official Binance Pay Merchant API specifications.
+        // RSA verification is not part of the Binance Pay Merchant OpenAPI and is strictly rejected.
         $apiSecret = $this->config['api_secret'] ?? null;
-
-        if (!empty($publicKey)) {
-            $binarySig = base64_decode((string)$signature);
-            if ($binarySig !== false) {
-                $verifyResult = @openssl_verify($signPayload, $binarySig, $publicKey, OPENSSL_ALGO_SHA256);
-                $isVerified = ($verifyResult === 1);
-            }
-        } elseif (!empty($apiSecret)) {
-            $expectedSig = strtoupper(hash_hmac('sha512', $signPayload, $apiSecret));
-            $isVerified = hash_equals($expectedSig, strtoupper((string)$signature));
+        if (empty($apiSecret)) {
+            SafeLogger::error("Binance Pay API secret is not configured.");
+            return VerifiedWebhookResult::rejected("Binance Pay API secret is not configured.");
         }
+
+        $expectedSig = strtoupper(hash_hmac('sha512', $signPayload, $apiSecret));
+        $isVerified = hash_equals($expectedSig, strtoupper((string)$signature));
 
         if (!$isVerified) {
             SafeLogger::warning("Binance Pay webhook signature verification failed.", [
@@ -339,8 +337,8 @@ class BinancePayGateway implements
         }
 
         // Parse JSON payload
-        $parsed = is_array($payload) ? $payload : (json_decode($rawBody, true) ?: []);
-        if (empty($parsed)) {
+        $parsed = is_array($payload) ? $payload : json_decode($rawBody, true);
+        if (!is_array($parsed) || empty($parsed)) {
             return VerifiedWebhookResult::rejected("Malformed or empty Binance Pay webhook payload.");
         }
 
@@ -460,12 +458,6 @@ class BinancePayGateway implements
                 'required' => true,
                 'secret'   => true,
             ],
-            'public_key' => [
-                'type'     => 'textarea',
-                'label'    => 'Binance Public Key (PEM format for RSA webhook verification)',
-                'required' => false,
-                'secret'   => false,
-            ],
             'sandbox' => [
                 'type'    => 'boolean',
                 'label'   => 'Sandbox / Test Mode',
@@ -480,7 +472,6 @@ class BinancePayGateway implements
         $validated['enabled'] = !empty($config['enabled']);
         $validated['certificate_sn'] = trim((string)($config['certificate_sn'] ?? ''));
         $validated['api_secret'] = trim((string)($config['api_secret'] ?? ''));
-        $validated['public_key'] = trim((string)($config['public_key'] ?? ''));
         $validated['sandbox'] = !empty($config['sandbox']);
         return $validated;
     }

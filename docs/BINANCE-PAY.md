@@ -32,9 +32,8 @@ To obtain merchant credentials:
 1. Log in to your approved **Binance Merchant Account** at [https://merchant.binance.com](https://merchant.binance.com).
 2. Go to **Developers -> API Credentials**.
 3. Generate or view:
-   - **Certificate-SN**: The Certificate Serial Number identifying your public certificate.
-   - **API Secret Key**: 64-character secret key used for HMAC-SHA512 request signing.
-   - *(Optional)* **Binance Public Key**: PEM-formatted public certificate used for RSA callback verification.
+   - **Certificate-SN**: The Certificate Serial Number identifying your merchant certificate.
+   - **API Secret Key**: 64-character secret key used for HMAC-SHA512 request signing and webhook signature verification.
 
 > [!WARNING]
 > Never commit real merchant credentials into source code, logs, exception messages, or repository commits.
@@ -54,12 +53,13 @@ https://your-domain.com/api/favorite-pay/webhook/binance_pay
   - `BinancePay-Timestamp`: Unix timestamp in milliseconds.
   - `BinancePay-Nonce`: 32-character random string.
   - `BinancePay-Certificate-SN`: Public key certificate serial number.
-  - `BinancePay-Signature`: Digital signature.
+  - `BinancePay-Signature`: Digital signature (uppercase hex HMAC-SHA512).
 - Favorite Pay reconstructs the signature payload:
   ```text
   timestamp + "\n" + nonce + "\n" + raw_body + "\n"
   ```
-- Verifies using constant-time comparison (`hash_equals`) with your configured `API Secret Key` (HMAC-SHA512) or the Binance public certificate (RSA-SHA256).
+- Verifies using constant-time comparison (`hash_equals`) against `strtoupper(hash_hmac('sha512', $payload, $apiSecret))`.
+- As mandated by the Binance Pay Merchant OpenAPI specification, RSA verification is not used for merchant API webhooks and RSA-style/Base64 signatures are strictly rejected.
 - If verification fails or amount/currency does not match the attempt, the webhook is rejected and payment is **never** settled.
 
 ---

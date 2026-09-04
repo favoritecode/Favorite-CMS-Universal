@@ -530,6 +530,143 @@ class BinancePayGatewayTest extends TestCase
         $this->assertStringContainsString('Missing required Binance Pay webhook headers', $result->getErrorMessage());
     }
 
+    public function testWebhookModifiedBodyRejected(): void
+    {
+        $secret = 'sec_key_test_abcdef987654321';
+        $timestamp = '1625000000000';
+        $nonce = '32characternoncetest123456789012';
+        $originalBody = json_encode(['bizType' => 'PAY', 'data' => ['totalFee' => '10.00']]);
+        $signature = BinancePayHttpClient::buildSignature($timestamp, $nonce, $originalBody, $secret);
+
+        $headers = [
+            'binancepay-timestamp' => $timestamp,
+            'binancepay-nonce'     => $nonce,
+            'binancepay-signature' => $signature,
+        ];
+
+        // Tampered body
+        $tamperedBody = json_encode(['bizType' => 'PAY', 'data' => ['totalFee' => '100.00']]);
+        $result = $this->gateway->verifyWebhook($headers, $tamperedBody);
+
+        $this->assertFalse($result->isVerified());
+        $this->assertStringContainsString('Invalid Binance Pay webhook signature', $result->getErrorMessage());
+    }
+
+    public function testWebhookModifiedSignatureRejected(): void
+    {
+        $secret = 'sec_key_test_abcdef987654321';
+        $timestamp = '1625000000000';
+        $nonce = '32characternoncetest123456789012';
+        $rawBody = json_encode(['bizType' => 'PAY', 'data' => ['merchantTradeNo' => 'FPTEST1']]);
+        $signature = BinancePayHttpClient::buildSignature($timestamp, $nonce, $rawBody, $secret);
+
+        // Tamper signature by modifying characters
+        $tamperedSig = substr($signature, 0, -2) . ($signature[-2] === 'A' ? 'BB' : 'AA');
+
+        $headers = [
+            'binancepay-timestamp' => $timestamp,
+            'binancepay-nonce'     => $nonce,
+            'binancepay-signature' => $tamperedSig,
+        ];
+
+        $result = $this->gateway->verifyWebhook($headers, $rawBody);
+        $this->assertFalse($result->isVerified());
+        $this->assertStringContainsString('Invalid Binance Pay webhook signature', $result->getErrorMessage());
+    }
+
+    public function testWebhookModifiedTimestampRejected(): void
+    {
+        $secret = 'sec_key_test_abcdef987654321';
+        $timestamp = '1625000000000';
+        $nonce = '32characternoncetest123456789012';
+        $rawBody = json_encode(['bizType' => 'PAY']);
+        $signature = BinancePayHttpClient::buildSignature($timestamp, $nonce, $rawBody, $secret);
+
+        $headers = [
+            'binancepay-timestamp' => '1625000000001', // modified timestamp
+            'binancepay-nonce'     => $nonce,
+            'binancepay-signature' => $signature,
+        ];
+
+        $result = $this->gateway->verifyWebhook($headers, $rawBody);
+        $this->assertFalse($result->isVerified());
+        $this->assertStringContainsString('Invalid Binance Pay webhook signature', $result->getErrorMessage());
+    }
+
+    public function testWebhookMissingSignatureHeaderRejected(): void
+    {
+        $headers = [
+            'binancepay-timestamp' => '1625000000000',
+            'binancepay-nonce'     => '32characternoncetest123456789012',
+            // Missing signature
+        ];
+
+        $result = $this->gateway->verifyWebhook($headers, '{"test":1}');
+        $this->assertFalse($result->isVerified());
+        $this->assertStringContainsString('Missing required Binance Pay webhook headers', $result->getErrorMessage());
+    }
+
+    public function testWebhookMissingNonceOrTimestampRejected(): void
+    {
+        $headersWithoutTimestamp = [
+            'binancepay-nonce'     => '32characternoncetest123456789012',
+            'binancepay-signature' => 'SIG',
+        ];
+        $this->assertFalse($this->gateway->verifyWebhook($headersWithoutTimestamp, '{"test":1}')->isVerified());
+
+        $headersWithoutNonce = [
+            'binancepay-timestamp' => '1625000000000',
+            'binancepay-signature' => 'SIG',
+        ];
+        $this->assertFalse($this->gateway->verifyWebhook($headersWithoutNonce, '{"test":1}')->isVerified());
+    }
+
+    public function testWebhookMalformedOrEmptyPayloadRejected(): void
+    {
+        $secret = 'sec_key_test_abcdef987654321';
+        $timestamp = '1625000000000';
+        $nonce = '32characternoncetest123456789012';
+
+        // 1. Empty string payload
+        $headers = [
+            'binancepay-timestamp' => $timestamp,
+            'binancepay-nonce'     => $nonce,
+            'binancepay-signature' => BinancePayHttpClient::buildSignature($timestamp, $nonce, '', $secret),
+        ];
+        $emptyResult = $this->gateway->verifyWebhook($headers, '');
+        $this->assertFalse($emptyResult->isVerified());
+        $this->assertStringContainsString('Malformed or empty Binance Pay webhook payload', $emptyResult->getErrorMessage());
+
+        // 2. Malformed JSON with valid signature
+        $malformedJson = '{"broken": json';
+        $headers['binancepay-signature'] = BinancePayHttpClient::buildSignature($timestamp, $nonce, $malformedJson, $secret);
+        $malformedResult = $this->gateway->verifyWebhook($headers, $malformedJson);
+        $this->assertFalse($malformedResult->isVerified());
+        $this->assertStringContainsString('Malformed or empty Binance Pay webhook payload', $malformedResult->getErrorMessage());
+    }
+
+    public function testWebhookRsaStyleSignatureRejected(): void
+    {
+        $timestamp = '1625000000000';
+        $nonce = '32characternoncetest123456789012';
+        $rawBody = json_encode(['bizType' => 'PAY', 'data' => ['merchantTradeNo' => 'FPTEST1']]);
+
+        // Base64 RSA-like signature
+        $rsaStyleSig = base64_encode(random_bytes(256));
+
+        $headers = [
+            'binancepay-timestamp'      => $timestamp,
+            'binancepay-nonce'          => $nonce,
+            'binancepay-signature'      => $rsaStyleSig,
+            'binancepay-certificate-sn' => 'cert_sn_test_123456',
+        ];
+
+        $result = $this->gateway->verifyWebhook($headers, $rawBody);
+
+        $this->assertFalse($result->isVerified());
+        $this->assertStringContainsString('Invalid Binance Pay webhook signature', $result->getErrorMessage());
+    }
+
     public function testWebhookAmountMismatchRejected(): void
     {
         $intent = $this->paymentService->createIntent(
@@ -650,6 +787,155 @@ class BinancePayGatewayTest extends TestCase
 
         $balanceAfter = $this->walletService->getBalance($userId);
         $this->assertSame(4000, $balanceAfter->getAmount());
+    }
+
+    public function testWebhookWrongCurrencyRejected(): void
+    {
+        $intent = $this->paymentService->createIntent(
+            'favorite_shop',
+            'order_wrong_currency',
+            new Money(5000, 'USDT')
+        );
+
+        $attempt = $this->gateway->createAttempt($intent);
+        $merchantTradeNo = $attempt->getTransactionReference();
+
+        $this->db->insert('favorite_pay_attempts', [
+            'attempt_id'         => $attempt->getId(),
+            'transaction_id'     => $intent->getId(),
+            'gateway_id'         => 'binance_pay',
+            'amount'             => 5000,
+            'currency'           => 'USDT',
+            'status'             => 'pending',
+            'provider_reference' => $merchantTradeNo,
+            'created_at'         => date('Y-m-d H:i:s'),
+        ]);
+
+        $secret = 'sec_key_test_abcdef987654321';
+        $timestamp = '1625000000000';
+        $nonce = '32characternoncetest123456789012';
+        $payload = [
+            'bizType'   => 'PAY',
+            'bizStatus' => 'PAY_SUCCESS',
+            'data'      => [
+                'merchantTradeNo' => $merchantTradeNo,
+                'totalFee'        => '50.00',
+                'currency'        => 'EUR', // Wrong currency!
+            ],
+        ];
+        $rawBody = json_encode($payload);
+        $signature = BinancePayHttpClient::buildSignature($timestamp, $nonce, $rawBody, $secret);
+
+        $headers = [
+            'binancepay-timestamp'      => $timestamp,
+            'binancepay-nonce'          => $nonce,
+            'binancepay-signature'      => $signature,
+            'binancepay-certificate-sn' => 'cert_sn_test_123456',
+        ];
+
+        $handleResult = $this->webhookService->handle('binance_pay', $headers, $rawBody);
+        $this->assertFalse($handleResult->isSuccess());
+        $this->assertSame(422, $handleResult->getStatusCode());
+        $this->assertStringContainsString('mismatch', $handleResult->getMessage());
+    }
+
+    public function testWebhookUnknownMerchantTradeNoRejected(): void
+    {
+        $secret = 'sec_key_test_abcdef987654321';
+        $timestamp = '1625000000000';
+        $nonce = '32characternoncetest123456789012';
+        $payload = [
+            'bizType'   => 'PAY',
+            'bizStatus' => 'PAY_SUCCESS',
+            'data'      => [
+                'merchantTradeNo' => 'UNKNOWN_NONEXISTENT_TRADE_NO_999',
+                'totalFee'        => '50.00',
+                'currency'        => 'USDT',
+            ],
+        ];
+        $rawBody = json_encode($payload);
+        $signature = BinancePayHttpClient::buildSignature($timestamp, $nonce, $rawBody, $secret);
+
+        $headers = [
+            'binancepay-timestamp'      => $timestamp,
+            'binancepay-nonce'          => $nonce,
+            'binancepay-signature'      => $signature,
+            'binancepay-certificate-sn' => 'cert_sn_test_123456',
+        ];
+
+        $handleResult = $this->webhookService->handle('binance_pay', $headers, $rawBody);
+        $this->assertFalse($handleResult->isSuccess());
+        $this->assertSame(404, $handleResult->getStatusCode());
+    }
+
+    public function testWebhookInvalidSignatureCanNeverTriggerPaymentSuccessOrWalletCredit(): void
+    {
+        $userId = 77;
+        $intent = $this->paymentService->createIntent(
+            'favorite_shop',
+            'order_forged_attack',
+            new Money(8000, 'USDT'),
+            ['customer_id' => $userId]
+        );
+
+        $attempt = $this->gateway->createAttempt($intent);
+        $merchantTradeNo = $attempt->getTransactionReference();
+
+        $this->db->insert('favorite_pay_attempts', [
+            'attempt_id'         => $attempt->getId(),
+            'transaction_id'     => $intent->getId(),
+            'gateway_id'         => 'binance_pay',
+            'amount'             => 8000,
+            'currency'           => 'USDT',
+            'status'             => 'pending',
+            'provider_reference' => $merchantTradeNo,
+            'created_at'         => date('Y-m-d H:i:s'),
+        ]);
+
+        // Attacker attempts to forge PAY_SUCCESS with bogus signature
+        $payload = [
+            'bizType'   => 'PAY',
+            'bizStatus' => 'PAY_SUCCESS',
+            'data'      => [
+                'merchantTradeNo' => $merchantTradeNo,
+                'totalFee'        => '80.00',
+                'currency'        => 'USDT',
+            ],
+        ];
+        $rawBody = json_encode($payload);
+
+        $headers = [
+            'binancepay-timestamp'      => '1625000000000',
+            'binancepay-nonce'          => '32characternoncetest123456789012',
+            'binancepay-signature'      => 'DEADBEEF0123456789ABCDEFDEADBEEF0123456789ABCDEFDEADBEEF0123456789ABCDEFDEADBEEF0123456789ABCDEFDEADBEEF0123456789ABCDEFDEADBEEF01234567',
+            'binancepay-certificate-sn' => 'cert_sn_test_123456',
+        ];
+
+        $handleResult = $this->webhookService->handle('binance_pay', $headers, $rawBody);
+
+        $this->assertFalse($handleResult->isSuccess());
+        $this->assertSame(401, $handleResult->getStatusCode());
+
+        // Verify intent status is STILL PENDING, not SUCCEEDED
+        $unmodifiedIntent = $this->paymentService->getIntent($intent->getId());
+        $this->assertSame(PaymentStatus::PENDING, $unmodifiedIntent->getStatus());
+
+        // Verify attempt status is STILL PENDING
+        $row = $this->db->selectOne("SELECT * FROM favorite_pay_attempts WHERE attempt_id = ?", [$attempt->getId()]);
+        $this->assertNotNull($row);
+        $this->assertSame('pending', $row->status);
+
+        // Verify wallet was NEVER credited
+        $balance = $this->walletService->getBalance($userId);
+        $this->assertSame(0, $balance->getAmount());
+    }
+
+    public function testConfigSchemaDoesNotContainPublicKey(): void
+    {
+        $schema = $this->gateway->getConfigSchema();
+        $this->assertArrayNotHasKey('public_key', $schema);
+        $this->assertArrayHasKey('certificate_sn', $schema);
+        $this->assertArrayHasKey('api_secret', $schema);
     }
 
     // ==========================================
