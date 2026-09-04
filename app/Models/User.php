@@ -192,6 +192,17 @@ class User extends BaseModel
             || $this->hasPermission('manage_pages');
     }
 
+    public function canManagePlugins(): bool
+    {
+        if (!$this->isActive()) {
+            return false;
+        }
+
+        return $this->hasRole('super-admin')
+            || $this->hasRole('admin')
+            || $this->hasPermission('manage_plugins');
+    }
+
     public function getPostCount(): int
     {
         $row = $this->db->selectOne(

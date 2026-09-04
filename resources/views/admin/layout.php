@@ -560,7 +560,11 @@ $siteFaviconUrl = function_exists('get_site_favicon_url') ? get_site_favicon_url
 
             var confirmMsg = null;
             if (action === 'delete') {
-                confirmMsg = 'Are you sure you want to permanently delete ' + count + ' ' + itemType + (count > 1 ? 's' : '') + '? This action cannot be undone.';
+                confirmMsg = itemType === 'plugin'
+                    ? 'Are you sure you want to delete and uninstall ' + count + ' ' + (count > 1 ? 'plugins' : 'plugin') + '? This will remove plugin files and data.'
+                    : 'Are you sure you want to permanently delete ' + count + ' ' + itemType + (count > 1 ? 's' : '') + '? This action cannot be undone.';
+            } else if (action === 'deactivate') {
+                confirmMsg = 'Are you sure you want to deactivate ' + count + ' ' + (itemType === 'plugin' ? (count > 1 ? 'plugins' : 'plugin') : (count > 1 ? itemType + 's' : itemType)) + '?';
             } else if (action === 'trash') {
                 confirmMsg = 'Are you sure you want to move ' + count + ' ' + itemType + (count > 1 ? 's' : '') + ' to trash?';
             } else if (action === 'ban') {

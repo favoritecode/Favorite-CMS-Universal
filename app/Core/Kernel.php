@@ -415,7 +415,7 @@ class Kernel
 
         // Module 10: Plugins
         if (str_starts_with($path, '/admin/plugins')) {
-            if (!$isAdmin) {
+            if (!$currentUser->canManagePlugins()) {
                 return Response::make('<h1>403 Access Denied</h1><p>You do not have permission to manage plugins.</p>', 403);
             }
             $ctrl = new PluginController($this->app);
@@ -425,6 +425,7 @@ class Kernel
                 '/admin/plugins/deactivate' => $ctrl->deactivate($request),
                 '/admin/plugins/upload'     => $ctrl->upload($request),
                 '/admin/plugins/delete'     => $ctrl->delete($request),
+                '/admin/plugins/bulk'       => $ctrl->bulkAction($request),
                 default                     => Response::redirect('/admin/plugins'),
             };
         }
