@@ -69,7 +69,8 @@
                                 <div class="row-actions">
                                     <a href="/<?php echo $taxonomyType; ?>/<?php echo htmlspecialchars($item->slug, ENT_QUOTES, 'UTF-8'); ?>" target="_blank">View</a>
                                     <?php if ($item->slug !== 'uncategorized'): ?>
-                                        | <a href="/admin/taxonomies/delete?id=<?php echo (int)$item->id; ?>" onclick="return confirm('Delete this <?php echo $taxonomyType; ?>?');" style="color: var(--wp-danger);">Delete</a>
+                                        <?php $csrfToken = htmlspecialchars($_SESSION['_token'] ?? '', ENT_QUOTES, 'UTF-8'); ?>
+                                        | <a href="/admin/taxonomies/delete?id=<?php echo (int)$item->id; ?>&_token=<?php echo $csrfToken; ?>" onclick="return confirm('Delete this <?php echo $taxonomyType; ?>?');" style="color: var(--wp-danger);">Delete</a>
                                     <?php endif; ?>
                                 </div>
                             </td>

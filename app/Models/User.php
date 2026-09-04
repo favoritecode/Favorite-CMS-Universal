@@ -155,6 +155,20 @@ class User extends BaseModel
             || $this->hasPermission('approve_posts');
     }
 
+    public function canModerateComments(): bool
+    {
+        if (!$this->isActive()) {
+            return false;
+        }
+
+        return $this->hasRole('super-admin')
+            || $this->hasRole('admin')
+            || $this->hasRole('moderator')
+            || $this->hasRole('editor')
+            || $this->hasPermission('moderate_comments')
+            || $this->hasPermission('approve_posts');
+    }
+
     public function canManageUsers(): bool
     {
         if (!$this->isActive()) {

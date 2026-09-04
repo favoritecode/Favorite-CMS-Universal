@@ -97,6 +97,13 @@ class TaxonomyController
 
     public function delete(Request $request): Response
     {
+        $token = (string)($request->get('_token', $request->post('_token', '')));
+        $sessionToken = (string)($_SESSION['_token'] ?? '');
+        if ($token === '' || !hash_equals($sessionToken, $token)) {
+            $_SESSION['flash_error'] = 'Security verification failed (invalid CSRF token). Please try again.';
+            return Response::redirect('/admin/taxonomies/categories');
+        }
+
         $id = (int)$request->get('id', 0);
         $tax = Taxonomy::find($id);
         if ($tax) {

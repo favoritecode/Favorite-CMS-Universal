@@ -541,5 +541,36 @@ class UserSignupAndModerationTest extends TestCase
         static::$db->execute("DELETE FROM `user_roles` WHERE `user_id` = ?", [$user->id]);
         $user->delete();
     }
+
+    public function testCommentModeratorAccessAndCsrfProtection(): void
+    {
+        $subscriber = $this->createTestUser('sub_comment_user', 'subscriber', 'active');
+        $moderator = $this->createTestUser('mod_comment_user', 'moderator', 'active');
+
+        $kernel = new Kernel(static::$app);
+
+        // 1. Subscriber cannot access /admin/comments (403)
+        $_SESSION['auth_user_id'] = $subscriber->id;
+        $_SESSION['auth_user_name'] = $subscriber->username;
+
+        $reqSub = new Request([], [], ['REQUEST_METHOD' => 'GET', 'REQUEST_URI' => '/admin/comments']);
+        $respSub = $kernel->handle($reqSub);
+        $this->assertSame(403, $respSub->getStatusCode(), 'Subscriber should receive 403 on /admin/comments');
+
+        // 2. Moderator can access /admin/comments (200)
+        $_SESSION['auth_user_id'] = $moderator->id;
+        $_SESSION['auth_user_name'] = $moderator->username;
+        $this->assertTrue($moderator->canModerateComments());
+
+        $reqMod = new Request([], [], ['REQUEST_METHOD' => 'GET', 'REQUEST_URI' => '/admin/comments']);
+        $respMod = $kernel->handle($reqMod);
+        $this->assertSame(200, $respMod->getStatusCode(), 'Moderator should receive 200 on /admin/comments');
+
+        // Clean up
+        static::$db->execute("DELETE FROM `user_roles` WHERE `user_id` = ?", [$subscriber->id]);
+        static::$db->execute("DELETE FROM `user_roles` WHERE `user_id` = ?", [$moderator->id]);
+        $subscriber->delete();
+        $moderator->delete();
+    }
 }
 

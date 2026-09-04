@@ -39,21 +39,24 @@
                                 <?php echo nl2br(htmlspecialchars($comment->content, ENT_QUOTES, 'UTF-8')); ?>
                             </div>
                             <div class="row-actions">
+                                <?php 
+                                $csrfToken = htmlspecialchars($_SESSION['_token'] ?? '', ENT_QUOTES, 'UTF-8'); 
+                                ?>
                                 <?php if ($comment->status === 'pending'): ?>
-                                    <a href="/admin/comments/approve?id=<?php echo (int)$comment->id; ?>" style="color: var(--wp-success); font-weight: 600;">Approve</a> |
+                                    <a href="/admin/comments/approve?id=<?php echo (int)$comment->id; ?>&_token=<?php echo $csrfToken; ?>" style="color: var(--wp-success); font-weight: 600;">Approve</a> |
                                 <?php elseif ($comment->status === 'approved'): ?>
-                                    <a href="/admin/comments/unapprove?id=<?php echo (int)$comment->id; ?>" style="color: #b35900;">Unapprove</a> |
+                                    <a href="/admin/comments/unapprove?id=<?php echo (int)$comment->id; ?>&_token=<?php echo $csrfToken; ?>" style="color: #b35900;">Unapprove</a> |
                                 <?php endif; ?>
 
                                 <?php if ($comment->status !== 'spam'): ?>
-                                    <a href="/admin/comments/spam?id=<?php echo (int)$comment->id; ?>" style="color: var(--wp-danger);">Spam</a> |
+                                    <a href="/admin/comments/spam?id=<?php echo (int)$comment->id; ?>&_token=<?php echo $csrfToken; ?>" style="color: var(--wp-danger);">Spam</a> |
                                 <?php endif; ?>
 
                                 <?php if ($comment->status === 'trash'): ?>
-                                    <a href="/admin/comments/approve?id=<?php echo (int)$comment->id; ?>" style="color: var(--wp-success);">Restore</a> |
-                                    <a href="/admin/comments/delete?id=<?php echo (int)$comment->id; ?>" onclick="return confirm('Permanently delete this comment?');" style="color: var(--wp-danger);">Delete Permanently</a>
+                                    <a href="/admin/comments/approve?id=<?php echo (int)$comment->id; ?>&_token=<?php echo $csrfToken; ?>&status=trash" style="color: var(--wp-success);">Restore</a> |
+                                    <a href="/admin/comments/delete?id=<?php echo (int)$comment->id; ?>&_token=<?php echo $csrfToken; ?>" onclick="return confirm('Permanently delete this comment?');" style="color: var(--wp-danger);">Delete Permanently</a>
                                 <?php else: ?>
-                                    <a href="/admin/comments/trash?id=<?php echo (int)$comment->id; ?>" style="color: var(--wp-danger);">Trash</a>
+                                    <a href="/admin/comments/trash?id=<?php echo (int)$comment->id; ?>&_token=<?php echo $csrfToken; ?>" style="color: var(--wp-danger);">Trash</a>
                                 <?php endif; ?>
                             </div>
                         </td>

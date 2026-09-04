@@ -293,8 +293,10 @@ $activeMenu = $activeMenu ?? 'dashboard';
                 <?php
                 $isAdmin = $user && ($user->hasRole('admin') || $user->hasRole('super-admin'));
                 $canModerate = $user && $user->canModeratePosts();
+                $canModerateComments = $user && $user->canModerateComments();
                 $canManageUsers = $user && $user->canManageUsers();
                 $pendingCount = (int)(\FavoriteCMS\Models\Post::countByStatus()['pending'] ?? 0);
+                $pendingCommentsCount = $canModerateComments ? (int)(\FavoriteCMS\Models\Comment::countByStatus()['pending'] ?? 0) : 0;
                 ?>
                 <li class="wp-menu-item <?php echo in_array($activeMenu, ['posts', 'posts-new', 'categories', 'tags']) ? 'active' : ''; ?>">
                     <a href="/admin/posts" class="wp-menu-link">
@@ -327,9 +329,16 @@ $activeMenu = $activeMenu ?? 'dashboard';
                 <li class="wp-menu-item <?php echo $activeMenu === 'media' ? 'active' : ''; ?>">
                     <a href="/admin/media" class="wp-menu-link">🖼️ Media</a>
                 </li>
-                <li class="wp-menu-item <?php echo $activeMenu === 'comments' ? 'active' : ''; ?>">
-                    <a href="/admin/comments" class="wp-menu-link">💬 Comments</a>
-                </li>
+                <?php if ($canModerateComments): ?>
+                    <li class="wp-menu-item <?php echo $activeMenu === 'comments' ? 'active' : ''; ?>">
+                        <a href="/admin/comments" class="wp-menu-link">
+                            💬 Comments
+                            <?php if ($pendingCommentsCount > 0): ?>
+                                <span style="background: #e5a00d; color: #fff; font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 10px; margin-left: 6px;"><?php echo $pendingCommentsCount; ?></span>
+                            <?php endif; ?>
+                        </a>
+                    </li>
+                <?php endif; ?>
 
                 <?php if ($isAdmin): ?>
                     <li class="wp-menu-item <?php echo in_array($activeMenu, ['themes', 'widgets', 'customize', 'menus']) ? 'active' : ''; ?>">

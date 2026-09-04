@@ -55,6 +55,7 @@ class CommentController
 
     public function approve(Request $request): Response
     {
+        $this->validateCsrf($request);
         $id = (int)$request->get('id', 0);
         $comment = Comment::find($id);
         if ($comment) {
@@ -66,6 +67,7 @@ class CommentController
 
     public function unapprove(Request $request): Response
     {
+        $this->validateCsrf($request);
         $id = (int)$request->get('id', 0);
         $comment = Comment::find($id);
         if ($comment) {
@@ -77,6 +79,7 @@ class CommentController
 
     public function spam(Request $request): Response
     {
+        $this->validateCsrf($request);
         $id = (int)$request->get('id', 0);
         $comment = Comment::find($id);
         if ($comment) {
@@ -88,6 +91,7 @@ class CommentController
 
     public function trash(Request $request): Response
     {
+        $this->validateCsrf($request);
         $id = (int)$request->get('id', 0);
         $comment = Comment::find($id);
         if ($comment) {
@@ -99,6 +103,7 @@ class CommentController
 
     public function delete(Request $request): Response
     {
+        $this->validateCsrf($request);
         $id = (int)$request->get('id', 0);
         $comment = Comment::find($id);
         if ($comment) {
@@ -106,6 +111,17 @@ class CommentController
             $_SESSION['flash_success'] = 'Comment permanently deleted.';
         }
         return Response::redirect('/admin/comments?status=trash');
+    }
+
+    protected function validateCsrf(Request $request): void
+    {
+        $token = (string)($request->get('_token', $request->post('_token', '')));
+        $sessionToken = (string)($_SESSION['_token'] ?? '');
+        if ($token === '' || !hash_equals($sessionToken, $token)) {
+            $_SESSION['flash_error'] = 'Security verification failed (invalid CSRF token). Please try again.';
+            Response::redirect('/admin/comments')->send();
+            exit;
+        }
     }
 }
 

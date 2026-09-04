@@ -300,6 +300,10 @@ class Kernel
 
         // Module 6: Comments
         if (str_starts_with($path, '/admin/comments')) {
+            if (!$currentUser->canModerateComments()) {
+                return Response::make('<h1>403 Access Denied</h1><p>You do not have permission to moderate comments.</p>', 403);
+            }
+
             $ctrl = new CommentController($this->app);
             return match ($path) {
                 '/admin/comments'           => $ctrl->index($request),
