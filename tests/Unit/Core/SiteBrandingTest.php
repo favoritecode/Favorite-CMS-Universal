@@ -186,4 +186,46 @@ class SiteBrandingTest extends TestCase
         $this->assertNotEmpty($_SESSION['flash_error']);
         $this->assertStringContainsString('Invalid Logo URL', $_SESSION['flash_error']);
     }
+
+    public function testSettingControllerRejectsDangerousFaviconUrl(): void
+    {
+        $controller = new SettingController($this->app);
+        $token = bin2hex(random_bytes(32));
+        $_SESSION['_token'] = $token;
+
+        $request = new Request([], [
+            '_token' => $token,
+            'site_name' => 'Brand Test CMS',
+            'site_description' => 'Branding Description',
+            'site_url' => 'http://brand.test',
+            'site_logo_source' => 'url',
+            'site_logo_url' => 'https://brand.test/logo.png',
+            'site_favicon_source' => 'url',
+            'site_favicon_url' => 'javascript:evil()',
+            'admin_email' => 'admin@brand.test',
+            'timezone' => 'UTC',
+            'primary_currency' => 'USD',
+        ], [], [], [], ['REQUEST_METHOD' => 'POST']);
+
+        $response = $controller->update($request);
+        $this->assertSame(302, $response->getStatusCode());
+        $this->assertNotEmpty($_SESSION['flash_error']);
+        $this->assertStringContainsString('Invalid Favicon URL', $_SESSION['flash_error']);
+    }
+
+    public function testFrontendFaviconMimeDetection(): void
+    {
+        // SVG
+        Setting::set('general', 'site_favicon_source', 'url');
+        Setting::set('general', 'site_favicon_url', 'https://example.com/icon.svg');
+        $this->assertSame('https://example.com/icon.svg', get_site_favicon_url());
+
+        // PNG
+        Setting::set('general', 'site_favicon_url', '/uploads/2026/09/icon.png');
+        $this->assertSame('/uploads/2026/09/icon.png', get_site_favicon_url());
+
+        // ICO
+        Setting::set('general', 'site_favicon_url', '/favicon.ico');
+        $this->assertSame('/favicon.ico', get_site_favicon_url());
+    }
 }

@@ -453,4 +453,27 @@ class BulkActionsTest extends TestCase
 
         $admin->delete();
     }
+
+    public function testBulkCommentsFailsForUnauthorizedUser(): void
+    {
+        $normalUser = $this->createTestUser('subscriber');
+        $this->assertFalse($normalUser->canModerateComments());
+
+        $_SESSION['auth_user_id'] = $normalUser->id;
+        $token = bin2hex(random_bytes(32));
+        $_SESSION['_token'] = $token;
+
+        $controller = new CommentController(static::$app);
+        $request = new Request([], [
+            '_token'      => $token,
+            'bulk_action' => 'approve',
+            'ids'         => [1],
+        ], ['REQUEST_METHOD' => 'POST']);
+
+        $response = $controller->bulkAction($request);
+        $this->assertSame(302, $response->getStatusCode());
+        $this->assertStringContainsString('permission', $_SESSION['flash_error'] ?? '');
+
+        $normalUser->delete();
+    }
 }

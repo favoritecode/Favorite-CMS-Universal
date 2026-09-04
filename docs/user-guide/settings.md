@@ -8,6 +8,8 @@ Administrative settings in Favorite CMS Universal (`/admin/settings`) control gl
 
 - **Site Title**: The primary name of your website (e.g. `Favorite CMS News`). Displayed in browser title bars, header brand logos, and RSS feeds.
 - **Tagline / Description**: A concise explanation of what your site is about (e.g. `"One CMS. Any Website."`).
+- **Site Logo**: Dual-source branding support. Choose between **Upload File** (stored safely in `/uploads` via MediaService) or **Custom URL** (validated external or CDN link). Switching between sources is non-destructive and preserves existing values.
+- **Site Favicon**: Dual-source icon support. Choose between **Upload File** or **Custom URL**. Emits standards-compliant `<link rel="icon">` tags with automatic MIME type detection (`.ico`, `.png`, `.svg`, `.webp`) in frontend theme headers and admin layouts.
 - **Site URL**: The full public web address (e.g. `https://example.com` or `http://localhost/favorite-cms/public`). Used to construct canonical URLs, asset paths, and email links.
 - **Administration Email**: The primary contact email address for administrative notices and system alerts.
 - **Timezone**: The operational timezone for scheduling posts and formatting timestamps (e.g. `UTC`, `America/New_York`, `Asia/Dhaka`).

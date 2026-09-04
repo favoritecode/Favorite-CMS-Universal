@@ -9,6 +9,7 @@ use FavoriteCMS\Core\Database;
 use FavoriteCMS\Core\Request;
 use FavoriteCMS\Core\Response;
 use FavoriteCMS\Models\Comment;
+use FavoriteCMS\Models\User;
 
 class CommentController
 {
@@ -130,6 +131,17 @@ class CommentController
         $sessionToken = (string)($_SESSION['_token'] ?? '');
         if ($token === '' || !hash_equals($sessionToken, $token)) {
             $_SESSION['flash_error'] = 'Security verification failed (invalid CSRF token).';
+            return Response::redirect('/admin/comments');
+        }
+
+        $currentUser = isset($_SESSION['auth_user_id']) ? User::find((int)$_SESSION['auth_user_id']) : null;
+        if (!$currentUser || !$currentUser->isActive()) {
+            $_SESSION['flash_error'] = 'Your account is inactive or suspended.';
+            return Response::redirect('/admin/comments');
+        }
+
+        if (!$currentUser->canModerateComments()) {
+            $_SESSION['flash_error'] = 'You do not have permission to moderate comments.';
             return Response::redirect('/admin/comments');
         }
 

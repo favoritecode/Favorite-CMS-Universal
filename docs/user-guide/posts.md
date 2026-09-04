@@ -26,6 +26,7 @@ The main Posts list provides a comprehensive, filtered table:
 - **Status Tabs**: Click **All**, **Published**, **Drafts**, **Pending Review**, **Rejected**, or **Trash** to filter the list instantly.
 - **Pending Review Counter**: Highlights how many posts are waiting for moderator evaluation.
 - **Search**: Search posts by title keywords or author username (`/admin/posts?s=query`).
+- **Multi-Select & Bulk Actions**: Select multiple articles via row checkboxes or the master checkbox. The selection counter indicates the exact number of selected rows, and confirmation alerts safeguard against accidental deletion or trashing. Supported actions include **Move to Trash**, **Restore**, **Delete Permanently**, **Approve**, and **Reject**.
 - **Post Columns**:
   - **Title**: Post title, with hover actions: **Edit**, **Quick View**, **Approve** (for pending), **Reject** (for pending), and **Trash**.
   - **Author**: Name and username of the creator.
