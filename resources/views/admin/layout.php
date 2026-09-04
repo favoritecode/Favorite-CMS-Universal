@@ -24,7 +24,18 @@ $siteFaviconUrl = function_exists('get_site_favicon_url') ? get_site_favicon_url
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?php echo htmlspecialchars($pageTitle ?? 'Admin', ENT_QUOTES, 'UTF-8'); ?> &lsaquo; <?php echo htmlspecialchars($siteName, ENT_QUOTES, 'UTF-8'); ?> &mdash; Favorite CMS</title>
     <?php if (!empty($siteFaviconUrl)): ?>
-        <link rel="icon" href="<?php echo htmlspecialchars($siteFaviconUrl, ENT_QUOTES, 'UTF-8'); ?>">
+        <?php
+        $favExt = strtolower(pathinfo(parse_url($siteFaviconUrl, PHP_URL_PATH) ?? '', PATHINFO_EXTENSION));
+        $favType = match ($favExt) {
+            'ico'   => 'image/x-icon',
+            'png'   => 'image/png',
+            'svg'   => 'image/svg+xml',
+            'gif'   => 'image/gif',
+            'webp'  => 'image/webp',
+            default => 'image/x-icon',
+        };
+        ?>
+        <link rel="icon" type="<?php echo htmlspecialchars($favType, ENT_QUOTES, 'UTF-8'); ?>" href="<?php echo htmlspecialchars($siteFaviconUrl, ENT_QUOTES, 'UTF-8'); ?>">
     <?php endif; ?>
     <style>
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -208,6 +219,30 @@ $siteFaviconUrl = function_exists('get_site_favicon_url') ? get_site_favicon_url
         }
         table.wp-table tr:hover td {
             background: #f9f9f9;
+        }
+        table.wp-table tr.is-selected td {
+            background-color: #f0f6fc !important;
+        }
+        .bulk-actions-wrap {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            margin-bottom: 12px;
+            flex-wrap: wrap;
+        }
+        .bulk-count-badge {
+            display: inline-block;
+            background: #e2e8f0;
+            color: #475569;
+            font-size: 11px;
+            font-weight: 600;
+            padding: 3px 8px;
+            border-radius: 999px;
+            transition: all 0.15s ease;
+        }
+        .bulk-count-badge.has-selected {
+            background: var(--wp-blue);
+            color: #ffffff;
         }
         .row-actions {
             font-size: 12px;
@@ -432,6 +467,136 @@ $siteFaviconUrl = function_exists('get_site_favicon_url') ? get_site_favicon_url
         </main>
     </div>
 
+    <script>
+    window.initAdminMultiSelect = function(formId, options) {
+        options = options || {};
+        var form = document.getElementById(formId);
+        if (!form) return;
+
+        var masterCheckbox = form.querySelector('[data-select-all]') || form.querySelector('th input[type="checkbox"]');
+        var rowCheckboxes = function() {
+            return form.querySelectorAll('tbody input[type="checkbox"][name="ids[]"]');
+        };
+        var countBadge = form.querySelector('.bulk-count-badge');
+        var actionSelect = form.querySelector('select[name="bulk_action"]');
+
+        function updateState() {
+            var cbs = rowCheckboxes();
+            var total = 0;
+            var checkedCount = 0;
+
+            for (var i = 0; i < cbs.length; i++) {
+                if (!cbs[i].disabled) {
+                    total++;
+                    var tr = cbs[i].closest('tr');
+                    if (cbs[i].checked) {
+                        checkedCount++;
+                        if (tr) tr.classList.add('is-selected');
+                    } else {
+                        if (tr) tr.classList.remove('is-selected');
+                    }
+                }
+            }
+
+            if (masterCheckbox) {
+                if (total > 0 && checkedCount === total) {
+                    masterCheckbox.checked = true;
+                    masterCheckbox.indeterminate = false;
+                } else if (checkedCount > 0) {
+                    masterCheckbox.checked = false;
+                    masterCheckbox.indeterminate = true;
+                } else {
+                    masterCheckbox.checked = false;
+                    masterCheckbox.indeterminate = false;
+                }
+            }
+
+            if (countBadge) {
+                countBadge.textContent = checkedCount + ' selected';
+                if (checkedCount > 0) {
+                    countBadge.classList.add('has-selected');
+                } else {
+                    countBadge.classList.remove('has-selected');
+                }
+            }
+        }
+
+        if (masterCheckbox) {
+            masterCheckbox.addEventListener('change', function() {
+                var isChecked = masterCheckbox.checked;
+                var cbs = rowCheckboxes();
+                for (var i = 0; i < cbs.length; i++) {
+                    if (!cbs[i].disabled) {
+                        cbs[i].checked = isChecked;
+                    }
+                }
+                updateState();
+            });
+        }
+
+        form.addEventListener('change', function(e) {
+            if (e.target && e.target.matches('tbody input[type="checkbox"][name="ids[]"]')) {
+                updateState();
+            }
+        });
+
+        form.addEventListener('submit', function(e) {
+            var action = actionSelect ? actionSelect.value.trim() : '';
+            if (!action) {
+                alert('Please select a bulk action.');
+                e.preventDefault();
+                return false;
+            }
+
+            var checkedCbs = form.querySelectorAll('tbody input[type="checkbox"][name="ids[]"]:checked');
+            if (checkedCbs.length === 0) {
+                alert('Please select at least one item.');
+                e.preventDefault();
+                return false;
+            }
+
+            var count = checkedCbs.length;
+            var itemType = options.itemType || 'item';
+
+            var confirmMsg = null;
+            if (action === 'delete') {
+                confirmMsg = 'Are you sure you want to permanently delete ' + count + ' ' + itemType + (count > 1 ? 's' : '') + '? This action cannot be undone.';
+            } else if (action === 'trash') {
+                confirmMsg = 'Are you sure you want to move ' + count + ' ' + itemType + (count > 1 ? 's' : '') + ' to trash?';
+            } else if (action === 'ban') {
+                confirmMsg = 'Are you sure you want to ban ' + count + ' ' + itemType + (count > 1 ? 's' : '') + '? They will immediately lose access.';
+            } else if (action === 'suspend') {
+                confirmMsg = 'Are you sure you want to suspend ' + count + ' ' + itemType + (count > 1 ? 's' : '') + '?';
+            } else if (action === 'spam') {
+                confirmMsg = 'Are you sure you want to mark ' + count + ' ' + itemType + (count > 1 ? 's' : '') + ' as spam?';
+            }
+
+            if (confirmMsg && !confirm(confirmMsg)) {
+                e.preventDefault();
+                return false;
+            }
+
+            return true;
+        });
+
+        updateState();
+    };
+
+    // Backward compatibility helper
+    window.toggleSelectAll = function(master, groupName) {
+        var cbs = document.getElementsByName(groupName);
+        for (var i = 0; i < cbs.length; i++) {
+            if (!cbs[i].disabled) {
+                cbs[i].checked = master.checked;
+                var tr = cbs[i].closest('tr');
+                if (tr) {
+                    if (master.checked) tr.classList.add('is-selected');
+                    else tr.classList.remove('is-selected');
+                }
+            }
+        }
+    };
+    </script>
 </body>
 </html>
 

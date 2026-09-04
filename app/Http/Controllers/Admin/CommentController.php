@@ -126,7 +126,12 @@ class CommentController
 
     public function bulkAction(Request $request): Response
     {
-        $this->validateCsrf($request);
+        $token = (string)($request->get('_token', $request->post('_token', '')));
+        $sessionToken = (string)($_SESSION['_token'] ?? '');
+        if ($token === '' || !hash_equals($sessionToken, $token)) {
+            $_SESSION['flash_error'] = 'Security verification failed (invalid CSRF token).';
+            return Response::redirect('/admin/comments');
+        }
 
         $action = trim((string)$request->post('bulk_action', ''));
         $rawIds = (array)$request->post('ids', []);

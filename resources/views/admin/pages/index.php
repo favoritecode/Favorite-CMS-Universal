@@ -17,10 +17,10 @@
 </form>
 
 <form method="POST" action="/admin/pages/bulk" id="pages-bulk-form">
-    <input type="hidden" name="_token" value="<?php echo htmlspecialchars($_SESSION['_token'] ?? '', ENT_QUOTES, 'UTF-8'); ?>">
+    <input type="hidden" name="_token" value="<?php echo htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8'); ?>">
     <input type="hidden" name="status" value="<?php echo htmlspecialchars($status, ENT_QUOTES, 'UTF-8'); ?>">
 
-    <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 12px;">
+    <div class="bulk-actions-wrap">
         <select name="bulk_action" class="form-control" style="width: auto; max-width: 200px; display: inline-block;">
             <option value="">Bulk Actions</option>
             <?php if ($status === 'trash'): ?>
@@ -31,7 +31,8 @@
                 <option value="delete">Delete Permanently</option>
             <?php endif; ?>
         </select>
-        <button type="submit" class="btn btn-secondary" onclick="return confirmBulkAction('pages-bulk-form')">Apply</button>
+        <button type="submit" class="btn btn-secondary">Apply</button>
+        <span class="bulk-count-badge">0 selected</span>
     </div>
 
     <div class="wp-table-wrap">
@@ -39,7 +40,7 @@
             <thead>
                 <tr>
                     <th style="width: 32px; text-align: center;">
-                        <input type="checkbox" id="select-all-pages" onclick="toggleSelectAll(this, 'ids[]')">
+                        <input type="checkbox" id="select-all-pages" data-select-all>
                     </th>
                     <th>Title</th>
                     <th>Author</th>
@@ -93,31 +94,8 @@
 </form>
 
 <script>
-function toggleSelectAll(master, groupName) {
-    var cbs = document.getElementsByName(groupName);
-    for (var i = 0; i < cbs.length; i++) {
-        cbs[i].checked = master.checked;
-    }
-}
-function confirmBulkAction(formId) {
-    var form = document.getElementById(formId);
-    var action = form.querySelector('select[name="bulk_action"]').value;
-    if (!action) {
-        alert('Please select a bulk action.');
-        return false;
-    }
-    var checked = form.querySelectorAll('input[name="ids[]"]:checked');
-    if (checked.length === 0) {
-        alert('Please select at least one item.');
-        return false;
-    }
-    if (action === 'delete') {
-        return confirm('Are you sure you want to permanently delete ' + checked.length + ' page(s)?');
-    }
-    if (action === 'trash') {
-        return confirm('Are you sure you want to move ' + checked.length + ' page(s) to trash?');
-    }
-    return true;
-}
+document.addEventListener('DOMContentLoaded', function() {
+    initAdminMultiSelect('pages-bulk-form', { itemType: 'page' });
+});
 </script>
 

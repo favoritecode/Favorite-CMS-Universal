@@ -4,16 +4,17 @@
 </div>
 
 <form method="POST" action="/admin/users/bulk" id="users-bulk-form">
-    <input type="hidden" name="_token" value="<?php echo htmlspecialchars($_SESSION['_token'] ?? '', ENT_QUOTES, 'UTF-8'); ?>">
+    <input type="hidden" name="_token" value="<?php echo htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8'); ?>">
 
-    <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 12px;">
+    <div class="bulk-actions-wrap">
         <select name="bulk_action" class="form-control" style="width: auto; max-width: 200px; display: inline-block;">
             <option value="">Bulk Actions</option>
             <option value="activate">Activate / Restore</option>
             <option value="suspend">Suspend</option>
             <option value="ban">Ban</option>
         </select>
-        <button type="submit" class="btn btn-secondary" onclick="return confirmBulkAction('users-bulk-form')">Apply</button>
+        <button type="submit" class="btn btn-secondary">Apply</button>
+        <span class="bulk-count-badge">0 selected</span>
     </div>
 
     <div class="wp-table-wrap">
@@ -21,7 +22,7 @@
             <thead>
                 <tr>
                     <th style="width: 32px; text-align: center;">
-                        <input type="checkbox" id="select-all-users" onclick="toggleSelectAll(this, 'ids[]')">
+                        <input type="checkbox" id="select-all-users" data-select-all>
                     </th>
                     <th>Username</th>
                     <th>Name</th>
@@ -137,33 +138,8 @@
 </form>
 
 <script>
-function toggleSelectAll(master, groupName) {
-    var cbs = document.getElementsByName(groupName);
-    for (var i = 0; i < cbs.length; i++) {
-        if (!cbs[i].disabled) {
-            cbs[i].checked = master.checked;
-        }
-    }
-}
-function confirmBulkAction(formId) {
-    var form = document.getElementById(formId);
-    var action = form.querySelector('select[name="bulk_action"]').value;
-    if (!action) {
-        alert('Please select a bulk action.');
-        return false;
-    }
-    var checked = form.querySelectorAll('input[name="ids[]"]:checked');
-    if (checked.length === 0) {
-        alert('Please select at least one user.');
-        return false;
-    }
-    if (action === 'ban') {
-        return confirm('Are you sure you want to ban ' + checked.length + ' user(s)? They will immediately lose access.');
-    }
-    if (action === 'suspend') {
-        return confirm('Are you sure you want to suspend ' + checked.length + ' user(s)?');
-    }
-    return true;
-}
+document.addEventListener('DOMContentLoaded', function() {
+    initAdminMultiSelect('users-bulk-form', { itemType: 'user' });
+});
 </script>
 

@@ -8,14 +8,14 @@
     <div style="display: flex; gap: 8px;">
         <a href="/" target="_blank" class="btn btn-secondary">Live Site Preview &#8599;</a>
         <form method="POST" action="/admin/customize/reset" onsubmit="return confirm('Reset all theme customizations and sections back to theme defaults?');" style="display: inline;">
-            <input type="hidden" name="_token" value="<?php echo htmlspecialchars($_SESSION['_token'] ?? '', ENT_QUOTES, 'UTF-8'); ?>">
+            <input type="hidden" name="_token" value="<?php echo htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8'); ?>">
             <button type="submit" class="btn btn-secondary" style="color: var(--wp-danger);">&#8635; Reset to Defaults</button>
         </form>
     </div>
 </div>
 
 <form method="POST" action="/admin/customize/save">
-    <input type="hidden" name="_token" value="<?php echo htmlspecialchars($_SESSION['_token'] ?? '', ENT_QUOTES, 'UTF-8'); ?>">
+    <input type="hidden" name="_token" value="<?php echo htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8'); ?>">
 
     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; align-items: start;">
         <!-- Card 1: Layout & Style Options -->

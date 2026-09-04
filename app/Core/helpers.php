@@ -438,17 +438,138 @@ if (!function_exists('set_theme_mod')) {
     }
 }
 
+if (!function_exists('sanitize_branding_url')) {
+    /**
+     * Strictly validate and sanitize a branding (logo or favicon) URL or path.
+     * Allows http://, https://, and safe local root-relative paths (/uploads/..., /favicon.ico).
+     * Strictly rejects dangerous schemes (javascript:, data:, vbscript:, file:, etc.), protocol-relative URLs (//...),
+     * directory traversal (..), control characters, and malformed strings.
+     */
+    function sanitize_branding_url(?string $url): string
+    {
+        if ($url === null) {
+            return '';
+        }
+
+        $trimmed = trim($url);
+        if ($trimmed === '') {
+            return '';
+        }
+
+        // Reject control characters
+        if (preg_match('/[\x00-\x1F\x7F]/', $trimmed)) {
+            return '';
+        }
+
+        // Reject protocol-relative URLs e.g. "//evil.com"
+        if (str_starts_with($trimmed, '//')) {
+            return '';
+        }
+
+        // Check if root-relative path (e.g. /uploads/2026/09/logo.png or /favicon.ico)
+        if (str_starts_with($trimmed, '/')) {
+            if (str_contains($trimmed, '..')) {
+                return '';
+            }
+            if (!preg_match('~^/[a-zA-Z0-9_\-./]+(\?[a-zA-Z0-9_\-./=&%]*)?$~', $trimmed)) {
+                return '';
+            }
+            return $trimmed;
+        }
+
+        // Parse full URL
+        $parsed = parse_url($trimmed);
+        if ($parsed === false || empty($parsed['scheme']) || empty($parsed['host'])) {
+            return '';
+        }
+
+        $scheme = strtolower($parsed['scheme']);
+        if (!in_array($scheme, ['http', 'https'], true)) {
+            return '';
+        }
+
+        if (!filter_var($trimmed, FILTER_VALIDATE_URL)) {
+            return '';
+        }
+
+        return $trimmed;
+    }
+}
+
+if (!function_exists('get_site_logo_source')) {
+    /**
+     * Get the active logo source: 'upload', 'url', or 'default'.
+     */
+    function get_site_logo_source(): string
+    {
+        try {
+            $source = (string)\FavoriteCMS\Models\Setting::get('general', 'site_logo_source', '');
+            if ($source === 'upload' || $source === 'url') {
+                return $source;
+            }
+            if (!empty(\FavoriteCMS\Models\Setting::get('general', 'site_logo_upload_path', ''))) {
+                return 'upload';
+            }
+            if (!empty(\FavoriteCMS\Models\Setting::get('general', 'site_logo_url', ''))) {
+                return 'url';
+            }
+        } catch (\Throwable $e) {
+            // Ignore
+        }
+        return 'default';
+    }
+}
+
+if (!function_exists('get_site_favicon_source')) {
+    /**
+     * Get the active favicon source: 'upload', 'url', or 'default'.
+     */
+    function get_site_favicon_source(): string
+    {
+        try {
+            $source = (string)\FavoriteCMS\Models\Setting::get('general', 'site_favicon_source', '');
+            if ($source === 'upload' || $source === 'url') {
+                return $source;
+            }
+            if (!empty(\FavoriteCMS\Models\Setting::get('general', 'site_favicon_upload_path', ''))) {
+                return 'upload';
+            }
+            if (!empty(\FavoriteCMS\Models\Setting::get('general', 'site_favicon_url', ''))) {
+                return 'url';
+            }
+        } catch (\Throwable $e) {
+            // Ignore
+        }
+        return 'default';
+    }
+}
+
 if (!function_exists('get_site_logo_url')) {
     /**
      * Retrieve the site logo URL.
-     * Checks general setting first, then theme mod fallback, then default.
+     * Determines active source ('upload' vs 'url' vs 'default'), validates the URL,
+     * checks general setting first, then theme mod fallback, then default.
      */
     function get_site_logo_url(string $default = ''): string
     {
         try {
-            $setting = \FavoriteCMS\Models\Setting::get('general', 'site_logo_url', '');
-            if (!empty($setting)) {
-                return (string)$setting;
+            $source = (string)\FavoriteCMS\Models\Setting::get('general', 'site_logo_source', '');
+            $uploadPath = sanitize_branding_url((string)\FavoriteCMS\Models\Setting::get('general', 'site_logo_upload_path', ''));
+            $customUrl = sanitize_branding_url((string)\FavoriteCMS\Models\Setting::get('general', 'site_logo_url', ''));
+
+            if ($source === 'upload' && $uploadPath !== '') {
+                return $uploadPath;
+            }
+            if ($source === 'url' && $customUrl !== '') {
+                return $customUrl;
+            }
+
+            // Fallback to available if source not specified
+            if ($uploadPath !== '') {
+                return $uploadPath;
+            }
+            if ($customUrl !== '') {
+                return $customUrl;
             }
         } catch (\Throwable $e) {
             // DB might not be connected yet during installer
@@ -456,30 +577,45 @@ if (!function_exists('get_site_logo_url')) {
 
         try {
             if (function_exists('get_theme_mod')) {
-                $themeMod = get_theme_mod('site_logo_url');
-                if (!empty($themeMod)) {
-                    return (string)$themeMod;
+                $themeMod = sanitize_branding_url((string)get_theme_mod('site_logo_url'));
+                if ($themeMod !== '') {
+                    return $themeMod;
                 }
             }
         } catch (\Throwable $e) {
             // Ignore
         }
 
-        return $default;
+        return sanitize_branding_url($default);
     }
 }
 
 if (!function_exists('get_site_favicon_url')) {
     /**
      * Retrieve the site favicon URL.
-     * Checks general setting first, then theme mod fallback, then default.
+     * Determines active source ('upload' vs 'url' vs 'default'), validates the URL,
+     * checks general setting first, then theme mod fallback, then default.
      */
     function get_site_favicon_url(string $default = '/favicon.ico'): string
     {
         try {
-            $setting = \FavoriteCMS\Models\Setting::get('general', 'site_favicon_url', '');
-            if (!empty($setting)) {
-                return (string)$setting;
+            $source = (string)\FavoriteCMS\Models\Setting::get('general', 'site_favicon_source', '');
+            $uploadPath = sanitize_branding_url((string)\FavoriteCMS\Models\Setting::get('general', 'site_favicon_upload_path', ''));
+            $customUrl = sanitize_branding_url((string)\FavoriteCMS\Models\Setting::get('general', 'site_favicon_url', ''));
+
+            if ($source === 'upload' && $uploadPath !== '') {
+                return $uploadPath;
+            }
+            if ($source === 'url' && $customUrl !== '') {
+                return $customUrl;
+            }
+
+            // Fallback to available if source not specified
+            if ($uploadPath !== '') {
+                return $uploadPath;
+            }
+            if ($customUrl !== '') {
+                return $customUrl;
             }
         } catch (\Throwable $e) {
             // DB might not be connected yet during installer
@@ -487,16 +623,17 @@ if (!function_exists('get_site_favicon_url')) {
 
         try {
             if (function_exists('get_theme_mod')) {
-                $themeMod = get_theme_mod('site_favicon_url');
-                if (!empty($themeMod)) {
-                    return (string)$themeMod;
+                $themeMod = sanitize_branding_url((string)get_theme_mod('site_favicon_url'));
+                if ($themeMod !== '') {
+                    return $themeMod;
                 }
             }
         } catch (\Throwable $e) {
             // Ignore
         }
 
-        return $default;
+        $sanitizedDefault = sanitize_branding_url($default);
+        return $sanitizedDefault !== '' ? $sanitizedDefault : '/favicon.ico';
     }
 }
 

@@ -20,7 +20,18 @@ $siteLayout  = get_theme_mod('site_layout', 'right');
         <meta name="description" content="<?php echo htmlspecialchars($metaDesc, ENT_QUOTES, 'UTF-8'); ?>">
     <?php endif; ?>
     <?php if (!empty($siteFaviconUrl)): ?>
-        <link rel="icon" href="<?php echo htmlspecialchars($siteFaviconUrl, ENT_QUOTES, 'UTF-8'); ?>">
+        <?php
+        $favExt = strtolower(pathinfo(parse_url($siteFaviconUrl, PHP_URL_PATH) ?? '', PATHINFO_EXTENSION));
+        $favType = match ($favExt) {
+            'ico'   => 'image/x-icon',
+            'png'   => 'image/png',
+            'svg'   => 'image/svg+xml',
+            'gif'   => 'image/gif',
+            'webp'  => 'image/webp',
+            default => 'image/x-icon',
+        };
+        ?>
+        <link rel="icon" type="<?php echo htmlspecialchars($favType, ENT_QUOTES, 'UTF-8'); ?>" href="<?php echo htmlspecialchars($siteFaviconUrl, ENT_QUOTES, 'UTF-8'); ?>">
     <?php endif; ?>
     <link rel="stylesheet" href="/themes/default/assets/css/style.css">
     <?php if (!empty($accentColor)): ?>

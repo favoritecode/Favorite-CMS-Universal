@@ -3,8 +3,8 @@
 </div>
 
 <div class="form-card" style="max-width: 760px;">
-    <form method="POST" action="/admin/settings/update">
-        <input type="hidden" name="_token" value="<?php echo htmlspecialchars($_SESSION['_token'] ?? '', ENT_QUOTES, 'UTF-8'); ?>">
+    <form method="POST" action="/admin/settings/update" enctype="multipart/form-data">
+        <input type="hidden" name="_token" value="<?php echo htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8'); ?>">
 
         <h2 style="font-size: 16px; font-weight: 600; margin-bottom: 16px; border-bottom: 1px solid var(--wp-border); padding-bottom: 8px;">
             General Settings
@@ -26,26 +26,116 @@
             <input type="url" id="site_url" name="site_url" class="form-control" value="<?php echo htmlspecialchars($settings['site_url'], ENT_QUOTES, 'UTF-8'); ?>" required>
         </div>
 
-        <div class="form-group">
-            <label for="site_logo_url">Site Logo URL</label>
-            <input type="url" id="site_logo_url" name="site_logo_url" class="form-control" value="<?php echo htmlspecialchars($settings['site_logo_url'] ?? '', ENT_QUOTES, 'UTF-8'); ?>" placeholder="https://example.com/uploads/logo.png">
-            <span class="description">URL or media link to the site logo image. Displays in theme header and brand sections.</span>
-            <?php if (!empty($settings['site_logo_url'])): ?>
-                <div style="margin-top: 8px; padding: 8px; background: #fff; border: 1px solid var(--wp-border); display: inline-block; border-radius: 4px;">
-                    <img src="<?php echo htmlspecialchars($settings['site_logo_url'], ENT_QUOTES, 'UTF-8'); ?>" alt="Site Logo Preview" style="max-height: 44px; max-width: 220px; object-fit: contain; display: block;">
+        <!-- Site Logo (Upload or URL) -->
+        <div class="form-group" style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 16px; margin-bottom: 20px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 6px;">
+                <label style="font-size: 14px; font-weight: 700; color: #1e293b; margin: 0;">Site Logo</label>
+                <?php
+                $activeLogoSource = function_exists('get_site_logo_source') ? get_site_logo_source() : ($settings['site_logo_source'] ?? 'url');
+                $currentLogoUrl = function_exists('get_site_logo_url') ? get_site_logo_url() : '';
+                ?>
+                <span style="font-size: 11px; background: #e0e7ff; color: #3730a3; padding: 2px 8px; border-radius: 4px; font-weight: 600;">
+                    Active Source: <?php echo $activeLogoSource === 'upload' ? 'Uploaded File' : ($activeLogoSource === 'url' && !empty($settings['site_logo_url']) ? 'Custom URL' : 'Default / None'); ?>
+                </span>
+            </div>
+            <span class="description" style="margin-bottom: 12px; display: block;">Displays in the header of themes and brand sections. You can upload an image file or provide an external/absolute URL.</span>
+
+            <div style="display: flex; gap: 18px; margin-bottom: 12px; font-size: 13px;">
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                    <input type="radio" name="site_logo_source" value="upload" <?php echo ($activeLogoSource === 'upload' || !empty($settings['site_logo_upload_path'])) ? 'checked' : ''; ?> onchange="document.getElementById('logo-upload-wrap').style.display='block'; document.getElementById('logo-url-wrap').style.display='none';">
+                    <strong>Upload Image File</strong>
+                </label>
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                    <input type="radio" name="site_logo_source" value="url" <?php echo ($activeLogoSource === 'url' && empty($settings['site_logo_upload_path'])) ? 'checked' : ''; ?> onchange="document.getElementById('logo-upload-wrap').style.display='none'; document.getElementById('logo-url-wrap').style.display='block';">
+                    <strong>Custom Logo URL</strong>
+                </label>
+            </div>
+
+            <!-- Upload Option -->
+            <div id="logo-upload-wrap" style="margin-bottom: 12px; display: <?php echo ($activeLogoSource === 'upload' || !empty($settings['site_logo_upload_path'])) ? 'block' : 'none'; ?>;">
+                <?php if (!empty($settings['site_logo_upload_path'])): ?>
+                    <div style="margin-bottom: 8px; padding: 8px 12px; background: #fff; border: 1px solid #cbd5e1; border-radius: 4px; display: flex; align-items: center; gap: 12px; justify-content: space-between;">
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <img src="<?php echo htmlspecialchars($settings['site_logo_upload_path'], ENT_QUOTES, 'UTF-8'); ?>" alt="Uploaded Logo" style="max-height: 36px; max-width: 140px; object-fit: contain;">
+                            <code style="font-size: 11px; color: #475569;"><?php echo htmlspecialchars($settings['site_logo_upload_path']); ?></code>
+                        </div>
+                        <label style="font-size: 11px; color: #b91c1c; cursor: pointer; display: flex; align-items: center; gap: 4px;">
+                            <input type="checkbox" name="remove_uploaded_logo" value="1"> Remove Upload
+                        </label>
+                    </div>
+                <?php endif; ?>
+                <label for="site_logo_file" style="font-size: 12px; font-weight: 500; color: #475569; margin-bottom: 4px; display: block;">Select new logo image (PNG, JPG, SVG, WebP, ICO):</label>
+                <input type="file" id="site_logo_file" name="site_logo_file" class="form-control" accept="image/*,.ico">
+            </div>
+
+            <!-- URL Option -->
+            <div id="logo-url-wrap" style="margin-bottom: 12px; display: <?php echo ($activeLogoSource === 'url' && empty($settings['site_logo_upload_path'])) ? 'block' : 'none'; ?>;">
+                <label for="site_logo_url" style="font-size: 12px; font-weight: 500; color: #475569; margin-bottom: 4px; display: block;">Enter absolute or relative image URL:</label>
+                <input type="url" id="site_logo_url" name="site_logo_url" class="form-control" value="<?php echo htmlspecialchars($settings['site_logo_url'] ?? '', ENT_QUOTES, 'UTF-8'); ?>" placeholder="https://example.com/images/logo.png or /uploads/logo.png">
+            </div>
+
+            <!-- Preview -->
+            <?php if (!empty($currentLogoUrl)): ?>
+                <div style="margin-top: 10px; padding: 10px; background: #fff; border: 1px solid #cbd5e1; border-radius: 4px; display: inline-block;">
+                    <div style="font-size: 11px; color: #64748b; font-weight: 600; margin-bottom: 4px;">Active Logo Preview:</div>
+                    <img src="<?php echo htmlspecialchars($currentLogoUrl, ENT_QUOTES, 'UTF-8'); ?>" alt="Active Site Logo" style="max-height: 48px; max-width: 240px; object-fit: contain; display: block;">
                 </div>
             <?php endif; ?>
         </div>
 
-        <div class="form-group">
-            <label for="site_favicon_url">Site Favicon URL</label>
-            <input type="url" id="site_favicon_url" name="site_favicon_url" class="form-control" value="<?php echo htmlspecialchars($settings['site_favicon_url'] ?? '', ENT_QUOTES, 'UTF-8'); ?>" placeholder="https://example.com/uploads/favicon.png">
-            <span class="description">URL to the site icon / favicon (.ico, .png, or .svg). Used by browsers, bookmarks, and admin dashboard.</span>
-            <?php if (!empty($settings['site_favicon_url'])): ?>
-                <div style="margin-top: 8px; padding: 6px; background: #fff; border: 1px solid var(--wp-border); display: inline-block; border-radius: 4px;">
-                    <img src="<?php echo htmlspecialchars($settings['site_favicon_url'], ENT_QUOTES, 'UTF-8'); ?>" alt="Favicon Preview" style="width: 24px; height: 24px; object-fit: contain; display: block;">
-                </div>
-            <?php endif; ?>
+        <!-- Site Favicon (Upload or URL) -->
+        <div class="form-group" style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 16px; margin-bottom: 20px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 6px;">
+                <label style="font-size: 14px; font-weight: 700; color: #1e293b; margin: 0;">Site Icon / Favicon</label>
+                <?php
+                $activeFaviconSource = function_exists('get_site_favicon_source') ? get_site_favicon_source() : ($settings['site_favicon_source'] ?? 'url');
+                $currentFaviconUrl = function_exists('get_site_favicon_url') ? get_site_favicon_url() : '/favicon.ico';
+                ?>
+                <span style="font-size: 11px; background: #e0e7ff; color: #3730a3; padding: 2px 8px; border-radius: 4px; font-weight: 600;">
+                    Active Source: <?php echo $activeFaviconSource === 'upload' ? 'Uploaded File' : ($activeFaviconSource === 'url' && !empty($settings['site_favicon_url']) ? 'Custom URL' : 'Default (/favicon.ico)'); ?>
+                </span>
+            </div>
+            <span class="description" style="margin-bottom: 12px; display: block;">Browser tab icon, bookmark icon, and mobile shortcut icon (.ico, .png, .svg).</span>
+
+            <div style="display: flex; gap: 18px; margin-bottom: 12px; font-size: 13px;">
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                    <input type="radio" name="site_favicon_source" value="upload" <?php echo ($activeFaviconSource === 'upload' || !empty($settings['site_favicon_upload_path'])) ? 'checked' : ''; ?> onchange="document.getElementById('fav-upload-wrap').style.display='block'; document.getElementById('fav-url-wrap').style.display='none';">
+                    <strong>Upload Favicon File</strong>
+                </label>
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                    <input type="radio" name="site_favicon_source" value="url" <?php echo ($activeFaviconSource === 'url' && empty($settings['site_favicon_upload_path'])) ? 'checked' : ''; ?> onchange="document.getElementById('fav-upload-wrap').style.display='none'; document.getElementById('fav-url-wrap').style.display='block';">
+                    <strong>Custom Favicon URL</strong>
+                </label>
+            </div>
+
+            <!-- Upload Option -->
+            <div id="fav-upload-wrap" style="margin-bottom: 12px; display: <?php echo ($activeFaviconSource === 'upload' || !empty($settings['site_favicon_upload_path'])) ? 'block' : 'none'; ?>;">
+                <?php if (!empty($settings['site_favicon_upload_path'])): ?>
+                    <div style="margin-bottom: 8px; padding: 8px 12px; background: #fff; border: 1px solid #cbd5e1; border-radius: 4px; display: flex; align-items: center; gap: 12px; justify-content: space-between;">
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <img src="<?php echo htmlspecialchars($settings['site_favicon_upload_path'], ENT_QUOTES, 'UTF-8'); ?>" alt="Uploaded Favicon" style="width: 24px; height: 24px; object-fit: contain;">
+                            <code style="font-size: 11px; color: #475569;"><?php echo htmlspecialchars($settings['site_favicon_upload_path']); ?></code>
+                        </div>
+                        <label style="font-size: 11px; color: #b91c1c; cursor: pointer; display: flex; align-items: center; gap: 4px;">
+                            <input type="checkbox" name="remove_uploaded_favicon" value="1"> Remove Upload
+                        </label>
+                    </div>
+                <?php endif; ?>
+                <label for="site_favicon_file" style="font-size: 12px; font-weight: 500; color: #475569; margin-bottom: 4px; display: block;">Select favicon file (.ico, .png, .svg):</label>
+                <input type="file" id="site_favicon_file" name="site_favicon_file" class="form-control" accept=".ico,.png,.svg,.gif,.webp,image/*">
+            </div>
+
+            <!-- URL Option -->
+            <div id="fav-url-wrap" style="margin-bottom: 12px; display: <?php echo ($activeFaviconSource === 'url' && empty($settings['site_favicon_upload_path'])) ? 'block' : 'none'; ?>;">
+                <label for="site_favicon_url" style="font-size: 12px; font-weight: 500; color: #475569; margin-bottom: 4px; display: block;">Enter absolute or relative favicon URL:</label>
+                <input type="url" id="site_favicon_url" name="site_favicon_url" class="form-control" value="<?php echo htmlspecialchars($settings['site_favicon_url'] ?? '', ENT_QUOTES, 'UTF-8'); ?>" placeholder="https://example.com/favicon.png or /favicon.ico">
+            </div>
+
+            <!-- Preview -->
+            <div style="margin-top: 10px; padding: 8px 12px; background: #fff; border: 1px solid #cbd5e1; border-radius: 4px; display: inline-flex; align-items: center; gap: 10px;">
+                <div style="font-size: 11px; color: #64748b; font-weight: 600;">Active Favicon Preview:</div>
+                <img src="<?php echo htmlspecialchars($currentFaviconUrl, ENT_QUOTES, 'UTF-8'); ?>" alt="Active Favicon" style="width: 24px; height: 24px; object-fit: contain; display: block;">
+            </div>
         </div>
 
         <div class="form-group">

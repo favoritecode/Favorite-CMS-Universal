@@ -311,4 +311,146 @@ class BulkActionsTest extends TestCase
         $target2->delete();
         $admin->delete();
     }
+
+    protected function createTestUser(string $roleSlug = 'subscriber'): User
+    {
+        $unique = 'user_' . bin2hex(random_bytes(4));
+        $now = date('Y-m-d H:i:s');
+        $hash = password_hash('Pass12345!', PASSWORD_DEFAULT);
+
+        $userId = static::$db->insert('users', [
+            'username'          => $unique,
+            'name'              => ucfirst($unique),
+            'email'             => $unique . '@example.com',
+            'password'          => $hash,
+            'status'            => 'active',
+            'email_verified_at' => $now,
+            'created_at'        => $now,
+            'updated_at'        => $now,
+        ]);
+
+        $role = static::$db->selectOne("SELECT id FROM `roles` WHERE `slug` = ? LIMIT 1", [$roleSlug]);
+        if ($role) {
+            static::$db->execute("INSERT INTO `user_roles` (`user_id`, `role_id`) VALUES (?, ?)", [$userId, $role->id]);
+        }
+
+        return User::find($userId);
+    }
+
+    public function testBulkActionFailsOnInvalidCsrfToken(): void
+    {
+        $admin = $this->createTestAdmin();
+        $_SESSION['auth_user_id'] = $admin->id;
+        $_SESSION['_token'] = 'valid_session_token';
+
+        $controller = new PostController(static::$app);
+        $request = new Request([], [
+            '_token'      => 'invalid_token_123',
+            'bulk_action' => 'trash',
+            'ids'         => [1],
+        ], ['REQUEST_METHOD' => 'POST']);
+
+        $response = $controller->bulkAction($request);
+        $this->assertSame(302, $response->getStatusCode());
+        $this->assertStringContainsString('CSRF', $_SESSION['flash_error'] ?? '');
+
+        $admin->delete();
+    }
+
+    public function testBulkActionFailsOnEmptySelection(): void
+    {
+        $admin = $this->createTestAdmin();
+        $_SESSION['auth_user_id'] = $admin->id;
+        $token = bin2hex(random_bytes(32));
+        $_SESSION['_token'] = $token;
+
+        $controller = new PostController(static::$app);
+
+        // 1. Empty IDs
+        $requestNoIds = new Request([], [
+            '_token'      => $token,
+            'bulk_action' => 'trash',
+            'ids'         => [],
+        ], ['REQUEST_METHOD' => 'POST']);
+
+        $response = $controller->bulkAction($requestNoIds);
+        $this->assertSame(302, $response->getStatusCode());
+        $this->assertStringContainsString('select at least one', $_SESSION['flash_error'] ?? '');
+
+        // 2. Empty action
+        $requestNoAction = new Request([], [
+            '_token'      => $token,
+            'bulk_action' => '',
+            'ids'         => [1],
+        ], ['REQUEST_METHOD' => 'POST']);
+
+        $response = $controller->bulkAction($requestNoAction);
+        $this->assertSame(302, $response->getStatusCode());
+        $this->assertStringContainsString('select at least one', $_SESSION['flash_error'] ?? '');
+
+        $admin->delete();
+    }
+
+    public function testBulkActionIgnoresUnauthorizedPostForNormalUser(): void
+    {
+        $admin = $this->createTestAdmin();
+        $normalUser = $this->createTestUser('subscriber');
+        $this->assertFalse($normalUser->canModeratePosts());
+
+        // Create a post authored by admin
+        $postId = static::$db->insert('posts', [
+            'title'      => 'Admin Protected Post ' . bin2hex(random_bytes(3)),
+            'slug'       => 'admin-protected-' . bin2hex(random_bytes(3)),
+            'content'    => 'Protected Content',
+            'status'     => 'published',
+            'type'       => 'post',
+            'author_id'  => $admin->id,
+            'created_at' => date('Y-m-d H:i:s'),
+            'updated_at' => date('Y-m-d H:i:s'),
+        ]);
+
+        $_SESSION['auth_user_id'] = $normalUser->id;
+        $token = bin2hex(random_bytes(32));
+        $_SESSION['_token'] = $token;
+
+        $controller = new PostController(static::$app);
+        $request = new Request([], [
+            '_token'      => $token,
+            'bulk_action' => 'trash',
+            'ids'         => [$postId],
+        ], ['REQUEST_METHOD' => 'POST']);
+
+        $response = $controller->bulkAction($request);
+        $this->assertSame(302, $response->getStatusCode());
+
+        // The post must NOT be trashed because normalUser is not author and cannot moderate
+        $post = Post::find($postId);
+        $this->assertSame('published', $post->status);
+
+        // Clean up
+        $post->delete();
+        $admin->delete();
+        $normalUser->delete();
+    }
+
+    public function testBulkActionSafelyHandlesNonExistentIds(): void
+    {
+        $admin = $this->createTestAdmin();
+        $_SESSION['auth_user_id'] = $admin->id;
+        $token = bin2hex(random_bytes(32));
+        $_SESSION['_token'] = $token;
+
+        $controller = new PostController(static::$app);
+        $request = new Request([], [
+            '_token'      => $token,
+            'bulk_action' => 'trash',
+            'ids'         => [99999991, 99999992],
+        ], ['REQUEST_METHOD' => 'POST']);
+
+        $response = $controller->bulkAction($request);
+        $this->assertSame(302, $response->getStatusCode());
+        $this->assertSame('No posts were updated.', $_SESSION['flash_error'] ?? '');
+
+        $admin->delete();
+    }
 }

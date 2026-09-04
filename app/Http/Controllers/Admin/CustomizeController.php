@@ -28,10 +28,10 @@ class CustomizeController
         $mods = $this->layoutService->getAllThemeMods($themeId);
 
         if (empty($mods['site_logo_url'])) {
-            $mods['site_logo_url'] = \FavoriteCMS\Models\Setting::get('general', 'site_logo_url', '');
+            $mods['site_logo_url'] = get_site_logo_url();
         }
         if (empty($mods['site_favicon_url'])) {
-            $mods['site_favicon_url'] = \FavoriteCMS\Models\Setting::get('general', 'site_favicon_url', '');
+            $mods['site_favicon_url'] = get_site_favicon_url();
         }
 
         $viewData = [
@@ -58,7 +58,11 @@ class CustomizeController
         // 1. Save theme mods (layout, colors, logo, copyright)
         $mods = (array)$request->post('mods', []);
         foreach ($mods as $key => $val) {
-            $this->layoutService->setThemeMod((string)$key, $val, $themeId);
+            $keyStr = (string)$key;
+            if ($keyStr === 'site_logo_url' || $keyStr === 'site_favicon_url') {
+                $val = sanitize_branding_url((string)$val);
+            }
+            $this->layoutService->setThemeMod($keyStr, $val, $themeId);
         }
 
         // 2. Save homepage section enabled states
