@@ -42,6 +42,15 @@ interface WalletServiceInterface
     ): WalletLedgerEntry;
 
     /**
+     * Settles a verified successful payment transaction into the customer's BDT wallet.
+     * Idempotent: repeated calls for the same transaction ID do not double-credit.
+     *
+     * @param string $transactionId The authoritative Favorite Pay transaction ID.
+     * @return WalletLedgerEntry The authoritative ledger entry for this settlement.
+     */
+    public function settleSuccessfulPayment(string $transactionId): WalletLedgerEntry;
+
+    /**
      * @return WalletLedgerEntry[]
      */
     public function getLedgerHistory(int $userId, int $limit = 50, int $offset = 0): array;

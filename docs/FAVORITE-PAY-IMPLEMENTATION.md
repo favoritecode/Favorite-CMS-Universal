@@ -1,10 +1,10 @@
 # Favorite Pay — Phase 1 Implementation Specification
 
-**Document Version**: 1.2.0  
+**Document Version**: 1.3.0  
 **Target Repository**: `Favorite-CMS-Universal`  
 **Plugin Identifier**: `favorite-pay`  
 **Namespace**: `FavoriteCMS\Pay`  
-**Status**: Implemented (Phase 1 Foundation, Phase 2 Database & Migrations, Phase 3A Gateway Framework & Manual Payment, Phase 4A Admin Operator Verification Panel)  
+**Status**: Implemented (Phase 1 Foundation, Phase 2 Database & Migrations, Phase 3A Gateway Framework & Manual Payment, Phase 4A Admin Operator Verification Panel, Phase 5A Wallet Settlement)  
 
 ---
 
@@ -196,12 +196,65 @@ Migration file: `plugins/favorite-pay/database/migrations/001_create_favorite_pa
  
 ---
  
-## 9. Phase 3B & Future Roadmap
- 
+## 9. Phase 5A: Backend Wallet Settlement Architecture
+
+### 9.1 Core Settlement Flow & Guarantees
+- Implemented via `WalletServiceInterface::settleSuccessfulPayment(string $transactionId): WalletLedgerEntry`.
+- Guarantees **exact one-to-one credit**: A valid successful payment transaction credits the customer's BDT wallet exactly once.
+- Event-driven reactive settlement: `FavoritePayPlugin::boot()` listens to `favorite.pay.payment.succeeded` and triggers `settleSuccessfulPayment($transactionId)` automatically upon transaction completion or admin manual approval.
+
+### 9.2 Strict BDT Denomination & Minor Unit Integrity
+- All wallet accounts and balances are strictly denominated in **BDT** (currency = `'BDT'`).
+- Amounts are stored in integer minor units (**Poisha**, 1 BDT = 100 Poisha) preventing any floating-point truncation or accumulation error.
+- Foreign currency transactions credit the customer's wallet with the **authoritative BDT base accounting amount** (`$intent->getBaseAmount()`), completely ignoring foreign charge amounts or rates at settlement time.
+
+### 9.3 Transaction Eligibility & Validation Rules
+Before any ledger entry is created or balance modified, the following strict checks are enforced:
+1. **Transaction Existence**: The transaction must exist in the database or service runtime.
+2. **Registered Customer**: Must be associated with a valid registered customer (`user_id > 0`). Anonymous / guest transactions are rejected with an exception.
+3. **Transaction Status**: Must be in `PaymentStatus::SUCCEEDED`. Pending, awaiting verification, or failed/rejected transactions are strictly rejected.
+4. **Positive Base Amount**: The BDT base amount must be strictly greater than zero (`> 0`).
+
+### 9.4 Multi-Layer Idempotency & Concurrency Protection
+To prevent double crediting under duplicate webhooks, concurrent requests, or network retries:
+1. **In-Memory Cache**: Fast in-process registry (`$settledTransactions[$transactionId]`) returns the settled `WalletLedgerEntry` immediately on redundant calls.
+2. **Database Unique Constraint**: Table `favorite_pay_wallet_entries` enforces a `UNIQUE` constraint on `idempotency_key`. The settlement engine generates a deterministic key: `'settle:payment:' . $transactionId`.
+3. **Reference Pair Check**: Pre-insert query checks `WHERE (reference_type = 'payment' AND reference_id = ?) OR idempotency_key = ?`.
+4. **Atomic Transactional Block**: All database reads, wallet creation/locking, ledger insertion, and balance updates execute inside an atomic `Database::transaction(\Closure)` wrapper.
+
+### 9.5 Automatic Customer Wallet Provisioning
+- When a customer without a pre-existing wallet has a payment settled, a new active BDT wallet (`balance = 0`, `currency = 'BDT'`, `status = 'active'`) is provisioned automatically inside the atomic transaction before crediting the payment amount.
+
+### 9.6 Append-Only Ledger & Balance Synchronization
+- Balance mutations are recorded exclusively via immutable append-only entries in `favorite_pay_wallet_entries`:
+  - `entry_id`: Unique prefixed ID (`led_...`).
+  - `wallet_id`: Foreign key reference to `favorite_pay_wallets`.
+  - `user_id`: Target customer ID.
+  - `type`: `'credit'`.
+  - `amount`: Exact transaction BDT amount in Poisha.
+  - `balance_after`: Precise balance in Poisha following the credit.
+  - `reference_type`: `'payment'`.
+  - `reference_id`: Transaction ID.
+  - `idempotency_key`: `'settle:payment:' . $transactionId`.
+  - `metadata`: JSON payload recording source plugin, source reference, charge currency, and charge amount.
+- Fires Core event hook `favorite.pay.wallet.credited` with `user_id`, `amount`, and `balance`.
+
+### 9.7 Intentionally NOT Implemented
+- No customer-facing wallet UI, customer portal dashboard, or recharge forms.
+- No administrative wallet management, adjustment UI, or manual balance editor.
+- No customer checkout frontend UI or theme template tags.
+- No automatic refunds or balance reversals.
+- No external automated payment APIs (bKash/Nagad/Bank/Stripe/Binance APIs).
+
+---
+
+## 10. Future Roadmap
+
 - **Phase 3B**: Automated Gateway Driver implementations:
   - International Card Driver: `StripeCardGateway`.
   - Crypto Driver: `BinancePayGateway`.
-- **Phase 5**: Theme checkout template tags and API endpoints for Favorite Web Theme and consumer plugins.
+- **Phase 5B**: Wallet Customer UI & Checkout Integration (theme template tags, wallet balance display, pay-with-wallet checkout option).
+
 
 
 

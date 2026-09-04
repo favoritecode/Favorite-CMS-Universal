@@ -129,7 +129,13 @@ final class FavoritePayPlugin
 
         // Bind Wallet Service
         $this->app->singleton(WalletServiceInterface::class, function ($app) {
-            return new WalletService($app->make(CurrencyServiceInterface::class));
+            $db = $app->has(Database::class) ? $app->make(Database::class) : null;
+            $paymentService = $app->has(PaymentServiceInterface::class) ? $app->make(PaymentServiceInterface::class) : null;
+            return new WalletService(
+                $app->make(CurrencyServiceInterface::class),
+                $paymentService,
+                $db
+            );
         });
 
         // Bind Payment Service
@@ -210,6 +216,26 @@ final class FavoritePayPlugin
             add_action('plugin.deactivated', function (string $pluginId): void {
                 if ($pluginId === 'favorite-pay') {
                     $this->onDeactivate();
+                }
+            });
+
+            // Hook payment succeeded event for wallet settlement
+            add_action('favorite.pay.payment.succeeded', function ($data): void {
+                $transactionId = is_array($data) ? ($data['transaction_id'] ?? null) : (string) $data;
+                if (!$transactionId) {
+                    return;
+                }
+                try {
+                    $walletService = $this->app->make(WalletServiceInterface::class);
+                    $walletService->settleSuccessfulPayment($transactionId);
+                } catch (\Throwable $e) {
+                    if (function_exists('cms_log')) {
+                        cms_log("Wallet auto-settlement failed for transaction {$transactionId}: " . $e->getMessage(), 'error', [
+                            'plugin' => 'favorite-pay',
+                            'transaction_id' => $transactionId,
+                            'exception' => $e,
+                        ]);
+                    }
                 }
             });
         }
