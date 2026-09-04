@@ -1,10 +1,10 @@
 # Favorite Pay — Phase 1 Implementation Specification
 
-**Document Version**: 1.3.0  
+**Document Version**: 1.4.0  
 **Target Repository**: `Favorite-CMS-Universal`  
 **Plugin Identifier**: `favorite-pay`  
 **Namespace**: `FavoriteCMS\Pay`  
-**Status**: Implemented (Phase 1 Foundation, Phase 2 Database & Migrations, Phase 3A Gateway Framework & Manual Payment, Phase 4A Admin Operator Verification Panel, Phase 5A Wallet Settlement)  
+**Status**: Implemented (Phase 1 Foundation, Phase 2 Database & Migrations, Phase 3A Gateway Framework & Manual Payment, Phase 4A Admin Operator Verification Panel, Phase 5A Wallet Settlement, Phase 5B Global Primary Currency Foundation)  
 
 ---
 
@@ -248,12 +248,56 @@ To prevent double crediting under duplicate webhooks, concurrent requests, or ne
 
 ---
 
-## 10. Future Roadmap
+---
+
+## 10. Phase 5B: Global Primary Currency / Currency Settings Foundation
+
+### 10.1 Architectural Purpose & Global Usability
+Phase 5B eliminates hard-coded currency assumptions (`'BDT'`) across Core and Favorite Pay, replacing them with a configurable site-level `primary_currency` setting stored in the Core `settings` table (`group_name = 'general'`, `setting_key = 'primary_currency'`).
+- **Default Currency**: Unconditionally defaults to `'BDT'`, ensuring existing installations continue operating without manual intervention.
+- **Centralized Metadata**: All currency definitions, formatting metadata, decimal precisions, and ISO validations reside in `FavoriteCMS\Core\Currency`. Neither plugins nor themes maintain duplicate currency lists.
+
+### 10.2 Currency Roles in the Ecosystem
+Favorite CMS strictly separates three currency concepts:
+1. **Primary / Base Currency (`primary_currency`)**: The site-wide accounting base currency. Defines the default currency of newly provisioned customer wallets, base accounting amounts for transactions, and internal financial ledger reporting.
+2. **Display Currency**: The currency shown to visitors on catalog/product pages before checkout.
+3. **Payment / Charge Currency**: The currency accepted by a specific gateway driver during checkout and charged to the customer.
+
+### 10.3 Historical Financial Safety & Non-Mutation Rule
+Changing `primary_currency` in the Admin Settings panel:
+- **MUST NOT** recalculate, convert, or mutate existing customer wallet balances.
+- **MUST NOT** alter historical transactions, payment attempts, exchange rates, or ledger entries.
+- **MUST NOT** perform automatic, silent, or lossy balance conversions.
+- Each wallet retains its original `currency` (e.g., an existing BDT wallet remains a BDT wallet with its historical minor units intact).
+
+### 10.4 Settlement Currency Matching & Guard
+When `WalletServiceInterface::settleSuccessfulPayment` executes:
+- It checks the authoritative transaction currency against the customer's wallet currency.
+- If the customer already owns a wallet in a currency different from the transaction base currency, settlement is rejected (`RuntimeException: Currency mismatch`) to prevent mixing un-converted minor units of different currencies into the same balance ledger.
+- For new customers, their initial wallet is provisioned in the site's current `primary_currency`.
+
+### 10.5 Core & Favorite Pay Integration Surface
+- **Core Currency Service**: `FavoriteCMS\Core\Currency::getPrimaryCurrency()` reads the setting via Core `Setting` model (with in-memory caching and fallback to `'BDT'`).
+- **Global Helper**: `primary_currency()` provides immediate access across Core and plugins.
+- **Admin Settings UI**: General Settings includes a server-validated dropdown populated from `Currency::getSupportedCurrencies()`.
+- **Domain Money Value Object**: `Money` supports 12 major ISO currencies (`BDT`, `USD`, `EUR`, `GBP`, `INR`, `PKR`, `AED`, `SAR`, `CAD`, `AUD`, `JPY`, `CNY`) with named factories (`usd()`, `eur()`, `inr()`, `gbp()`) and precise subunit mappings (0 for JPY, 2 for standard fiat currencies).
+- **Wallet Ledger Entry**: Validates that entry `amount` and resulting `balance_after` share identical currency codes.
+
+### 10.6 Intentionally NOT Implemented
+- No external automated payment APIs (bKash/Nagad/Bank/Stripe/Binance APIs).
+- No webhooks, customer checkout frontend UI, or theme template tags.
+- No multi-currency customer wallets or automated balance conversions.
+- No public real-time currency-converter APIs or external FX sync scrapers.
+
+---
+
+## 11. Future Roadmap
 
 - **Phase 3B**: Automated Gateway Driver implementations:
   - International Card Driver: `StripeCardGateway`.
   - Crypto Driver: `BinancePayGateway`.
-- **Phase 5B**: Wallet Customer UI & Checkout Integration (theme template tags, wallet balance display, pay-with-wallet checkout option).
+- **Phase 5C**: Wallet Customer UI & Checkout Integration (theme template tags, wallet balance display, pay-with-wallet checkout option).
+
 
 
 

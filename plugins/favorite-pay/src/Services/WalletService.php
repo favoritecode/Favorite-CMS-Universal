@@ -20,11 +20,12 @@ use Throwable;
 /**
  * Wallet Service
  *
- * Implements Locked Decision:
- * 1. BDT-denominated wallet ledger stored in Poisha.
- * 2. Foreign-currency deposits are converted to BDT and locked at deposit time.
+ * Implements Configurable Primary Accounting Currency:
+ * 1. Wallet ledger denominated in the site's Primary Accounting Currency (default: BDT).
+ * 2. Foreign-currency deposits are converted to the target wallet currency and locked at deposit time.
  * 3. Strict overdraft prevention (balance >= debit).
- * 4. Idempotent payment settlement: exactly one wallet credit per successful payment.
+ * 4. Idempotent payment settlement: exactly one wallet credit per successful payment in primary currency.
+ * 5. Historical safety: existing wallets and financial records remain in their originally recorded currency.
  */
 class WalletService implements WalletServiceInterface
 {
@@ -32,8 +33,11 @@ class WalletService implements WalletServiceInterface
     private ?PaymentServiceInterface $paymentService;
     private ?Database $db;
 
-    /** @var array<int, int> User ID => balance in BDT Poisha */
+    /** @var array<int, int> User ID => balance in minor units */
     private array $balances = [];
+
+    /** @var array<int, string> User ID => wallet currency code */
+    private array $walletCurrencies = [];
 
     /** @var array<int, WalletLedgerEntry[]> User ID => list of ledger entries */
     private array $ledgers = [];
@@ -61,20 +65,49 @@ class WalletService implements WalletServiceInterface
         $this->db = $db;
     }
 
+    /**
+     * Get the site's authoritative Primary Accounting Currency.
+     */
+    public function getPrimaryCurrency(): string
+    {
+        return $this->currencyService->getBaseCurrency();
+    }
+
+    /**
+     * Get the specific currency code for a customer's wallet.
+     * Preserves existing wallet denomination even if the site primary currency changes.
+     */
+    public function getWalletCurrency(int $userId): string
+    {
+        if ($this->db !== null && $this->db->tableExists('favorite_pay_wallets')) {
+            $row = $this->db->selectOne(
+                "SELECT currency FROM favorite_pay_wallets WHERE user_id = ?",
+                [$userId]
+            );
+            if ($row && !empty($row->currency)) {
+                return (string)$row->currency;
+            }
+        }
+
+        return $this->walletCurrencies[$userId] ?? $this->getPrimaryCurrency();
+    }
+
     public function getBalance(int $userId): Money
     {
         if ($this->db !== null && $this->db->tableExists('favorite_pay_wallets')) {
             $row = $this->db->selectOne(
-                "SELECT balance FROM favorite_pay_wallets WHERE user_id = ?",
+                "SELECT balance, currency FROM favorite_pay_wallets WHERE user_id = ?",
                 [$userId]
             );
             if ($row) {
-                return Money::bdt((int)$row->balance);
+                $currency = !empty($row->currency) ? (string)$row->currency : $this->getPrimaryCurrency();
+                return new Money((int)$row->balance, $currency);
             }
         }
 
-        $poisha = $this->balances[$userId] ?? 0;
-        return Money::bdt($poisha);
+        $amount = $this->balances[$userId] ?? 0;
+        $currency = $this->walletCurrencies[$userId] ?? $this->getPrimaryCurrency();
+        return new Money($amount, $currency);
     }
 
     public function deposit(
@@ -87,21 +120,24 @@ class WalletService implements WalletServiceInterface
             throw new InvalidArgumentException("Deposit amount must be strictly positive.");
         }
 
-        // Convert foreign currencies to BDT and lock at deposit time
-        $bdtAmount = $amount->getCurrency() === 'BDT'
+        $walletCurrency = $this->getWalletCurrency($userId);
+
+        // Convert foreign currencies to wallet currency and lock at deposit time
+        $targetAmount = $amount->getCurrency() === $walletCurrency
             ? $amount
-            : $this->currencyService->convert($amount, 'BDT');
+            : $this->currencyService->convert($amount, $walletCurrency);
 
         $currentBalance = $this->getBalance($userId);
-        $newBalance = $currentBalance->add($bdtAmount);
+        $newBalance = $currentBalance->add($targetAmount);
 
         $this->balances[$userId] = $newBalance->getAmount();
+        $this->walletCurrencies[$userId] = $walletCurrency;
 
         $entry = new WalletLedgerEntry(
             'led_' . bin2hex(random_bytes(8)),
             $userId,
             'credit',
-            $bdtAmount,
+            $targetAmount,
             $newBalance,
             'deposit',
             $referenceId,
@@ -116,9 +152,10 @@ class WalletService implements WalletServiceInterface
 
         if (function_exists('do_action')) {
             do_action('favorite.pay.wallet.credited', [
-                'user_id' => $userId,
-                'amount'  => $bdtAmount->getAmount(),
-                'balance' => $newBalance->getAmount(),
+                'user_id'  => $userId,
+                'amount'   => $targetAmount->getAmount(),
+                'currency' => $targetAmount->getCurrency(),
+                'balance'  => $newBalance->getAmount(),
             ]);
         }
 
@@ -135,24 +172,27 @@ class WalletService implements WalletServiceInterface
             throw new InvalidArgumentException("Debit amount must be strictly positive.");
         }
 
-        // Must be in BDT
-        $bdtAmount = $amount->getCurrency() === 'BDT'
+        $walletCurrency = $this->getWalletCurrency($userId);
+
+        // Must match wallet currency or convert
+        $targetAmount = $amount->getCurrency() === $walletCurrency
             ? $amount
-            : $this->currencyService->convert($amount, 'BDT');
+            : $this->currencyService->convert($amount, $walletCurrency);
 
         $currentBalance = $this->getBalance($userId);
-        if ($currentBalance->lessThan($bdtAmount)) {
+        if ($currentBalance->lessThan($targetAmount)) {
             throw new RuntimeException("Insufficient wallet balance for user {$userId}.");
         }
 
-        $newBalance = $currentBalance->subtract($bdtAmount);
+        $newBalance = $currentBalance->subtract($targetAmount);
         $this->balances[$userId] = $newBalance->getAmount();
+        $this->walletCurrencies[$userId] = $walletCurrency;
 
         $entry = new WalletLedgerEntry(
             'led_' . bin2hex(random_bytes(8)),
             $userId,
             'debit',
-            $bdtAmount,
+            $targetAmount,
             $newBalance,
             'purchase',
             $referenceId,
@@ -167,9 +207,10 @@ class WalletService implements WalletServiceInterface
 
         if (function_exists('do_action')) {
             do_action('favorite.pay.wallet.debited', [
-                'user_id' => $userId,
-                'amount'  => $bdtAmount->getAmount(),
-                'balance' => $newBalance->getAmount(),
+                'user_id'  => $userId,
+                'amount'   => $targetAmount->getAmount(),
+                'currency' => $targetAmount->getCurrency(),
+                'balance'  => $newBalance->getAmount(),
             ]);
         }
 
@@ -178,23 +219,26 @@ class WalletService implements WalletServiceInterface
 
     public function hold(int $userId, Money $amount, string $referenceId): WalletLedgerEntry
     {
-        $bdtAmount = $amount->getCurrency() === 'BDT'
+        $walletCurrency = $this->getWalletCurrency($userId);
+
+        $targetAmount = $amount->getCurrency() === $walletCurrency
             ? $amount
-            : $this->currencyService->convert($amount, 'BDT');
+            : $this->currencyService->convert($amount, $walletCurrency);
 
         $currentBalance = $this->getBalance($userId);
-        if ($currentBalance->lessThan($bdtAmount)) {
+        if ($currentBalance->lessThan($targetAmount)) {
             throw new RuntimeException("Insufficient balance to place hold for user {$userId}.");
         }
 
-        $newBalance = $currentBalance->subtract($bdtAmount);
+        $newBalance = $currentBalance->subtract($targetAmount);
         $this->balances[$userId] = $newBalance->getAmount();
+        $this->walletCurrencies[$userId] = $walletCurrency;
 
         $entry = new WalletLedgerEntry(
             'led_' . bin2hex(random_bytes(8)),
             $userId,
             'hold',
-            $bdtAmount,
+            $targetAmount,
             $newBalance,
             'hold',
             $referenceId,
@@ -212,19 +256,22 @@ class WalletService implements WalletServiceInterface
 
     public function releaseHold(int $userId, Money $amount, string $referenceId): WalletLedgerEntry
     {
-        $bdtAmount = $amount->getCurrency() === 'BDT'
+        $walletCurrency = $this->getWalletCurrency($userId);
+
+        $targetAmount = $amount->getCurrency() === $walletCurrency
             ? $amount
-            : $this->currencyService->convert($amount, 'BDT');
+            : $this->currencyService->convert($amount, $walletCurrency);
 
         $currentBalance = $this->getBalance($userId);
-        $newBalance = $currentBalance->add($bdtAmount);
+        $newBalance = $currentBalance->add($targetAmount);
         $this->balances[$userId] = $newBalance->getAmount();
+        $this->walletCurrencies[$userId] = $walletCurrency;
 
         $entry = new WalletLedgerEntry(
             'led_' . bin2hex(random_bytes(8)),
             $userId,
             'release',
-            $bdtAmount,
+            $targetAmount,
             $newBalance,
             'release',
             $referenceId,
@@ -241,8 +288,9 @@ class WalletService implements WalletServiceInterface
     }
 
     /**
-     * Settles a verified successful payment transaction into the customer's BDT wallet.
+     * Settles a verified successful payment transaction into the customer's wallet.
      * Idempotent: repeated calls for the same transaction ID do not double-credit.
+     * Credits the authoritative base amount in the site's configured Primary Currency.
      */
     public function settleSuccessfulPayment(string $transactionId): WalletLedgerEntry
     {
@@ -294,22 +342,37 @@ class WalletService implements WalletServiceInterface
             );
         }
 
-        // Amount check: Authoritative BDT base accounting amount
-        $bdtAmount = $intent->getBaseAmount();
-        if (!$bdtAmount->isPositive() || $bdtAmount->getCurrency() !== 'BDT') {
-            throw new InvalidArgumentException("Transaction base amount must be strictly positive and denominated in BDT.");
+        // Amount check: Authoritative base accounting amount
+        $baseAmount = $intent->getBaseAmount();
+        if (!$baseAmount->isPositive()) {
+            throw new InvalidArgumentException("Transaction base amount must be strictly positive.");
+        }
+
+        $primaryCurrency = $this->getPrimaryCurrency();
+        if ($baseAmount->getCurrency() !== $primaryCurrency) {
+            throw new InvalidArgumentException(
+                "Transaction base currency '{$baseAmount->getCurrency()}' does not match primary currency '{$primaryCurrency}'."
+            );
         }
 
         // 5. Database atomic settlement
         if ($this->db !== null && $this->db->tableExists('favorite_pay_wallets') && $this->db->tableExists('favorite_pay_wallet_entries')) {
-            $entry = $this->settleInDatabase($intent, $trimmedId, $userId, $bdtAmount, $idempotencyKey);
+            $entry = $this->settleInDatabase($intent, $trimmedId, $userId, $baseAmount, $idempotencyKey);
             $this->settledTransactions[$trimmedId] = $entry;
             return $entry;
         }
 
         // 6. In-memory settlement fallback (for unit tests without database)
+        $walletCurrency = $this->walletCurrencies[$userId] ?? $baseAmount->getCurrency();
+        if ($walletCurrency !== $baseAmount->getCurrency()) {
+            throw new RuntimeException(
+                "Cannot settle payment: wallet currency '{$walletCurrency}' does not match transaction base currency '{$baseAmount->getCurrency()}'."
+            );
+        }
+
+        $this->walletCurrencies[$userId] = $walletCurrency;
         $currentBalance = $this->getBalance($userId);
-        $newBalance = $currentBalance->add($bdtAmount);
+        $newBalance = $currentBalance->add($baseAmount);
         $this->balances[$userId] = $newBalance->getAmount();
 
         $entryId = 'led_' . bin2hex(random_bytes(8));
@@ -317,7 +380,7 @@ class WalletService implements WalletServiceInterface
             $entryId,
             $userId,
             'credit',
-            $bdtAmount,
+            $baseAmount,
             $newBalance,
             'payment',
             $trimmedId,
@@ -329,9 +392,10 @@ class WalletService implements WalletServiceInterface
 
         if (function_exists('do_action')) {
             do_action('favorite.pay.wallet.credited', [
-                'user_id' => $userId,
-                'amount'  => $bdtAmount->getAmount(),
-                'balance' => $newBalance->getAmount(),
+                'user_id'  => $userId,
+                'amount'   => $baseAmount->getAmount(),
+                'currency' => $baseAmount->getCurrency(),
+                'balance'  => $newBalance->getAmount(),
             ]);
         }
 
@@ -342,10 +406,10 @@ class WalletService implements WalletServiceInterface
         PaymentIntent $intent,
         string $transactionId,
         int $userId,
-        Money $bdtAmount,
+        Money $baseAmount,
         string $idempotencyKey
     ): WalletLedgerEntry {
-        return $this->db->transaction(function (Database $db) use ($intent, $transactionId, $userId, $bdtAmount, $idempotencyKey) {
+        return $this->db->transaction(function (Database $db) use ($intent, $transactionId, $userId, $baseAmount, $idempotencyKey) {
             // Double-check inside transaction
             $existing = $db->selectOne(
                 "SELECT * FROM favorite_pay_wallet_entries 
@@ -369,7 +433,7 @@ class WalletService implements WalletServiceInterface
                 $db->insert('favorite_pay_wallets', [
                     'user_id'    => $userId,
                     'balance'    => 0,
-                    'currency'   => 'BDT',
+                    'currency'   => $baseAmount->getCurrency(),
                     'status'     => 'active',
                     'created_at' => date('Y-m-d H:i:s'),
                     'updated_at' => date('Y-m-d H:i:s'),
@@ -381,8 +445,15 @@ class WalletService implements WalletServiceInterface
                 );
             }
 
-            $currentBalancePoisha = (int)$wallet->balance;
-            $newBalancePoisha = $currentBalancePoisha + $bdtAmount->getAmount();
+            // Safety guard: Existing wallet currency must match transaction base currency
+            if ($wallet->currency !== $baseAmount->getCurrency()) {
+                throw new RuntimeException(
+                    "Cannot settle payment: wallet currency '{$wallet->currency}' does not match transaction base currency '{$baseAmount->getCurrency()}'. Automatic wallet currency conversion is not permitted."
+                );
+            }
+
+            $currentBalanceMinor = (int)$wallet->balance;
+            $newBalanceMinor = $currentBalanceMinor + $baseAmount->getAmount();
 
             $entryId = 'led_' . bin2hex(random_bytes(8));
             $now = date('Y-m-d H:i:s');
@@ -393,8 +464,8 @@ class WalletService implements WalletServiceInterface
                 'wallet_id'       => $wallet->id,
                 'user_id'         => $userId,
                 'type'            => 'credit',
-                'amount'          => $bdtAmount->getAmount(),
-                'balance_after'   => $newBalancePoisha,
+                'amount'          => $baseAmount->getAmount(),
+                'balance_after'   => $newBalanceMinor,
                 'reference_type'  => 'payment',
                 'reference_id'    => $transactionId,
                 'idempotency_key' => $idempotencyKey,
@@ -402,6 +473,7 @@ class WalletService implements WalletServiceInterface
                 'metadata'        => json_encode([
                     'source_plugin'    => $intent->getSourcePlugin(),
                     'source_reference' => $intent->getSourceReference(),
+                    'base_currency'    => $baseAmount->getCurrency(),
                     'charge_currency'  => $intent->getChargeAmount()->getCurrency(),
                     'charge_amount'    => $intent->getChargeAmount()->getAmount(),
                 ]),
@@ -410,17 +482,18 @@ class WalletService implements WalletServiceInterface
 
             // Update wallet balance
             $db->update('favorite_pay_wallets', [
-                'balance'    => $newBalancePoisha,
+                'balance'    => $newBalanceMinor,
                 'updated_at' => $now,
             ], ['id' => $wallet->id]);
 
-            $newBalance = Money::bdt($newBalancePoisha);
+            $newBalance = new Money($newBalanceMinor, $wallet->currency);
 
             if (function_exists('do_action')) {
                 do_action('favorite.pay.wallet.credited', [
-                    'user_id' => $userId,
-                    'amount'  => $bdtAmount->getAmount(),
-                    'balance' => $newBalancePoisha,
+                    'user_id'  => $userId,
+                    'amount'   => $baseAmount->getAmount(),
+                    'currency' => $wallet->currency,
+                    'balance'  => $newBalanceMinor,
                 ]);
             }
 
@@ -428,7 +501,7 @@ class WalletService implements WalletServiceInterface
                 $entryId,
                 $userId,
                 'credit',
-                $bdtAmount,
+                $baseAmount,
                 $newBalance,
                 'payment',
                 $transactionId,
@@ -443,10 +516,11 @@ class WalletService implements WalletServiceInterface
         $userId = $entry->getUserId();
         $wallet = $this->db->selectOne("SELECT * FROM favorite_pay_wallets WHERE user_id = ?", [$userId]);
         if (!$wallet) {
+            $currency = $entry->getAmount()->getCurrency();
             $this->db->insert('favorite_pay_wallets', [
                 'user_id'    => $userId,
                 'balance'    => 0,
-                'currency'   => 'BDT',
+                'currency'   => $currency,
                 'status'     => 'active',
                 'created_at' => date('Y-m-d H:i:s'),
                 'updated_at' => date('Y-m-d H:i:s'),
@@ -465,6 +539,9 @@ class WalletService implements WalletServiceInterface
             'reference_id'    => $entry->getReferenceId(),
             'idempotency_key' => 'op:' . bin2hex(random_bytes(12)),
             'description'     => $entry->getDescription(),
+            'metadata'        => json_encode([
+                'currency' => $entry->getAmount()->getCurrency(),
+            ]),
             'created_at'      => $entry->getCreatedAt(),
         ]);
 
@@ -476,12 +553,24 @@ class WalletService implements WalletServiceInterface
 
     private function hydrateLedgerEntry(object $row): WalletLedgerEntry
     {
+        $currency = null;
+        if (!empty($row->metadata)) {
+            $meta = json_decode((string)$row->metadata, true);
+            $currency = $meta['base_currency'] ?? $meta['currency'] ?? null;
+        }
+        if ($currency === null && isset($row->currency)) {
+            $currency = (string)$row->currency;
+        }
+        if ($currency === null) {
+            $currency = $this->getWalletCurrency((int)$row->user_id);
+        }
+
         return new WalletLedgerEntry(
             (string)$row->entry_id,
             (int)$row->user_id,
             (string)$row->type,
-            Money::bdt((int)$row->amount),
-            Money::bdt((int)$row->balance_after),
+            new Money((int)$row->amount, $currency),
+            new Money((int)$row->balance_after, $currency),
             (string)$row->reference_type,
             (string)$row->reference_id,
             (string)($row->description ?? ''),

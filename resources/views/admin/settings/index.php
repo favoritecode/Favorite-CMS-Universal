@@ -39,6 +39,18 @@
         </div>
 
         <div class="form-group">
+            <label for="primary_currency">Primary Currency</label>
+            <select id="primary_currency" name="primary_currency" class="form-control" style="max-width: 340px;">
+                <?php foreach (($supportedCurrencies ?? []) as $code => $info): ?>
+                    <option value="<?php echo htmlspecialchars($code, ENT_QUOTES, 'UTF-8'); ?>" <?php echo (($settings['primary_currency'] ?? 'BDT') === $code) ? 'selected' : ''; ?>>
+                        <?php echo htmlspecialchars("{$code} — {$info['name']} ({$info['symbol']})", ENT_QUOTES, 'UTF-8'); ?>
+                    </option>
+                <?php endforeach; ?>
+            </select>
+            <span class="description">The site's authoritative accounting and base currency. Default is BDT (৳).</span>
+        </div>
+
+        <div class="form-group">
             <label>Membership</label>
             <label style="display: flex; align-items: center; gap: 8px; font-weight: normal; cursor: pointer; margin-top: 4px;">
                 <input type="checkbox" name="allow_registration" value="1" <?php echo !empty($settings['allow_registration']) ? 'checked' : ''; ?>>

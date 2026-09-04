@@ -30,22 +30,41 @@ class CurrencyService implements CurrencyServiceInterface
         $this->rates['EUR_BDT'] = ConversionSnapshot::create('EUR', 'BDT', '128.20', false);
         $this->rates['GBP_BDT'] = ConversionSnapshot::create('GBP', 'BDT', '150.00', false);
         $this->rates['BDT_BDT'] = ConversionSnapshot::create('BDT', 'BDT', '1.00', true);
+        $this->rates['USD_USD'] = ConversionSnapshot::create('USD', 'USD', '1.00', true);
+        $this->rates['EUR_EUR'] = ConversionSnapshot::create('EUR', 'EUR', '1.00', true);
+        $this->rates['GBP_GBP'] = ConversionSnapshot::create('GBP', 'GBP', '1.00', true);
+        $this->rates['INR_INR'] = ConversionSnapshot::create('INR', 'INR', '1.00', true);
     }
 
     public function getBaseCurrency(): string
     {
+        if (class_exists(\FavoriteCMS\Core\Currency::class)) {
+            return \FavoriteCMS\Core\Currency::getPrimaryCurrency();
+        }
+
+        if (class_exists(\FavoriteCMS\Models\Setting::class)) {
+            $setting = \FavoriteCMS\Models\Setting::get('general', 'primary_currency', self::BASE_CURRENCY);
+            if (is_string($setting) && trim($setting) !== '') {
+                return strtoupper(trim($setting));
+            }
+        }
+
         return self::BASE_CURRENCY;
     }
 
     public function getSupportedCurrencies(): array
     {
-        return ['BDT', 'USD', 'EUR', 'GBP'];
+        if (class_exists(\FavoriteCMS\Core\Currency::class)) {
+            return \FavoriteCMS\Core\Currency::getSupportedCodes();
+        }
+
+        return ['BDT', 'USD', 'EUR', 'GBP', 'INR', 'PKR', 'AED', 'SAR', 'CAD', 'AUD', 'JPY', 'CNY'];
     }
 
-    public function getRate(string $fromCurrency, string $toCurrency = 'BDT'): ConversionSnapshot
+    public function getRate(string $fromCurrency, ?string $toCurrency = null): ConversionSnapshot
     {
         $from = strtoupper(trim($fromCurrency));
-        $to = strtoupper(trim($toCurrency));
+        $to = $toCurrency !== null ? strtoupper(trim($toCurrency)) : $this->getBaseCurrency();
 
         if ($from === $to) {
             return ConversionSnapshot::create($from, $to, '1.00', true);
@@ -63,10 +82,10 @@ class CurrencyService implements CurrencyServiceInterface
         string $fromCurrency,
         string $rateMajorString,
         int $operatorUserId,
-        string $toCurrency = 'BDT'
+        ?string $toCurrency = null
     ): ConversionSnapshot {
         $from = strtoupper(trim($fromCurrency));
-        $to = strtoupper(trim($toCurrency));
+        $to = $toCurrency !== null ? strtoupper(trim($toCurrency)) : $this->getBaseCurrency();
 
         $snapshot = ConversionSnapshot::create($from, $to, $rateMajorString, true);
         $this->rates["{$from}_{$to}"] = $snapshot;
@@ -87,10 +106,10 @@ class CurrencyService implements CurrencyServiceInterface
     public function syncAutomatedRate(
         string $fromCurrency,
         string $rateMajorString,
-        string $toCurrency = 'BDT'
+        ?string $toCurrency = null
     ): bool {
         $from = strtoupper(trim($fromCurrency));
-        $to = strtoupper(trim($toCurrency));
+        $to = $toCurrency !== null ? strtoupper(trim($toCurrency)) : $this->getBaseCurrency();
         $key = "{$from}_{$to}";
 
         // If rate already exists and is locked authoritatively by operator, DO NOT overwrite!
@@ -113,7 +132,7 @@ class CurrencyService implements CurrencyServiceInterface
         return $snapshot->convert($money);
     }
 
-    public function createLockedSnapshot(string $fromCurrency, string $toCurrency = 'BDT'): ConversionSnapshot
+    public function createLockedSnapshot(string $fromCurrency, ?string $toCurrency = null): ConversionSnapshot
     {
         return $this->getRate($fromCurrency, $toCurrency);
     }

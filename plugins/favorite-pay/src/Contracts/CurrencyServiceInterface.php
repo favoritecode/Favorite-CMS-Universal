@@ -13,7 +13,7 @@ interface CurrencyServiceInterface
 
     public function getSupportedCurrencies(): array;
 
-    public function getRate(string $fromCurrency, string $toCurrency = 'BDT'): ConversionSnapshot;
+    public function getRate(string $fromCurrency, ?string $toCurrency = null): ConversionSnapshot;
 
     /**
      * Admin/Operator sets authoritative exchange rate.
@@ -22,7 +22,7 @@ interface CurrencyServiceInterface
         string $fromCurrency,
         string $rateMajorString,
         int $operatorUserId,
-        string $toCurrency = 'BDT'
+        ?string $toCurrency = null
     ): ConversionSnapshot;
 
     /**
@@ -31,10 +31,10 @@ interface CurrencyServiceInterface
     public function syncAutomatedRate(
         string $fromCurrency,
         string $rateMajorString,
-        string $toCurrency = 'BDT'
+        ?string $toCurrency = null
     ): bool;
 
     public function convert(Money $money, string $targetCurrency): Money;
 
-    public function createLockedSnapshot(string $fromCurrency, string $toCurrency = 'BDT'): ConversionSnapshot;
+    public function createLockedSnapshot(string $fromCurrency, ?string $toCurrency = null): ConversionSnapshot;
 }

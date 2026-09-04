@@ -40,8 +40,10 @@ final class WalletLedgerEntry
             throw new InvalidArgumentException("Invalid ledger entry type: {$type}");
         }
 
-        if ($amount->getCurrency() !== 'BDT' || $balanceAfter->getCurrency() !== 'BDT') {
-            throw new InvalidArgumentException("Wallet ledger entries must strictly be denominated in BDT.");
+        if ($amount->getCurrency() !== $balanceAfter->getCurrency()) {
+            throw new InvalidArgumentException(
+                "Wallet ledger entry amount currency '{$amount->getCurrency()}' must match balanceAfter currency '{$balanceAfter->getCurrency()}'."
+            );
         }
 
         $this->id = $id;

@@ -13,21 +13,27 @@ class CreateSettingsTable
 
     public function up(): void
     {
-        $this->db->execute('
+        $isSqlite = $this->isSqlite();
+        $engine = $isSqlite ? '' : ' ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci';
+        $pk = $isSqlite ? 'INTEGER PRIMARY KEY AUTOINCREMENT' : 'BIGINT AUTO_INCREMENT PRIMARY KEY';
+        $updatedAt = $isSqlite ? 'DATETIME DEFAULT CURRENT_TIMESTAMP' : 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP';
+        $insertIgnore = $isSqlite ? 'INSERT OR IGNORE INTO' : 'INSERT IGNORE INTO';
+
+        $this->db->execute("
             CREATE TABLE IF NOT EXISTS `settings` (
-                `id`          BIGINT        AUTO_INCREMENT PRIMARY KEY,
+                `id`          {$pk},
                 `group_name`  VARCHAR(100)  NOT NULL,
                 `setting_key` VARCHAR(100)  NOT NULL,
                 `value`       TEXT          NULL,
-                `type`        VARCHAR(50)   DEFAULT \'string\',
+                `type`        VARCHAR(50)   DEFAULT 'string',
                 `label`       VARCHAR(255)  NULL,
                 `description` TEXT          NULL,
                 `is_public`   BOOLEAN       DEFAULT 0,
                 `created_at`  TIMESTAMP     DEFAULT CURRENT_TIMESTAMP,
-                `updated_at`  TIMESTAMP     DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                UNIQUE KEY `unique_group_key` (`group_name`, `setting_key`)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-        ');
+                `updated_at`  {$updatedAt},
+                UNIQUE (`group_name`, `setting_key`)
+            ){$engine};
+        ");
 
         // Seed default settings
         $defaults = [
@@ -35,6 +41,7 @@ class CreateSettingsTable
             ['general', 'site_description', '',                  'string', 'Site Description',  1],
             ['general', 'admin_email',      'admin@example.com', 'string', 'Admin Email',       0],
             ['general', 'timezone',         'UTC',               'string', 'Timezone',          0],
+            ['general', 'primary_currency', 'BDT',               'string', 'Primary Currency',  1],
             ['general', 'date_format',      'Y-m-d',             'string', 'Date Format',       0],
             ['general', 'time_format',        'H:i',               'string', 'Time Format',       0],
             ['general', 'allow_registration', '1',                 'bool',   'Allow Registration',0],
@@ -52,10 +59,20 @@ class CreateSettingsTable
 
         foreach ($defaults as [$group, $key, $val, $type, $label, $public]) {
             $this->db->execute(
-                'INSERT IGNORE INTO `settings` (`group_name`, `setting_key`, `value`, `type`, `label`, `is_public`)
-                 VALUES (?, ?, ?, ?, ?, ?)',
+                "{$insertIgnore} `settings` (`group_name`, `setting_key`, `value`, `type`, `label`, `is_public`)
+                 VALUES (?, ?, ?, ?, ?, ?)",
                 [$group, $key, $val, $type, $label, $public]
             );
+        }
+    }
+
+    protected function isSqlite(): bool
+    {
+        try {
+            $driver = $this->db->getConnection()->getAttribute(\PDO::ATTR_DRIVER_NAME);
+            return strtolower((string)$driver) === 'sqlite';
+        } catch (\Throwable) {
+            return false;
         }
     }
 

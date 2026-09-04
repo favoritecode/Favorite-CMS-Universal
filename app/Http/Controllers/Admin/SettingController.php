@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace FavoriteCMS\Http\Controllers\Admin;
 
 use FavoriteCMS\Core\Application;
+use FavoriteCMS\Core\Currency;
 use FavoriteCMS\Core\Request;
 use FavoriteCMS\Core\Response;
 use FavoriteCMS\Models\Setting;
@@ -33,6 +34,7 @@ class SettingController
             'site_url'              => Setting::get('general', 'site_url', config('app.url', 'http://favorite-cms.local')),
             'admin_email'           => Setting::get('general', 'admin_email', 'admin@example.com'),
             'timezone'              => Setting::get('general', 'timezone', 'UTC'),
+            'primary_currency'      => Currency::getPrimaryCurrency(),
             'allow_registration'    => (int)Setting::get('general', 'allow_registration', 1),
             'posts_per_page'        => Setting::get('reading', 'posts_per_page', 10),
             'front_page_type'       => Setting::get('reading', 'front_page_type', 'posts'), // 'posts' or 'page'
@@ -47,13 +49,14 @@ class SettingController
         $categories = Taxonomy::getByTaxonomy('category');
 
         $viewData = [
-            'pageTitle'    => 'Settings',
-            'activeMenu'   => 'settings',
-            'settings'     => $settings,
-            'serverLimits' => $serverLimits,
-            'pages'        => $pages,
-            'categories'   => $categories,
-            'contentView'  => APP_ROOT . '/resources/views/admin/settings/index.php',
+            'pageTitle'           => 'Settings',
+            'activeMenu'          => 'settings',
+            'settings'            => $settings,
+            'supportedCurrencies' => Currency::getSupportedCurrencies(),
+            'serverLimits'        => $serverLimits,
+            'pages'               => $pages,
+            'categories'          => $categories,
+            'contentView'         => APP_ROOT . '/resources/views/admin/settings/index.php',
         ];
 
         extract($viewData, EXTR_SKIP);
@@ -70,6 +73,15 @@ class SettingController
         Setting::set('general', 'admin_email', trim((string)$request->post('admin_email', 'admin@example.com')));
         Setting::set('general', 'timezone', trim((string)$request->post('timezone', 'UTC')));
         Setting::set('general', 'allow_registration', $request->post('allow_registration') ? 1 : 0, 'bool');
+
+        // Primary Accounting Currency
+        $rawCurrency = (string)$request->post('primary_currency', Currency::DEFAULT_CURRENCY);
+        $normalizedCurrency = Currency::normalize($rawCurrency);
+        if (!Currency::isSupported($normalizedCurrency)) {
+            $_SESSION['flash_error'] = "Invalid Primary Currency '{$rawCurrency}'. Please select a supported currency.";
+            return Response::redirect('/admin/settings');
+        }
+        Currency::setPrimaryCurrency($normalizedCurrency);
 
         Setting::set('reading', 'posts_per_page', (int)$request->post('posts_per_page', 10), 'int');
         Setting::set('reading', 'front_page_type', (string)$request->post('front_page_type', 'posts'));

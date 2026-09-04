@@ -323,6 +323,30 @@ if (!function_exists('set_plugin_setting')) {
 }
 
 // -----------------------------------------------------------------------------
+// Site Settings & Global Currency APIs
+// -----------------------------------------------------------------------------
+if (!function_exists('get_setting')) {
+    function get_setting(string $group, string $key, mixed $default = null): mixed
+    {
+        return \FavoriteCMS\Models\Setting::get($group, $key, $default);
+    }
+}
+
+if (!function_exists('set_setting')) {
+    function set_setting(string $group, string $key, mixed $value, string $type = 'string'): void
+    {
+        \FavoriteCMS\Models\Setting::set($group, $key, $value, $type);
+    }
+}
+
+if (!function_exists('primary_currency')) {
+    function primary_currency(): string
+    {
+        return \FavoriteCMS\Core\Currency::getPrimaryCurrency();
+    }
+}
+
+// -----------------------------------------------------------------------------
 // Current User & Capability APIs
 // -----------------------------------------------------------------------------
 if (!function_exists('current_user')) {
