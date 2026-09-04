@@ -67,6 +67,11 @@ final class PaymentIntent
         return $this->customerId;
     }
 
+    public function getUserId(): ?int
+    {
+        return $this->customerId;
+    }
+
     public function getBaseAmount(): Money
     {
         return $this->baseAmount;

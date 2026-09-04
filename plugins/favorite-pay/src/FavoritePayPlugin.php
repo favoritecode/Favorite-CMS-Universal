@@ -146,12 +146,57 @@ final class FavoritePayPlugin
         $this->app->singleton(RefundServiceInterface::class, function ($app) {
             return new RefundService($app->make(PaymentServiceInterface::class));
         });
+
+        // Bind Payment Attempt Repository
+        $this->app->singleton(\FavoriteCMS\Pay\Repositories\PaymentAttemptRepository::class, function ($app) {
+            $db = $app->has(Database::class) ? $app->make(Database::class) : null;
+            return new \FavoriteCMS\Pay\Repositories\PaymentAttemptRepository(
+                $app->make(PaymentServiceInterface::class),
+                $db
+            );
+        });
+
+        // Bind Payment Admin Controller
+        $this->app->singleton(\FavoriteCMS\Pay\Controllers\PaymentAdminController::class, function ($app) {
+            return new \FavoriteCMS\Pay\Controllers\PaymentAdminController(
+                $app,
+                $app->make(PaymentServiceInterface::class),
+                $app->make(\FavoriteCMS\Pay\Repositories\PaymentAttemptRepository::class)
+            );
+        });
     }
 
     public function boot(): void
     {
         if ($this->booted) {
             return;
+        }
+
+        // Register Admin Menu
+        if (function_exists('add_admin_menu')) {
+            $handler = function (\FavoriteCMS\Core\Request $request) {
+                $controller = $this->app->make(\FavoriteCMS\Pay\Controllers\PaymentAdminController::class);
+                return $controller->handle($request);
+            };
+
+            add_admin_menu(
+                'favorite-pay',
+                'Favorite Pay',
+                '💳',
+                $handler,
+                \FavoriteCMS\Pay\Permissions\PaymentPermission::VIEW,
+                55
+            );
+
+            if (function_exists('add_admin_submenu')) {
+                add_admin_submenu(
+                    'favorite-pay',
+                    'favorite-pay-payments',
+                    'Payments',
+                    $handler,
+                    \FavoriteCMS\Pay\Permissions\PaymentPermission::VIEW
+                );
+            }
         }
 
         // Hook lifecycle actions
@@ -180,6 +225,11 @@ final class FavoritePayPlugin
             if (function_exists('cms_log')) {
                 cms_log("Favorite Pay migration failed on activation: " . $e->getMessage(), 'error', ['plugin' => 'favorite-pay']);
             }
+        }
+
+        // Seed default permissions
+        if ($this->app->has(Database::class)) {
+            \FavoriteCMS\Pay\Permissions\PaymentPermission::registerDefaultPermissions($this->app->make(Database::class));
         }
 
         if (function_exists('cms_log')) {

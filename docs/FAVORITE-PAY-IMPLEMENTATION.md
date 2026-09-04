@@ -1,10 +1,10 @@
 # Favorite Pay — Phase 1 Implementation Specification
 
-**Document Version**: 1.1.0  
+**Document Version**: 1.2.0  
 **Target Repository**: `Favorite-CMS-Universal`  
 **Plugin Identifier**: `favorite-pay`  
 **Namespace**: `FavoriteCMS\Pay`  
-**Status**: Implemented (Phase 1 Foundation, Phase 2 Database & Migrations, Phase 3A Gateway Framework & Manual Payment)  
+**Status**: Implemented (Phase 1 Foundation, Phase 2 Database & Migrations, Phase 3A Gateway Framework & Manual Payment, Phase 4A Admin Operator Verification Panel)  
 
 ---
 
@@ -145,12 +145,63 @@ Migration file: `plugins/favorite-pay/database/migrations/001_create_favorite_pa
 
 ---
 
-## 8. Phase 3B & Future Roadmap
-
+## 8. Phase 4A: Admin Operator Verification Panel
+ 
+### 8.1 Overview & Architecture
+- Integrated natively into the standard Favorite CMS admin interface using Core `AdminMenu` routing (`/admin/page/favorite-pay` and submenu `favorite-pay-payments`).
+- Server-rendered PHP using the standard Favorite CMS admin layout, typography, buttons, tables, notices, and styling conventions with zero external frontend dependencies.
+ 
+### 8.2 Permission Separation (RBAC)
+- **`favorite_pay.payments.view`**: Grants capability to view the verification queue, filter attempts, and inspect customer/payment detail screens.
+- **`favorite_pay.payments.verify`**: Grants capability to approve or reject manual payment attempts.
+- Super-administrators (`super-admin`) inherently possess full authorization across all actions.
+- Unauthorized or unauthenticated users are strictly blocked at the `Kernel` dispatch and controller layers with HTTP 302/403 responses.
+ 
+### 8.3 Verification Queue & Server-Side Filtering
+- Default view highlights `awaiting_verification` payment attempts.
+- Status filter tabs (`subsubsub`): All, Awaiting Verification, Succeeded, Failed/Rejected.
+- Gateway filter dropdown (`manual_bkash`, `manual_nagad`, `manual_bank`, generic).
+- Search bar querying indexed Transaction IDs (`transaction_id`) and Customer TrxIDs (`provider_reference`).
+- Paginated results (25 per page default) with previous/next controls.
+ 
+### 8.4 Review & Verification Detail Screen
+- Dedicated operator review screen providing four comprehensive audit cards:
+  1. **Transaction Overview**: Transaction ID, attempt ID, base/charge amounts, ISO currency, source plugin/reference, and submission timestamp.
+  2. **Customer Details**: Core user ID, username, and email address.
+  3. **Manual Payment Proof**: Customer-submitted TrxID, sender phone/account number, and customer notes.
+  4. **Verification Audit Trail**: Current status, verifier name/ID, verification timestamp, operator notes, or rejection reason.
+ 
+### 8.5 Authoritative Approval & Rejection Handlers
+- **Approve Flow**:
+  - Requires POST with valid timing-safe CSRF token and `favorite_pay.payments.verify` capability.
+  - Invokes `PaymentService::approveManualPayment($attemptId, $operatorId, $notes)`.
+  - Transitions attempt to `SUCCEEDED` and intent to `SUCCEEDED`. Fires event `favorite.pay.manual.approved` and `favorite.pay.payment.succeeded`.
+- **Reject Flow**:
+  - Requires POST with valid CSRF token, `favorite_pay.payments.verify` capability, and a mandatory non-empty rejection reason.
+  - Invokes `PaymentService::rejectManualPayment($attemptId, $operatorId, $reason)`.
+  - Transitions attempt to `FAILED` and intent to `FAILED`. Fires event `favorite.pay.manual.rejected`.
+ 
+### 8.6 Double-Action Protection & State Machine Integrity
+- In-flight or parallel approvals/rejections (e.g. Admin B approves an attempt while Admin A has the review page open) are caught safely at the `PaymentService` state machine layer (`RuntimeException`).
+- Controller catches state conflicts and informs the operator via native flash error notifications without duplicate events or corrupted balances.
+ 
+### 8.7 Wallet Safety & Zero Leakage
+- `PaymentAdminController` contains zero wallet ledger manipulation, zero balance calculations, and zero direct SQL mutations.
+- Digital wallet balances remain completely isolated and protected.
+ 
+### 8.8 Intentionally NOT Implemented
+- No external automated payment APIs (bKash API, Nagad API, Stripe Card, Binance/USDT).
+- No webhooks or public callback endpoints.
+- No customer checkout frontend UI or theme template tags.
+ 
+---
+ 
+## 9. Phase 3B & Future Roadmap
+ 
 - **Phase 3B**: Automated Gateway Driver implementations:
   - International Card Driver: `StripeCardGateway`.
   - Crypto Driver: `BinancePayGateway`.
-- **Phase 4**: Operator Admin Console UI module for pending manual transaction verification.
-- **Phase 5**: Theme checkout template tags and API endpoints for Favorite Web Theme.
+- **Phase 5**: Theme checkout template tags and API endpoints for Favorite Web Theme and consumer plugins.
+
 
 

@@ -88,6 +88,11 @@ final class PaymentAttempt
         return $this->operatorNotes;
     }
 
+    public function getVerificationNotes(): ?string
+    {
+        return $this->operatorNotes;
+    }
+
     public function getVerifiedBy(): ?int
     {
         return $this->verifiedBy;
@@ -99,6 +104,11 @@ final class PaymentAttempt
     }
 
     public function getErrorMessage(): ?string
+    {
+        return $this->errorMessage;
+    }
+
+    public function getRejectionReason(): ?string
     {
         return $this->errorMessage;
     }
