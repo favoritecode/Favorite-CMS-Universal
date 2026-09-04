@@ -1,132 +1,125 @@
 # Binance Pay Merchant Gateway Integration Guide
 
-## Overview
-Favorite Pay provides native support for automated cryptocurrency acquiring via the official **Binance Pay Merchant OpenAPI** (OpenAPI v3).
-
-- **Gateway ID**: `binance_pay`
-- **Official API Host**: `https://bpay.binanceapi.com`
-- **Security Standard**: HTTPS, HMAC-SHA512 request signing, uppercase hexadecimal signature, 32-character cryptographically secure nonces, and millisecond timestamps.
-- **Capabilities**:
-  - `PaymentGatewayInterface`: Standard payment attempt initiation.
-  - `RedirectPaymentGatewayInterface`: Hosted customer checkout redirection.
-  - `WebhookGatewayInterface`: Cryptographic webhook verification.
-  - `StatusQueryableGatewayInterface`: Order status querying (`POST /binancepay/openapi/order/query`).
-  - `RefundableGatewayInterface`: Automated merchant refunds (`POST /binancepay/openapi/order/refund`).
-  - `ConfigurableGatewayInterface`: Schema-based admin settings with secret masking.
-
----
-
-## 1. Enabling Binance Pay
-
-1. Navigate to **Admin Dashboard -> Settings -> Payments -> Binance Pay**.
-2. Set **Enable Binance Pay** to `Yes`.
-3. Provide your **Binance Certificate Serial Number (Certificate-SN)** and **API Secret Key**.
-4. Configure optional Sandbox / Test mode if operating in a staging environment.
-5. Save settings.
+## 1. Prerequisites
+Before configuring Binance Pay in Favorite CMS:
+- An active, approved **Binance Merchant Account** (registered and verified at [https://merchant.binance.com](https://merchant.binance.com)).
+- Access to the **Binance Merchant Portal** with permissions to generate API credentials and configure Webhooks.
+- Favorite CMS running with HTTPS enabled on your production domain.
+- The Favorite Pay plugin installed and activated.
 
 ---
 
 ## 2. Required Merchant Credentials
-
-To obtain merchant credentials:
-1. Log in to your approved **Binance Merchant Account** at [https://merchant.binance.com](https://merchant.binance.com).
-2. Go to **Developers -> API Credentials**.
-3. Generate or view:
-   - **Certificate-SN**: The Certificate Serial Number identifying your merchant certificate.
-   - **API Secret Key**: 64-character secret key used for HMAC-SHA512 request signing and webhook signature verification.
+In your Binance Merchant Portal (**Developers -> API Credentials**), generate and obtain:
+1. **Certificate Serial Number (Certificate-SN)**:
+   - A public string identifier representing your merchant certificate serial number.
+   - Example: `cert_sn_9876543210abcdef`
+2. **API Secret Key**:
+   - A 64-character secret key used exclusively for request signing (OpenAPI calls) and incoming webhook signature verification.
+   - Used in the symmetric HMAC-SHA512 algorithm.
 
 > [!WARNING]
-> Never commit real merchant credentials into source code, logs, exception messages, or repository commits.
+> **CRITICAL SECURITY RULE**: Never commit real merchant credentials (`API Secret Key` or `Certificate-SN`) into Git repositories, test files, pull requests, issue trackers, or documentation.
 
 ---
 
-## 3. Webhook Endpoint Configuration
-
-Configure your webhook URL in the Binance Merchant Portal under **Developers -> Webhook Configuration**:
-
-```
-https://your-domain.com/api/favorite-pay/webhook/binance_pay
-```
-
-### Signature Verification:
-- When a notification arrives, Binance sends headers:
-  - `BinancePay-Timestamp`: Unix timestamp in milliseconds.
-  - `BinancePay-Nonce`: 32-character random string.
-  - `BinancePay-Certificate-SN`: Public key certificate serial number.
-  - `BinancePay-Signature`: Digital signature (uppercase hex HMAC-SHA512).
-- Favorite Pay reconstructs the signature payload:
-  ```text
-  timestamp + "\n" + nonce + "\n" + raw_body + "\n"
-  ```
-- Verifies using constant-time comparison (`hash_equals`) against `strtoupper(hash_hmac('sha512', $payload, $apiSecret))`.
-- As mandated by the Binance Pay Merchant OpenAPI specification, RSA verification is not used for merchant API webhooks and RSA-style/Base64 signatures are strictly rejected.
-- If verification fails or amount/currency does not match the attempt, the webhook is rejected and payment is **never** settled.
+## 3. How to Configure the Gateway
+1. Log in to the Favorite CMS Admin Panel as an authorized administrator with `manage_settings` permission.
+2. In the sidebar, navigate to **Favorite Pay -> Gateways & Settings** (`/admin/page/favorite-pay-gateways`).
+3. Under **Merchant API Credentials**:
+   - Paste your **Certificate Serial Number (Certificate-SN)**.
+   - Enter your **Binance API Secret Key** into the password field.
+   - Review the API Endpoint Environment (fixed to official `https://bpay.binanceapi.com` for SSRF protection).
+   - Check **Sandbox / Test Mode** only if operating against a registered Binance test environment.
+4. Click **Save Changes**.
 
 ---
 
-## 4. Supported Currency Limitations
+## 4. Enabling / Disabling & Operational Readiness
+Favorite Pay enforces a strict 3-state operational model:
+- **DISABLED**:
+  - The gateway is switched off (`enabled = false`).
+  - Binance Pay is hidden from customers at checkout and cannot initiate payments.
+- **NOT READY (Incomplete)**:
+  - The gateway is enabled, but either `Certificate-SN` or `API Secret Key` is missing, or the CMS Primary Currency is incompatible.
+  - The gateway fails safely before executing any network calls. No orders or attempts are created.
+- **READY**:
+  - The gateway is enabled, both credentials are validly configured, and the CMS Primary Currency matches one of the supported currencies.
+  - The gateway is fully operational.
 
-Binance Pay Merchant API supports major cryptocurrency assets and select fiat quotes:
-- **Supported Payment Currencies**: `USDT`, `USDC`, `BTC`, `ETH`, `BNB`, `USD`, `EUR`.
-- **Primary Currency Note**: In accordance with the Favorite CMS financial safety architecture, Binance Pay strictly rejects orders initiated in unsupported currencies (e.g. `BDT`).
-- To accept Binance Pay, the store's transaction or Primary Currency must be one of the supported currencies. No automated FX conversion is performed without an active exchange rate engine.
+> [!NOTE]
+> Saving credentials does not automatically enable the gateway. An administrator must explicitly toggle **Enable Binance Pay Gateway**.
 
 ---
 
-## 5. Payment Lifecycle
-
+## 5. Webhook URL & Merchant Portal Setup
+The CMS exposes a dedicated webhook endpoint for Binance Pay callbacks:
 ```text
-Customer Checkout
-       ↓
-Favorite Pay PaymentService::createIntent()
-       ↓
-BinancePayGateway::createAttempt()
-       ↓
-POST /binancepay/openapi/v3/order
-       ↓
-Returns checkoutUrl / qrCodeLink
-       ↓
-Customer completes payment on Binance
-       ↓
-Binance sends Webhook Callback
-       ↓
-POST /api/favorite-pay/webhook/binance_pay
-       ↓
-WebhookService verifies signature & exact amount
-       ↓
-PaymentService marks attempt SUCCEEDED
-       ↓
-Fires 'favorite.pay.payment.succeeded'
-       ↓
-WalletService settles into customer ledger
+https://YOUR-DOMAIN/api/favorite-pay/webhook/binance_pay
 ```
+The exact absolute URL is dynamically displayed on your **Favorite Pay -> Gateways & Settings** admin screen.
+
+### Merchant Portal Configuration:
+1. Go to **Binance Merchant Portal -> Developers -> Webhook Configuration**.
+2. Set the Webhook URL to your CMS endpoint: `https://YOUR-DOMAIN/api/favorite-pay/webhook/binance_pay`.
+3. Select notification events: Payment (`PAY`), Refund (`REFUND`).
+4. Save the webhook configuration.
 
 ---
 
-## 6. Order Query & Status Reconciliation
-
-If an ambiguous network failure occurs during checkout:
-- System queries Binance Pay status using `merchantTradeNo` via `POST /binancepay/openapi/order/query`.
-- Amount and currency are verified strictly against the attempt.
-- `PAID` status transitions payment to `SUCCEEDED` through the standard lifecycle.
-- Idempotency guarantees that multiple queries or webhook deliveries never create duplicate wallet credits.
-
----
-
-## 7. Automated Refunds
-
-- If a customer requires a refund, operators can trigger a refund via `RefundService::createGatewayRefund()`.
-- Binance Pay gateway calls `POST /binancepay/openapi/order/refund` with a unique alphanumeric `refundRequestId`.
-- If the provider approves, the refund is recorded in `favorite_pay_refunds` and the intent status is set to `REFUNDED` or `PARTIALLY_REFUNDED`.
+## 6. Webhook Security Standard
+- Webhook notifications are cryptographically verified using **HMAC-SHA512**.
+- Binance sends:
+  - `BinancePay-Timestamp`: Epoch millisecond timestamp.
+  - `BinancePay-Nonce`: 32-character random string.
+  - `BinancePay-Certificate-SN`: Certificate identifier.
+  - `BinancePay-Signature`: Uppercase hexadecimal signature.
+- Favorite Pay verifies:
+  $$\text{Signature} = \text{strtoupper}(\text{hash\_hmac}('sha512', \text{timestamp} + \text{"\n"} + \text{nonce} + \text{"\n"} + \text{rawBody} + \text{"\n"}, \text{apiSecret}))$$
+- Constant-time verification (`hash_equals`) ensures timing-attack resistance.
+- The CMS does **not** receive Binance credentials in webhook requests.
+- Never disable signature verification. RSA callbacks are not used by the Binance Pay Merchant OpenAPI and RSA signatures are rejected.
 
 ---
 
-## 8. Troubleshooting Common Errors
+## 7. Supported Payment Currencies
+Binance Pay Merchant OpenAPI supports major cryptocurrency assets and fiat quotes:
+- **Supported Assets**: `USDT`, `USDC`, `BTC`, `ETH`, `BNB`, `USD`, `EUR`.
 
-| Error Code | Meaning | Resolution |
+---
+
+## 8. Primary Currency Compatibility
+Favorite CMS operates on a single primary accounting currency.
+- If your Primary Currency is **USDT**, **USD**, or another supported currency:
+  - Binance Pay is compatible and reports `READY`.
+- If your Primary Currency is **BDT**:
+  - Binance Pay reports `NOT READY`: *"Binance Pay is not available for the current Primary Currency (BDT)."*
+  - Checkout rejects Binance Pay attempts for BDT orders.
+  - No automated exchange rates or fake 1:1 conversions are applied. To use Binance Pay, store orders or the CMS Primary Currency must match a supported asset.
+
+---
+
+## 9. Secret Handling & Privacy Rules
+- **Zero Display**: The `API Secret Key` is never displayed in HTML inputs, view sources, JavaScript, logs, exceptions, or debug responses.
+- **Preservation on Edit**: When editing gateway settings, leaving the `API Secret Key` field blank preserves the previously saved secret. Submitting a new value replaces it.
+- **Storage**: Credentials are stored in the core `settings` table under group `favorite_pay_binance`. They are never stored in transaction logs, order records, or wallet ledgers.
+
+---
+
+## 10. Troubleshooting Configuration Problems
+| Problem | Cause | Resolution |
 | :--- | :--- | :--- |
-| `400001` | Invalid parameter | Verify amount format and currency code (use 2-decimal strings). |
-| `400002` | Invalid merchant account | Check Merchant Portal account status and KYC activation. |
-| `400100` | Invalid signature / unauthorized | Verify `Certificate-SN` and `API Secret Key` match exactly. |
-| `400102` | Timestamp expired | Ensure server clock is synchronized using NTP. |
-| `400010` | Insufficient balance | Merchant balance insufficient for refund. Top up Binance merchant balance. |
+| Status shows `NOT READY` | Missing credentials or incompatible currency | Check that Certificate-SN and Secret are saved, and Primary Currency is supported (e.g. USDT). |
+| Error: `Disallowed Binance Pay API base URL` | Administrator entered an unapproved host | Only official Binance endpoints (`https://bpay.binanceapi.com`) are allowed (SSRF protection). |
+| Webhook returns HTTP 401 | Invalid HMAC signature | Verify that the `API Secret Key` configured in CMS matches the secret key in the Binance Merchant Portal. |
+| Webhook returns HTTP 422 | Currency or amount mismatch | Attempt was tampered with or received with a mismatched currency. Payment is rejected. |
+| Error: `Binance Pay gateway is disabled` | Gateway toggle is off | Enable the gateway in **Favorite Pay -> Gateways & Settings**. |
+
+---
+
+## 11. Summary: Binance Merchant Dashboard Setup Checklist
+1. Create and verify your Binance Merchant Account at [https://merchant.binance.com](https://merchant.binance.com).
+2. Generate API Credentials (`Certificate-SN` and `API Secret Key`).
+3. Set Webhook URL to: `https://YOUR-DOMAIN/api/favorite-pay/webhook/binance_pay`.
+4. Enter credentials in Favorite CMS Admin (**Favorite Pay -> Gateways & Settings**).
+5. Verify status badge displays `READY`.

@@ -52,6 +52,28 @@ final class PaymentPermission
         return $user->hasPermission(self::VERIFY);
     }
 
+    public const MANAGE_SETTINGS = 'favorite_pay.settings.manage';
+
+    /**
+     * Check if a user has permission to configure payment gateways and settings.
+     */
+    public static function canManageSettings(?User $user = null): bool
+    {
+        if ($user === null && function_exists('current_user')) {
+            $user = current_user();
+        }
+
+        if (!$user || !$user->isActive()) {
+            return false;
+        }
+
+        if ($user->hasRole('super-admin') || $user->hasRole('admin')) {
+            return true;
+        }
+
+        return $user->hasPermission('manage_settings') || $user->hasPermission(self::MANAGE_SETTINGS);
+    }
+
     /**
      * Register permission records in Core permissions table if available.
      */
@@ -72,6 +94,12 @@ final class PaymentPermission
                 'name'        => 'Verify Favorite Pay',
                 'slug'        => self::VERIFY,
                 'description' => 'Approve or reject Favorite Pay manual payment verification requests',
+                'group_name'  => 'payment',
+            ],
+            [
+                'name'        => 'Manage Favorite Pay Settings',
+                'slug'        => self::MANAGE_SETTINGS,
+                'description' => 'Configure Favorite Pay payment gateways and merchant credentials',
                 'group_name'  => 'payment',
             ],
         ];

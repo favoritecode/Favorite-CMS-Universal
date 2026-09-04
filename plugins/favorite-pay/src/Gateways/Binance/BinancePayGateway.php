@@ -38,6 +38,9 @@ class BinancePayGateway implements
     ConfigurableGatewayInterface
 {
     public const GATEWAY_ID = 'binance_pay';
+    public const ALLOWED_BASE_URLS = [
+        'https://bpay.binanceapi.com',
+    ];
 
     private string $id;
     private string $title;
@@ -54,6 +57,23 @@ class BinancePayGateway implements
     ) {
         $this->id = self::GATEWAY_ID;
         $this->title = 'Binance Pay';
+
+        if (empty($config) && class_exists(\FavoriteCMS\Models\Setting::class)) {
+            try {
+                $saved = \FavoriteCMS\Models\Setting::getGroup('favorite_pay_binance');
+                if (!empty($saved)) {
+                    $config = [
+                        'enabled'        => !empty($saved['enabled']),
+                        'certificate_sn' => (string)($saved['certificate_sn'] ?? ''),
+                        'api_secret'     => (string)($saved['api_secret'] ?? ''),
+                        'sandbox'        => !empty($saved['sandbox']),
+                    ];
+                }
+            } catch (\Throwable) {
+                // Ignore DB access failure on boot or installation
+            }
+        }
+
         $this->enabled = !empty($config['enabled']);
         $this->config = $config;
         $this->db = $db;
@@ -115,10 +135,23 @@ class BinancePayGateway implements
      */
     public function createAttempt(PaymentIntent $intent, array $params = []): PaymentAttempt
     {
+        // 1. Fail-safe: Verify gateway is enabled
+        if (!$this->isEnabled()) {
+            throw new RuntimeException("Binance Pay gateway is disabled.");
+        }
+
+        // 2. Fail-safe: Verify required credentials exist
+        if (empty($this->config['certificate_sn'])) {
+            throw new RuntimeException("Binance Pay is not configured: missing Certificate-SN.");
+        }
+        if (empty($this->config['api_secret'])) {
+            throw new RuntimeException("Binance Pay is not configured: missing API Secret Key.");
+        }
+
         $amount = $intent->getAmount();
         $currency = strtoupper($amount->getCurrency());
 
-        // 1. Strict Currency verification
+        // 3. Strict Currency verification
         if (!in_array($currency, $this->supportedCurrencies, true)) {
             throw new InvalidArgumentException(
                 "Binance Pay does not support payment currency '{$currency}'. Supported currencies include: "
@@ -438,6 +471,117 @@ class BinancePayGateway implements
         }
     }
 
+    public function isConfigured(): bool
+    {
+        return !empty($this->config['certificate_sn']) && !empty($this->config['api_secret']);
+    }
+
+    public function isCurrencySupported(string $currency): bool
+    {
+        return in_array(strtoupper(trim($currency)), $this->supportedCurrencies, true);
+    }
+
+    public function isReady(?string $currency = null): bool
+    {
+        if (!$this->isEnabled() || !$this->isConfigured()) {
+            return false;
+        }
+
+        if ($currency === null) {
+            $currency = class_exists(\FavoriteCMS\Core\Currency::class)
+                ? \FavoriteCMS\Core\Currency::getPrimaryCurrency()
+                : 'BDT';
+        }
+
+        return $this->isCurrencySupported($currency);
+    }
+
+    public function getWebhookUrl(?string $baseUrl = null): string
+    {
+        $path = '/api/favorite-pay/webhook/' . $this->id;
+        if ($baseUrl !== null && trim($baseUrl) !== '') {
+            return rtrim($baseUrl, '/') . $path;
+        }
+        if (class_exists(\FavoriteCMS\Models\Setting::class)) {
+            $siteUrl = \FavoriteCMS\Models\Setting::get('general', 'site_url');
+            if (!empty($siteUrl)) {
+                return rtrim((string)$siteUrl, '/') . $path;
+            }
+        }
+        if (function_exists('url')) {
+            return url($path);
+        }
+        return 'http://localhost' . $path;
+    }
+
+    public function getPublicConfig(): array
+    {
+        return [
+            'enabled'        => $this->isEnabled(),
+            'certificate_sn' => $this->config['certificate_sn'] ?? '',
+            'has_api_secret' => !empty($this->config['api_secret']),
+            'sandbox'        => !empty($this->config['sandbox']),
+            'base_url'       => $this->client->getBaseUrl(),
+        ];
+    }
+
+    public function getConfigurationStatus(?string $primaryCurrency = null): array
+    {
+        if ($primaryCurrency === null) {
+            $primaryCurrency = class_exists(\FavoriteCMS\Core\Currency::class)
+                ? \FavoriteCMS\Core\Currency::getPrimaryCurrency()
+                : 'BDT';
+        }
+        $primaryCurrency = strtoupper(trim($primaryCurrency));
+
+        $isConfigured = $this->isConfigured();
+        $isEnabled = $this->isEnabled();
+        $isCurrencySupported = $this->isCurrencySupported($primaryCurrency);
+
+        if (!$isEnabled) {
+            $state = 'DISABLED';
+            $message = 'Binance Pay is disabled by administrator.';
+        } elseif (!$isConfigured) {
+            $state = 'NOT_READY';
+            $missing = [];
+            if (empty($this->config['certificate_sn'])) {
+                $missing[] = 'Certificate-SN';
+            }
+            if (empty($this->config['api_secret'])) {
+                $missing[] = 'API Secret Key';
+            }
+            $message = 'Binance Pay is enabled but incomplete. Missing: ' . implode(', ', $missing) . '.';
+        } elseif (!$isCurrencySupported) {
+            $state = 'NOT_READY';
+            $message = "Binance Pay is not available for the current Primary Currency ({$primaryCurrency}).";
+        } else {
+            $state = 'READY';
+            $message = 'Binance Pay is enabled, configured, and ready to accept payments.';
+        }
+
+        return [
+            'gateway_id'           => $this->id,
+            'title'                => $this->title,
+            'enabled'              => $isEnabled,
+            'is_configured'        => $isConfigured,
+            'is_ready'             => ($state === 'READY'),
+            'state'                => $state,
+            'message'              => $message,
+            'has_certificate_sn'   => !empty($this->config['certificate_sn']),
+            'has_api_secret'       => !empty($this->config['api_secret']),
+            'certificate_sn'       => $this->config['certificate_sn'] ?? '',
+            'webhook_url'          => $this->getWebhookUrl(),
+            'supported_currencies' => $this->supportedCurrencies,
+            'primary_currency'     => $primaryCurrency,
+            'currency_compatible'  => $isCurrencySupported,
+            'currency_message'     => $isCurrencySupported
+                ? "Primary Currency '{$primaryCurrency}' is supported by Binance Pay."
+                : "Binance Pay is not available for the current Primary Currency ({$primaryCurrency}).",
+            'environment'          => !empty($this->config['sandbox']) ? 'sandbox' : 'production',
+            'api_base_url'         => $this->client->getBaseUrl(),
+        ];
+    }
+
     public function getConfigSchema(): array
     {
         return [
@@ -470,9 +614,30 @@ class BinancePayGateway implements
     {
         $validated = [];
         $validated['enabled'] = !empty($config['enabled']);
-        $validated['certificate_sn'] = trim((string)($config['certificate_sn'] ?? ''));
-        $validated['api_secret'] = trim((string)($config['api_secret'] ?? ''));
+
+        $certSn = trim((string)($config['certificate_sn'] ?? ''));
+        if ($certSn !== '' && preg_match('/^[a-zA-Z0-9_\-\.]+$/', $certSn) === 0) {
+            throw new InvalidArgumentException("Invalid Certificate-SN format. Certificate serial number may only contain alphanumeric characters, hyphens, and underscores.");
+        }
+        $validated['certificate_sn'] = $certSn;
+
+        $apiSecret = trim((string)($config['api_secret'] ?? ''));
+        $validated['api_secret'] = $apiSecret;
+
         $validated['sandbox'] = !empty($config['sandbox']);
+
+        // SSRF protection: strict allowlist for API base URL
+        if (isset($config['base_url'])) {
+            $baseUrl = trim((string)$config['base_url']);
+            if ($baseUrl !== '' && !in_array($baseUrl, self::ALLOWED_BASE_URLS, true)) {
+                throw new InvalidArgumentException(
+                    "Disallowed Binance Pay API base URL '{$baseUrl}'. Only official Binance Pay endpoints ("
+                    . implode(', ', self::ALLOWED_BASE_URLS) . ") are permitted."
+                );
+            }
+            $validated['base_url'] = $baseUrl !== '' ? $baseUrl : BinancePayHttpClient::DEFAULT_BASE_URL;
+        }
+
         return $validated;
     }
 
@@ -483,13 +648,20 @@ class BinancePayGateway implements
 
     public function setConfig(array $config): void
     {
-        $validated = $this->validateConfig($config);
-        if (empty($validated['api_secret']) && !empty($this->config['api_secret'])) {
-            $validated['api_secret'] = $this->config['api_secret'];
+        // Secret preservation:
+        // A. Existing secret + blank submitted field: preserve existing secret.
+        $submittedSecret = trim((string)($config['api_secret'] ?? ''));
+        if ($submittedSecret === '' && !empty($this->config['api_secret'])) {
+            $config['api_secret'] = $this->config['api_secret'];
         }
+
+        $validated = $this->validateConfig($config);
         $this->config = array_merge($this->config, $validated);
         $this->enabled = $this->config['enabled'];
         $this->client->setCredentials($this->config['certificate_sn'], $this->config['api_secret']);
+        if (isset($this->config['base_url'])) {
+            $this->client->setBaseUrl($this->config['base_url']);
+        }
     }
 
     private function mapBinanceStatusToPaymentStatus(string $binanceStatus): PaymentStatus

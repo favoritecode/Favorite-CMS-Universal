@@ -201,6 +201,14 @@ final class FavoritePayPlugin
                 $app->make(\FavoriteCMS\Pay\Repositories\PaymentAttemptRepository::class)
             );
         });
+
+        // Bind Payment Gateway Settings Controller
+        $this->app->singleton(\FavoriteCMS\Pay\Controllers\PaymentGatewaySettingsController::class, function ($app) {
+            return new \FavoriteCMS\Pay\Controllers\PaymentGatewaySettingsController(
+                $app,
+                $app->make(GatewayRegistry::class)
+            );
+        });
     }
 
     public function boot(): void
@@ -232,6 +240,17 @@ final class FavoritePayPlugin
                     'Payments',
                     $handler,
                     \FavoriteCMS\Pay\Permissions\PaymentPermission::VIEW
+                );
+
+                add_admin_submenu(
+                    'favorite-pay',
+                    'favorite-pay-gateways',
+                    'Gateways & Settings',
+                    function (\FavoriteCMS\Core\Request $request) {
+                        $controller = $this->app->make(\FavoriteCMS\Pay\Controllers\PaymentGatewaySettingsController::class);
+                        return $controller->handle($request);
+                    },
+                    'manage_settings'
                 );
             }
         }
