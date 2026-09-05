@@ -43,14 +43,20 @@ class Database
 
     protected function connect(): void
     {
-        $dsn = sprintf(
-            '%s:host=%s;port=%s;dbname=%s;charset=%s',
-            $this->config['driver'] ?? 'mysql',
-            $this->config['host'] ?? '127.0.0.1',
-            $this->config['port'] ?? '3306',
-            $this->config['database'] ?? '',
-            $this->config['charset'] ?? 'utf8mb4'
-        );
+        $driver = $this->config['driver'] ?? 'mysql';
+        if ($driver === 'sqlite') {
+            $database = (string)($this->config['database'] ?? ':memory:');
+            $dsn = 'sqlite:' . $database;
+        } else {
+            $dsn = sprintf(
+                '%s:host=%s;port=%s;dbname=%s;charset=%s',
+                $driver,
+                $this->config['host'] ?? '127.0.0.1',
+                $this->config['port'] ?? '3306',
+                $this->config['database'] ?? '',
+                $this->config['charset'] ?? 'utf8mb4'
+            );
+        }
 
         $options = [
             PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
@@ -60,8 +66,10 @@ class Database
 
         try {
             $this->pdo = new PDO($dsn, $this->config['username'] ?? '', $this->config['password'] ?? '', $options);
-            // Setup timezone
-            $this->pdo->exec("SET time_zone = '+00:00'");
+            if ($driver !== 'sqlite') {
+                // Setup timezone
+                $this->pdo->exec("SET time_zone = '+00:00'");
+            }
         } catch (PDOException $e) {
             throw new \Exception("Database connection failed: " . $e->getMessage());
         }
@@ -185,6 +193,42 @@ class Database
     public function table(string $table): string
     {
         return $this->prefixTable($table);
+    }
+
+    /**
+     * Register additional table names that should be prefixed by Database.
+     *
+     * @param string|array<string> ...$tables
+     */
+    public function registerPrefixableTables(string|array ...$tables): void
+    {
+        $flattened = [];
+        foreach ($tables as $entry) {
+            if (is_array($entry)) {
+                foreach ($entry as $t) {
+                    $flattened[] = (string)$t;
+                }
+            } else {
+                $flattened[] = (string)$entry;
+            }
+        }
+
+        foreach ($flattened as $table) {
+            $table = trim($table);
+            if ($table !== '' && !in_array($table, $this->prefixableTables, true)) {
+                $this->prefixableTables[] = $table;
+            }
+        }
+    }
+
+    /**
+     * Get all currently registered prefixable table names.
+     *
+     * @return array<string>
+     */
+    public function getPrefixableTables(): array
+    {
+        return $this->prefixableTables;
     }
 
     public function quoteIdentifier(string $identifier, bool $applyPrefix = true): string

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace FavoriteCMS\Pay\Gateways\Bkash;
 
-use FavoriteCMS\Database\Database;
+use FavoriteCMS\Core\Database;
 use FavoriteCMS\Pay\Contracts\ConfigurableGatewayInterface;
 use FavoriteCMS\Pay\Contracts\PaymentGatewayInterface;
 use FavoriteCMS\Pay\Contracts\RedirectPaymentGatewayInterface;

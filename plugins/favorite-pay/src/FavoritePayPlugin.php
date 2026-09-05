@@ -21,6 +21,16 @@ use FavoriteCMS\Pay\Services\WalletService;
 
 final class FavoritePayPlugin
 {
+    public const TABLES = [
+        'favorite_pay_gateways',
+        'favorite_pay_rates',
+        'favorite_pay_transactions',
+        'favorite_pay_attempts',
+        'favorite_pay_refunds',
+        'favorite_pay_wallets',
+        'favorite_pay_wallet_entries',
+    ];
+
     private static ?self $instance = null;
     private Application $app;
     private bool $booted = false;
@@ -58,6 +68,14 @@ final class FavoritePayPlugin
 
     public function register(): void
     {
+        // Register prefixable tables with Database
+        if ($this->app->has(Database::class)) {
+            $db = $this->app->make(Database::class);
+            if (method_exists($db, 'registerPrefixableTables')) {
+                $db->registerPrefixableTables(self::TABLES);
+            }
+        }
+
         // Bind Gateway Registry with default Manual Bangladesh Gateway drivers
         $this->app->singleton(GatewayRegistry::class, function ($app) {
             $registry = new GatewayRegistry();
@@ -406,6 +424,9 @@ final class FavoritePayPlugin
         // 1. Check database tables if database is available
         if ($this->app->has(Database::class)) {
             $db = $this->app->make(Database::class);
+            if (method_exists($db, 'registerPrefixableTables')) {
+                $db->registerPrefixableTables(self::TABLES);
+            }
             $tables = [
                 'favorite_pay_transactions',
                 'favorite_pay_attempts',
@@ -483,6 +504,9 @@ final class FavoritePayPlugin
         }
 
         $db = $this->app->make(Database::class);
+        if (method_exists($db, 'registerPrefixableTables')) {
+            $db->registerPrefixableTables(self::TABLES);
+        }
         $migrator = new Migrator($db);
         $migrationsPath = __DIR__ . '/../database/migrations';
         return $migrator->migrate($migrationsPath);

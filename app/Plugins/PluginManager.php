@@ -72,6 +72,7 @@ class PluginManager
             'description'  => '',
             'requires_php' => '8.1.0',
             'dependencies' => [],
+            'tables'       => [],
             'active'       => in_array($id, $this->activePlugins, true),
             'entry_point'  => 'plugin.php',
             'path'         => $dir,
@@ -143,6 +144,50 @@ class PluginManager
         ];
     }
 
+    public function loadPlugin(string $pluginId): void
+    {
+        if (isset($this->loadedPlugins[$pluginId])) {
+            return;
+        }
+
+        $pluginDir = $this->pluginsPath . '/' . $pluginId;
+        if (!is_dir($pluginDir)) {
+            return;
+        }
+
+        $meta = $this->getPluginMetadata($pluginId, $pluginDir);
+
+        // Auto-register prefixable tables declared in plugin manifest
+        if (!empty($meta['tables']) && is_array($meta['tables']) && $this->app->has(\FavoriteCMS\Core\Database::class)) {
+            $db = $this->app->make(\FavoriteCMS\Core\Database::class);
+            $db->registerPrefixableTables($meta['tables']);
+        }
+
+        $entryFile = $pluginDir . '/' . ($meta['entry_point'] ?? 'plugin.php');
+        if (file_exists($entryFile)) {
+            try {
+                $app = $this->app;
+                require_once $entryFile;
+                $this->loadedPlugins[$pluginId] = true;
+
+                $candidateClasses = [
+                    'FavoriteCMS\\Pay\\FavoritePayPlugin',
+                    'FavoriteCMS\\Plugins\\' . str_replace(' ', '', ucwords(str_replace(['-', '_'], ' ', $pluginId))) . 'Plugin',
+                ];
+                foreach ($candidateClasses as $class) {
+                    if (class_exists($class) && method_exists($class, 'bootstrap')) {
+                        $class::bootstrap($this->app);
+                        break;
+                    }
+                }
+            } catch (\Throwable $e) {
+                // Failure isolation: a broken plugin must not crash the entire site
+                $this->bootErrors[$pluginId] = $e->getMessage();
+                \FavoriteCMS\Core\Logger::error("Failed to load plugin '{$pluginId}': " . $e->getMessage());
+            }
+        }
+    }
+
     public function activatePlugin(string $pluginId): bool
     {
         $validation = $this->validatePlugin($pluginId);
@@ -151,18 +196,48 @@ class PluginManager
             throw new \RuntimeException("Cannot activate plugin '{$pluginId}': {$err}");
         }
 
-        if (!in_array($pluginId, $this->activePlugins, true)) {
-            $this->activePlugins[] = $pluginId;
-            Setting::set('plugins', 'active', json_encode($this->activePlugins), 'json');
-            \FavoriteCMS\Core\Hook::doAction('plugin.activated', $pluginId);
-            \FavoriteCMS\Core\Logger::info("Plugin activated: {$pluginId}");
+        if (in_array($pluginId, $this->activePlugins, true)) {
+            return true;
         }
+
+        $pluginDir = $this->pluginsPath . '/' . $pluginId;
+        $meta = $this->getPluginMetadata($pluginId, $pluginDir);
+
+        // 1. Auto-register prefixable tables declared in manifest
+        if (!empty($meta['tables']) && is_array($meta['tables']) && $this->app->has(\FavoriteCMS\Core\Database::class)) {
+            $db = $this->app->make(\FavoriteCMS\Core\Database::class);
+            $db->registerPrefixableTables($meta['tables']);
+        }
+
+        // 2. Load plugin entry point into memory so its classes, services, and listeners are registered
+        $this->loadPlugin($pluginId);
+
+        // 3. Run database migrations if migrations directory exists
+        $migrationsDir = $pluginDir . '/database/migrations';
+        if (is_dir($migrationsDir) && $this->app->has(\FavoriteCMS\Core\Database::class)) {
+            $db = $this->app->make(\FavoriteCMS\Core\Database::class);
+            $migrator = new \FavoriteCMS\Core\Migrator($db);
+            $migrator->migrate($migrationsDir);
+        }
+
+        // 4. Dispatch plugin.activated hook (active listeners now receive it)
+        \FavoriteCMS\Core\Hook::doAction('plugin.activated', $pluginId);
+
+        // 5. Persist active state only after successful activation
+        $this->activePlugins[] = $pluginId;
+        Setting::set('plugins', 'active', json_encode($this->activePlugins), 'json');
+        \FavoriteCMS\Core\Logger::info("Plugin activated: {$pluginId}");
 
         return true;
     }
 
     public function deactivatePlugin(string $pluginId): bool
     {
+        try {
+            $this->loadPlugin($pluginId);
+        } catch (\Throwable) {
+        }
+
         $this->activePlugins = array_values(array_filter(
             $this->activePlugins,
             fn($id) => $id !== $pluginId
@@ -197,24 +272,12 @@ class PluginManager
     public function bootActivePlugins(): void
     {
         foreach ($this->activePlugins as $pluginId) {
-            $pluginDir = $this->pluginsPath . '/' . $pluginId;
-            if (!is_dir($pluginDir)) {
-                continue;
-            }
-
-            $meta = $this->getPluginMetadata($pluginId, $pluginDir);
-            $entryFile = $pluginDir . '/' . ($meta['entry_point'] ?? 'plugin.php');
-
-            if (file_exists($entryFile)) {
-                try {
-                    $app = $this->app;
-                    require_once $entryFile;
-                    $this->loadedPlugins[$pluginId] = true;
-                } catch (\Throwable $e) {
-                    // Failure isolation: a broken plugin must not crash the entire site
-                    $this->bootErrors[$pluginId] = $e->getMessage();
-                    \FavoriteCMS\Core\Logger::error("Failed to boot plugin '{$pluginId}': " . $e->getMessage());
-                }
+            try {
+                $this->loadPlugin($pluginId);
+            } catch (\Throwable $e) {
+                // Failure isolation: a broken plugin must not crash the entire site
+                $this->bootErrors[$pluginId] = $e->getMessage();
+                \FavoriteCMS\Core\Logger::error("Failed to boot plugin '{$pluginId}': " . $e->getMessage());
             }
         }
 

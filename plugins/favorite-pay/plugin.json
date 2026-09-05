@@ -6,5 +6,14 @@
     "author": "Favorite CMS Team",
     "requires_php": "8.1.0",
     "dependencies": [],
-    "entry_point": "plugin.php"
+    "entry_point": "plugin.php",
+    "tables": [
+        "favorite_pay_gateways",
+        "favorite_pay_rates",
+        "favorite_pay_transactions",
+        "favorite_pay_attempts",
+        "favorite_pay_refunds",
+        "favorite_pay_wallets",
+        "favorite_pay_wallet_entries"
+    ]
 }
