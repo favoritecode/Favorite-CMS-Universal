@@ -241,6 +241,9 @@ class PaymentRateController
             }
 
             $rateId = $this->rateProvider->insertRate($rateData);
+            if ($rateId <= 0) {
+                throw new \RuntimeException("Failed to persist authoritative rate to database. No valid insert ID returned.");
+            }
 
             // Comprehensive Audit Log (Answers WHO, WHAT, OLD, NEW, WHEN, EFFECTIVE, EXPIRY, WHY, SOURCE, ACTION)
             SafeLogger::info("Operator exchange rate configured", [

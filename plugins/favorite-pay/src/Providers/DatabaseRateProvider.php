@@ -21,6 +21,10 @@ class DatabaseRateProvider implements ExchangeRateProviderInterface
     {
         $this->db = $db;
         $this->providerId = $providerId;
+
+        if (method_exists($this->db, 'registerPrefixableTables')) {
+            $this->db->registerPrefixableTables(['favorite_pay_rates']);
+        }
     }
 
     public function getDatabase(): Database
@@ -173,7 +177,7 @@ class DatabaseRateProvider implements ExchangeRateProviderInterface
     public function insertRate(array $data): int
     {
         if (!$this->db->tableExists('favorite_pay_rates')) {
-            return 0;
+            throw new \RuntimeException("Table 'favorite_pay_rates' does not exist or is not accessible in database.");
         }
 
         $this->db->insert('favorite_pay_rates', $data);

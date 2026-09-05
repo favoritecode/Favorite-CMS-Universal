@@ -931,4 +931,251 @@ class OperatorExchangeRateTest extends TestCase
         $this->assertNull($this->rateProvider->getRate('USDT', 'BDT'));
         $this->assertFalse($this->currencyService->hasRate('USDT', 'BDT'));
     }
+
+    // =========================================================================
+    // Regression Tests A–E: Fix for Exchange Rates Persistence & Prefix Handling
+    // =========================================================================
+
+    /**
+     * Requirement A: Missing rate table cannot produce a false success message.
+     */
+    public function testMissingRateTableCannotProduceFalseSuccessMessage(): void
+    {
+        $_SESSION['auth_user_id'] = 1;
+        $_SESSION['_token'] = 'csrf_test_missing_table';
+        $user = new OperatorUserStub(['id' => 1, 'status' => 'active'], ['super-admin']);
+        $GLOBALS['_test_current_user'] = $user;
+
+        // Drop the rates table to simulate missing table / unmigrated environment
+        $this->pdo->exec("DROP TABLE `favorite_pay_rates`");
+
+        // 1. Direct insertRate call must throw RuntimeException
+        try {
+            $this->rateProvider->insertRate([
+                'base_currency'    => 'USDT',
+                'quote_currency'   => 'BDT',
+                'rate'             => 127.0,
+                'rate_factor'      => 127000000,
+                'rate_scale'       => 1000000,
+                'is_authoritative' => 1,
+                'status'           => 'active',
+                'source'           => 'operator',
+                'operator_id'      => 1,
+                'effective_at'     => date('Y-m-d H:i:s'),
+                'created_at'       => date('Y-m-d H:i:s'),
+            ]);
+            $this->fail("Expected RuntimeException when favorite_pay_rates table is missing.");
+        } catch (\RuntimeException $e) {
+            $this->assertStringContainsString("favorite_pay_rates", $e->getMessage());
+        }
+
+        // 2. Controller POST handle must set flash_error, NEVER flash_success
+        $request = new Request([], [
+            '_token'         => 'csrf_test_missing_table',
+            'action'         => 'save',
+            'base_currency'  => 'USDT',
+            'quote_currency' => 'BDT',
+            'rate'           => '127',
+            'effective_at'   => '',
+        ], ['REQUEST_METHOD' => 'POST']);
+
+        $response = $this->controller->handle($request);
+        $this->assertInstanceOf(Response::class, $response);
+        $this->assertSame(302, $response->getStatusCode());
+
+        // Must NEVER set flash_success on persistence failure
+        $this->assertArrayNotHasKey('flash_success', $_SESSION);
+        $this->assertArrayHasKey('flash_error', $_SESSION);
+        $this->assertStringContainsString('Failed to save exchange rate', $_SESSION['flash_error']);
+    }
+
+    /**
+     * Requirement B: Successful insert returns a positive ID.
+     */
+    public function testSuccessfulInsertReturnsPositiveId(): void
+    {
+        $id = $this->rateProvider->insertRate([
+            'base_currency'    => 'USDT',
+            'quote_currency'   => 'BDT',
+            'rate'             => 127.0,
+            'rate_factor'      => 127000000,
+            'rate_scale'       => 1000000,
+            'is_authoritative' => 1,
+            'status'           => 'active',
+            'source'           => 'operator',
+            'operator_id'      => 1,
+            'effective_at'     => date('Y-m-d H:i:s'),
+            'created_at'       => date('Y-m-d H:i:s'),
+        ]);
+
+        $this->assertIsInt($id);
+        $this->assertGreaterThan(0, $id);
+    }
+
+    /**
+     * Requirement C: Prefixed favorite_pay_rates is correctly resolved.
+     */
+    public function testPrefixedFavoritePayRatesIsCorrectlyResolved(): void
+    {
+        $prefixedPdo = new PDO('sqlite::memory:', '', '', [
+            PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
+            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_OBJ,
+        ]);
+
+        $prefixedDb = new class($prefixedPdo) extends Database {
+            public function __construct(PDO $pdo)
+            {
+                $this->pdo = $pdo;
+                $this->config = ['driver' => 'sqlite', 'prefix' => 'fvcms_e3ff_'];
+                $this->prefix = 'fvcms_e3ff_';
+                $this->prefixableTables = [
+                    'cms_migrations',
+                    'users',
+                    'roles',
+                    'permissions',
+                    'settings',
+                ];
+            }
+            public function getConnection(): PDO
+            {
+                return $this->pdo;
+            }
+        };
+
+        // Create the physical table with the prefix
+        $prefixedPdo->exec("
+            CREATE TABLE `fvcms_e3ff_favorite_pay_rates` (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                base_currency VARCHAR(16) NOT NULL,
+                quote_currency VARCHAR(16) NOT NULL,
+                rate DECIMAL(18, 6) NOT NULL,
+                rate_factor BIGINT NOT NULL,
+                rate_scale INT NOT NULL DEFAULT 1000000,
+                is_authoritative TINYINT(1) NOT NULL DEFAULT 1,
+                source VARCHAR(32) NOT NULL DEFAULT 'operator',
+                status VARCHAR(20) NOT NULL DEFAULT 'active',
+                operator_id BIGINT NULL,
+                notes VARCHAR(255) NULL,
+                effective_at DATETIME NOT NULL,
+                expires_at DATETIME NULL,
+                created_at DATETIME NOT NULL
+            )
+        ");
+
+        // Instantiating DatabaseRateProvider MUST self-register favorite_pay_rates in prefixableTables
+        $provider = new DatabaseRateProvider($prefixedDb);
+        $this->assertContains('favorite_pay_rates', $prefixedDb->getPrefixableTables());
+
+        // tableExists('favorite_pay_rates') must resolve to true with the prefix
+        $this->assertTrue($prefixedDb->tableExists('favorite_pay_rates'));
+
+        // Insert and verify persistence through prefixed table
+        $id = $provider->insertRate([
+            'base_currency'    => 'USDT',
+            'quote_currency'   => 'BDT',
+            'rate'             => 127.0,
+            'rate_factor'      => 127000000,
+            'rate_scale'       => 1000000,
+            'is_authoritative' => 1,
+            'status'           => 'active',
+            'source'           => 'operator',
+            'operator_id'      => 1,
+            'effective_at'     => date('Y-m-d H:i:s'),
+            'created_at'       => date('Y-m-d H:i:s'),
+        ]);
+
+        $this->assertGreaterThan(0, $id);
+
+        $rate = $provider->getRate('USDT', 'BDT');
+        $this->assertNotNull($rate);
+        $this->assertSame('127', $rate->getRateDecimalString());
+    }
+
+    /**
+     * Requirement D: After saving 1 USDT = 127 BDT, a subsequent GET can load that authoritative rate.
+     */
+    public function testAfterSavingRateSubsequentGetLoadsAuthoritativeRate(): void
+    {
+        $_SESSION['auth_user_id'] = 1;
+        $_SESSION['_token'] = 'csrf_test_save_get';
+        $user = new OperatorUserStub(['id' => 1, 'status' => 'active'], ['super-admin']);
+        $GLOBALS['_test_current_user'] = $user;
+
+        // 1. POST request to save 1 USDT = 127 BDT
+        $postRequest = new Request([], [
+            '_token'         => 'csrf_test_save_get',
+            'action'         => 'save',
+            'base_currency'  => 'USDT',
+            'quote_currency' => 'BDT',
+            'rate'           => '127',
+            'effective_at'   => '',
+        ], ['REQUEST_METHOD' => 'POST']);
+
+        $postResponse = $this->controller->handle($postRequest);
+        $this->assertInstanceOf(Response::class, $postResponse);
+        $this->assertSame(302, $postResponse->getStatusCode());
+        $this->assertArrayHasKey('flash_success', $_SESSION);
+        $this->assertStringContainsString('Authoritative rate for 1 USDT = 127 BDT has been configured successfully', $_SESSION['flash_success']);
+
+        // 2. Subsequent GET request
+        $getRequest = new Request([], [], ['REQUEST_METHOD' => 'GET']);
+        $html = (string)$this->controller->handle($getRequest);
+
+        // Verify HTML displays the saved rate and does NOT display empty state
+        $this->assertStringNotContainsString('No authoritative saved rate configured yet.', $html);
+        $this->assertStringContainsString('Current Saved Rate', $html);
+        $this->assertStringContainsString('127', $html);
+        $this->assertStringContainsString('CURRENT ACTIVE', $html);
+
+        // Verify Provider loads the rate
+        $snapshot = $this->rateProvider->getRate('USDT', 'BDT');
+        $this->assertNotNull($snapshot);
+        $this->assertSame('127', $snapshot->getRateDecimalString());
+        $this->assertTrue($snapshot->isAuthoritative());
+    }
+
+    /**
+     * Requirement E: Audit log returns the saved record.
+     */
+    public function testAuditLogReturnsSavedRecord(): void
+    {
+        $_SESSION['auth_user_id'] = 1;
+        $_SESSION['_token'] = 'csrf_test_audit_log';
+        $user = new OperatorUserStub(['id' => 1, 'status' => 'active'], ['super-admin']);
+        $GLOBALS['_test_current_user'] = $user;
+
+        // Save 1 USDT = 127 BDT
+        $postRequest = new Request([], [
+            '_token'         => 'csrf_test_audit_log',
+            'action'         => 'save',
+            'base_currency'  => 'USDT',
+            'quote_currency' => 'BDT',
+            'rate'           => '127',
+            'effective_at'   => '',
+            'notes'          => 'Initial Hostinger production rate',
+        ], ['REQUEST_METHOD' => 'POST']);
+
+        $this->controller->handle($postRequest);
+
+        // 1. Audit log method getAllRates() must contain the record
+        $allRates = $this->rateProvider->getAllRates(100);
+        $this->assertNotEmpty($allRates);
+        $this->assertCount(1, $allRates);
+
+        $savedRecord = $allRates[0];
+        $this->assertSame('USDT', $savedRecord['base_currency']);
+        $this->assertSame('BDT', $savedRecord['quote_currency']);
+        $this->assertEquals(127.0, (float)$savedRecord['rate']);
+        $this->assertSame('active', $savedRecord['status']);
+        $this->assertSame('operator', $savedRecord['source']);
+        $this->assertSame('Initial Hostinger production rate', $savedRecord['notes']);
+
+        // 2. GET render must show 1 records in audit log
+        $getRequest = new Request([], [], ['REQUEST_METHOD' => 'GET']);
+        $html = (string)$this->controller->handle($getRequest);
+
+        $this->assertStringContainsString('1 records', $html);
+        $this->assertStringNotContainsString('0 records', $html);
+        $this->assertStringNotContainsString('No exchange rates configured yet.', $html);
+    }
 }
