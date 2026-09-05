@@ -16,9 +16,11 @@ storage/installed.lock.testbak
 storage/logs/*.log
 storage/cache/*
 storage/sessions/*
+storage/backups/*
 !storage/cache/.gitkeep
 !storage/logs/.gitkeep
 !storage/sessions/.gitkeep
+!storage/backups/.gitkeep
 
 # User media uploads (local content)
 public/uploads/*

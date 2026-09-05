@@ -10,6 +10,7 @@ use FavoriteCMS\Core\Request;
 use FavoriteCMS\Core\Response;
 use FavoriteCMS\Services\BackupService;
 use FavoriteCMS\Services\BloggerImportService;
+use FavoriteCMS\Services\Import\ImportEngine;
 use FavoriteCMS\Services\RestoreService;
 use Throwable;
 
@@ -298,6 +299,151 @@ class ToolController
         }
 
         return Response::redirect('/admin/tools#blogger-import');
+    }
+
+    public function importIndex(Request $request): Response
+    {
+        $engine = new ImportEngine($this->app);
+        $adapters = $engine->getAdapters();
+        $platformRegistry = $engine->getPlatformRegistry();
+
+        $preview = $_SESSION['cms_import_preview'] ?? null;
+        $token = $_SESSION['cms_import_token'] ?? '';
+        $report = $_SESSION['cms_import_report'] ?? null;
+
+        $notice = $_SESSION['_flash_notice'] ?? null;
+        $error = $_SESSION['_flash_error'] ?? null;
+        unset($_SESSION['_flash_notice'], $_SESSION['_flash_error']);
+
+        $viewData = [
+            'pageTitle'        => 'Content Import & Migration',
+            'activeMenu'       => 'tools-import',
+            'adapters'         => $adapters,
+            'platformRegistry' => $platformRegistry,
+            'preview'          => $preview,
+            'token'            => $token,
+            'report'           => $report,
+            'notice'           => $notice,
+            'error'            => $error,
+            'csrfToken'        => $_SESSION['_token'] ?? '',
+            'contentView'      => APP_ROOT . '/resources/views/admin/tools/import.php',
+        ];
+
+        extract($viewData, EXTR_SKIP);
+        ob_start();
+        include APP_ROOT . '/resources/views/admin/layout.php';
+        return Response::make((string)ob_get_clean(), 200);
+    }
+
+    public function importPreview(Request $request): Response
+    {
+        $this->validateCsrf($request);
+
+        $content = '';
+        $filename = null;
+        $mime = null;
+
+        if (!empty($_FILES['import_file']['tmp_name']) && is_uploaded_file($_FILES['import_file']['tmp_name'])) {
+            $content = (string)file_get_contents($_FILES['import_file']['tmp_name']);
+            $filename = (string)$_FILES['import_file']['name'];
+            $mime = (string)($_FILES['import_file']['type'] ?? null);
+        } elseif ($request->post('content')) {
+            $content = (string)$request->post('content');
+            $filename = 'content.xml';
+        }
+
+        if (trim($content) === '') {
+            $_SESSION['_flash_error'] = 'Please choose a valid export file or provide content to analyze.';
+            return Response::redirect('/admin/tools/import');
+        }
+
+        try {
+            $engine = new ImportEngine($this->app);
+            $selectedAdapter = (string)$request->post('source_adapter', '');
+            $adapterId = $selectedAdapter !== '' ? $selectedAdapter : null;
+
+            $preview = $engine->preview($content, $adapterId, $filename);
+
+            if (!$preview['success']) {
+                $_SESSION['_flash_error'] = 'Import Analysis Error: ' . ($preview['error'] ?? 'Unknown error.');
+                return Response::redirect('/admin/tools/import');
+            }
+
+            // Stash export file safely in storage/cache
+            $tempDir = APP_ROOT . '/storage/cache';
+            if (!is_dir($tempDir)) {
+                @mkdir($tempDir, 0775, true);
+            }
+            $importToken = bin2hex(random_bytes(16));
+            file_put_contents($tempDir . '/import_' . $importToken . '.dat', $content);
+
+            $_SESSION['cms_import_token'] = $importToken;
+            $_SESSION['cms_import_preview'] = $preview;
+            $_SESSION['cms_import_adapter'] = $preview['adapter_id'] ?? $adapterId;
+            unset($_SESSION['cms_import_report']);
+
+            $c = $preview['counts'];
+            $_SESSION['_flash_notice'] = "Analysis ready ({$preview['source_name']}): Found {$c['posts']} posts, {$c['pages']} pages, {$c['comments']} comments, and {$c['media']} media items.";
+        } catch (Throwable $e) {
+            $_SESSION['_flash_error'] = 'Failed to analyze export file: ' . $e->getMessage();
+        }
+
+        return Response::redirect('/admin/tools/import');
+    }
+
+    public function importProcess(Request $request): Response
+    {
+        $this->validateCsrf($request);
+
+        $importToken = (string)$request->post('import_token', $_SESSION['cms_import_token'] ?? '');
+        $tempFile = APP_ROOT . '/storage/cache/import_' . basename($importToken) . '.dat';
+
+        $content = '';
+        if ($importToken !== '' && file_exists($tempFile)) {
+            $content = (string)file_get_contents($tempFile);
+        } elseif (!empty($_FILES['import_file']['tmp_name']) && is_uploaded_file($_FILES['import_file']['tmp_name'])) {
+            $content = (string)file_get_contents($_FILES['import_file']['tmp_name']);
+        }
+
+        if (trim($content) === '') {
+            $_SESSION['_flash_error'] = 'Import session expired or file not found. Please upload your export file again.';
+            return Response::redirect('/admin/tools/import');
+        }
+
+        try {
+            $engine = new ImportEngine($this->app);
+            $adapterId = (string)$request->post('adapter_id', $_SESSION['cms_import_adapter'] ?? '');
+
+            $options = [
+                'deduplication_mode' => (string)$request->post('deduplication_mode', 'skip'),
+                'import_media'       => $request->post('import_media', '1') === '1',
+                'author_handling'    => (string)$request->post('author_handling', 'admin'),
+                'default_status'     => (string)$request->post('default_status', 'preserve'),
+                'import_posts'       => $request->post('import_posts', '1') === '1',
+                'import_pages'       => $request->post('import_pages', '1') === '1',
+                'import_comments'    => $request->post('import_comments', '1') === '1',
+                'author_id'          => (int)($_SESSION['auth_user_id'] ?? 1),
+            ];
+
+            $report = $engine->import($content, $options, $adapterId ?: null);
+
+            // Clean up temporary file
+            if (file_exists($tempFile)) {
+                @unlink($tempFile);
+            }
+            unset($_SESSION['cms_import_token'], $_SESSION['cms_import_preview'], $_SESSION['cms_import_adapter']);
+            $_SESSION['cms_import_report'] = $report;
+
+            $p = $report['posts'];
+            $pg = $report['pages'];
+            $m = $report['media'];
+
+            $_SESSION['_flash_notice'] = "Migration complete ({$report['source']})! Posts: {$p['imported']} imported, {$p['updated']} updated, {$p['skipped']} skipped. Pages: {$pg['imported']} imported. Media: {$m['downloaded']} downloaded.";
+        } catch (Throwable $e) {
+            $_SESSION['_flash_error'] = 'Import failed: ' . $e->getMessage();
+        }
+
+        return Response::redirect('/admin/tools/import');
     }
 
     protected function validateCsrf(Request $request): void

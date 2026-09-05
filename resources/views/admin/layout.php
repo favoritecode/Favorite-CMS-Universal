@@ -412,8 +412,12 @@ $siteFaviconUrl = function_exists('get_site_favicon_url') ? get_site_favicon_url
                     <li class="wp-menu-item <?php echo $activeMenu === 'seo' ? 'active' : ''; ?>">
                         <a href="/admin/seo" class="wp-menu-link">🔍 SEO</a>
                     </li>
-                    <li class="wp-menu-item <?php echo $activeMenu === 'tools' ? 'active' : ''; ?>">
+                    <li class="wp-menu-item <?php echo in_array($activeMenu, ['tools', 'tools-import']) ? 'active' : ''; ?>">
                         <a href="/admin/tools" class="wp-menu-link">🛠️ Tools</a>
+                        <ul class="wp-submenu">
+                            <li><a href="/admin/tools" class="<?php echo $activeMenu === 'tools' ? 'active' : ''; ?>">Backups &amp; Health</a></li>
+                            <li><a href="/admin/tools/import" class="<?php echo $activeMenu === 'tools-import' ? 'active' : ''; ?>">Import / Migration</a></li>
+                        </ul>
                     </li>
                 <?php endif; ?>
 
