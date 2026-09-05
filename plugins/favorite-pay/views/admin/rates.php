@@ -7,9 +7,51 @@
  * - $supportedCurrencies : array
  * - $baseCurrency        : string
  * - $csrfToken           : string
+ * - $liveFxStatus        : ?array
  * - $flashSuccess        : ?string
  * - $flashError          : ?string
  */
+
+// Compute currently active saved rates grouped by base/quote pair
+$now = date('Y-m-d H:i:s');
+$activeRates = [];
+$activePairsMap = [];
+
+if (!empty($rates)) {
+    foreach ($rates as $r) {
+        $b = strtoupper((string)($r['base_currency'] ?? ''));
+        $q = strtoupper((string)($r['quote_currency'] ?? ''));
+        $pair = "{$b}/{$q}";
+        $isExpired = !empty($r['expires_at']) && $r['expires_at'] < $now;
+        $isEffective = empty($r['effective_at']) || $r['effective_at'] <= $now;
+        if (($r['status'] ?? '') === 'active' && !$isExpired && $isEffective) {
+            if (!isset($activePairsMap[$pair])) {
+                $rawRate = (float)($r['rate'] ?? 0);
+                $rateVal = number_format($rawRate, 6, '.', '');
+                $rateValTrimmed = rtrim(rtrim($rateVal, '0'), '.');
+                $r['formatted_rate'] = $rateValTrimmed;
+                $activePairsMap[$pair] = [
+                    'id'             => (int)($r['id'] ?? 0),
+                    'base_currency'  => $b,
+                    'quote_currency' => $q,
+                    'pair'           => $pair,
+                    'rate'           => $rateValTrimmed,
+                    'effective_at'   => (string)($r['effective_at'] ?? 'Immediately'),
+                    'expires_at'     => (string)($r['expires_at'] ?? 'Indefinite'),
+                    'source'         => (string)($r['source'] ?? 'operator'),
+                ];
+                $activeRates[] = $r;
+            }
+        }
+    }
+}
+
+// Find default active rate for current default selection (USDT / BaseCurrency)
+$defaultBase = 'USDT';
+$defaultQuote = strtoupper((string)($baseCurrency ?? 'BDT'));
+$defaultPair = "{$defaultBase}/{$defaultQuote}";
+$currentSavedRate = $activePairsMap[$defaultPair] ?? ($activeRates[0] ?? null);
+$currentSavedRateValue = $currentSavedRate ? ($currentSavedRate['rate'] ?? $currentSavedRate['formatted_rate'] ?? '') : '';
 ?>
 
 <div class="wrap favorite-pay-rates">
@@ -28,16 +70,73 @@
     </div>
 
     <?php if (!empty($flashSuccess)): ?>
-        <div class="notice notice-success" style="margin-bottom: 20px;">
-            <?php echo htmlspecialchars($flashSuccess, ENT_QUOTES, 'UTF-8'); ?>
+        <div class="notice notice-success" style="margin-bottom: 20px; display: flex; align-items: center; gap: 10px; padding: 12px 16px; background: #f0fdf4; border-left: 4px solid #16a34a; border-radius: 4px;">
+            <span style="font-size: 18px; color: #16a34a;">✓</span>
+            <div style="font-size: 13.5px; font-weight: 600; color: #15803d;">
+                <?php echo htmlspecialchars($flashSuccess, ENT_QUOTES, 'UTF-8'); ?>
+            </div>
         </div>
     <?php endif; ?>
 
     <?php if (!empty($flashError)): ?>
-        <div class="notice notice-error" style="margin-bottom: 20px;">
-            <?php echo htmlspecialchars($flashError, ENT_QUOTES, 'UTF-8'); ?>
+        <div class="notice notice-error" style="margin-bottom: 20px; display: flex; align-items: center; gap: 10px; padding: 12px 16px; background: #fef2f2; border-left: 4px solid #dc2626; border-radius: 4px;">
+            <span style="font-size: 18px; color: #dc2626;">⚠️</span>
+            <div style="font-size: 13.5px; font-weight: 600; color: #991b1b;">
+                <?php echo htmlspecialchars($flashError, ENT_QUOTES, 'UTF-8'); ?>
+            </div>
         </div>
     <?php endif; ?>
+
+    <!-- Prominent "Current Saved Rate in Production" Showcase Banner -->
+    <div class="card mb-4" style="padding: 22px 24px; border-left: 4px solid #16a34a; background: #f8fafc;">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 14px; border-bottom: 1px solid #e2e8f0; padding-bottom: 12px;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <span style="font-size: 20px;">💎</span>
+                <h3 style="font-size: 15px; font-weight: 700; margin: 0; color: var(--wp-text-main);">
+                    Current Saved Authoritative Rates
+                </h3>
+            </div>
+            <span class="badge badge-success" style="font-size: 12px; padding: 4px 10px; display: inline-flex; align-items: center; gap: 5px;">
+                <span style="width: 6px; height: 6px; border-radius: 50%; background: #16a34a;"></span>
+                ACTIVE IN PRODUCTION
+            </span>
+        </div>
+
+        <?php if (!empty($activePairsMap)): ?>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; margin-bottom: 12px;">
+                <?php foreach ($activePairsMap as $pairKey => $rateInfo): ?>
+                    <div style="background: #fff; border: 1px solid #bbf7d0; border-radius: 8px; padding: 16px 18px; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                            <span style="font-size: 12px; font-weight: 700; color: #166534; text-transform: uppercase; letter-spacing: 0.5px;">
+                                Current Saved Rate
+                            </span>
+                            <span class="badge badge-success" style="font-size: 10px; padding: 2px 6px;">#<?php echo (int)$rateInfo['id']; ?> Active</span>
+                        </div>
+                        <div style="font-size: 24px; font-weight: 800; color: #0f172a; line-height: 1.2; margin-bottom: 6px;">
+                            1 <?php echo htmlspecialchars($rateInfo['base_currency'], ENT_QUOTES, 'UTF-8'); ?> = 
+                            <span style="color: #15803d;"><?php echo htmlspecialchars($rateInfo['rate'], ENT_QUOTES, 'UTF-8'); ?></span> 
+                            <?php echo htmlspecialchars($rateInfo['quote_currency'], ENT_QUOTES, 'UTF-8'); ?>
+                        </div>
+                        <div style="font-size: 11px; color: var(--wp-text-muted); display: flex; gap: 12px; flex-wrap: wrap;">
+                            <span><strong>Effective:</strong> <?php echo htmlspecialchars($rateInfo['effective_at'], ENT_QUOTES, 'UTF-8'); ?></span>
+                            <span><strong>Expires:</strong> <?php echo htmlspecialchars($rateInfo['expires_at'], ENT_QUOTES, 'UTF-8'); ?></span>
+                        </div>
+                    </div>
+                <?php endforeach; ?>
+            </div>
+            <div style="font-size: 12px; color: #475569; display: flex; align-items: center; gap: 6px;">
+                <span>ℹ️</span> The rate value displayed above is currently stored in the database and applied to all incoming conversions and checkout calculations.
+            </div>
+        <?php else: ?>
+            <div style="background: #fff; border: 1px solid #fed7aa; border-radius: 8px; padding: 16px 18px; color: #9a3412; font-size: 13px; display: flex; align-items: center; gap: 10px;">
+                <span style="font-size: 18px;">⚠️</span>
+                <div>
+                    <strong>No authoritative saved rate configured yet.</strong>
+                    <div>Conversions currently use default fallback live market rates. Use the form below to lock a fixed authoritative rate.</div>
+                </div>
+            </div>
+        <?php endif; ?>
+    </div>
 
     <!-- Live FX Provider Status Card -->
     <?php if (!empty($liveFxStatus)): ?>
@@ -86,19 +185,18 @@
         </div>
     <?php endif; ?>
 
-    <!-- New Rate Configuration Card -->
+    <!-- Rate Configuration & Update Card -->
     <div class="card mb-4" style="padding: 22px 24px;">
-        <div style="margin-bottom: 16px; border-bottom: 1px solid #f1f5f9; padding-bottom: 12px;">
+        <div style="margin-bottom: 16px; border-bottom: 1px solid #f1f5f9; padding-bottom: 12px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
             <h3 style="font-size: 15px; font-weight: 700; margin: 0; color: var(--wp-text-main); display: flex; align-items: center; gap: 8px;">
                 <span>⚙️</span> Configure Authoritative Exchange Rate
             </h3>
+            <span style="font-size: 12px; color: var(--wp-text-muted);">
+                Changes take effect upon saving and automatically archive prior rates
+            </span>
         </div>
 
-        <div class="alert alert-info py-2 mb-3" style="font-size: 12px; line-height: 1.5;">
-            <strong>Deterministic Accounting Rule:</strong> All conversions use exact scaled integer arithmetic with zero floating-point rounding. Setting a new active rate safely retires prior active rates for the pair while preserving complete audit history.
-        </div>
-
-        <form method="POST" action="/admin/page/favorite-pay-rates">
+        <form method="POST" action="/admin/page/favorite-pay-rates" id="rate-lock-form">
             <input type="hidden" name="_token" value="<?php echo htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
             <input type="hidden" name="action" value="save">
 
@@ -107,7 +205,7 @@
                     <label for="base_currency" class="form-label" style="display: block; font-size: 12px; font-weight: 600; margin-bottom: 4px;">
                         Base Currency
                     </label>
-                    <select name="base_currency" id="base_currency" class="form-control" required onchange="updateRateDisplay()">
+                    <select name="base_currency" id="base_currency" class="form-control" required onchange="handleCurrencyChange()">
                         <?php foreach ($supportedCurrencies as $code): ?>
                             <option value="<?php echo htmlspecialchars($code, ENT_QUOTES, 'UTF-8'); ?>" <?php echo $code === 'USDT' ? 'selected' : ''; ?>>
                                 <?php echo htmlspecialchars($code, ENT_QUOTES, 'UTF-8'); ?>
@@ -121,7 +219,7 @@
                     <label for="quote_currency" class="form-label" style="display: block; font-size: 12px; font-weight: 600; margin-bottom: 4px;">
                         Quote Currency
                     </label>
-                    <select name="quote_currency" id="quote_currency" class="form-control" required onchange="updateRateDisplay()">
+                    <select name="quote_currency" id="quote_currency" class="form-control" required onchange="handleCurrencyChange()">
                         <?php foreach ($supportedCurrencies as $code): ?>
                             <option value="<?php echo htmlspecialchars($code, ENT_QUOTES, 'UTF-8'); ?>" <?php echo $code === ($baseCurrency ?? 'BDT') ? 'selected' : ''; ?>>
                                 <?php echo htmlspecialchars($code, ENT_QUOTES, 'UTF-8'); ?>
@@ -132,11 +230,26 @@
                 </div>
 
                 <div class="col-md-3 mb-3">
-                    <label for="rate" class="form-label" style="display: block; font-size: 12px; font-weight: 600; margin-bottom: 4px;">
-                        Exchange Rate
-                    </label>
-                    <input type="text" name="rate" id="rate" class="form-control" placeholder="122.50" required pattern="^\d+(\.\d{1,6})?$" oninput="updateRateDisplay()">
-                    <div class="form-text" style="font-size: 11px; color: var(--wp-blue); font-weight: 600; margin-top: 4px;" id="rate-display-helper">1 USDT = [?] BDT</div>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                        <label for="rate" class="form-label" style="font-size: 12px; font-weight: 600; margin: 0;">
+                            Exchange Rate
+                        </label>
+                        <span id="current-saved-rate-badge" class="badge badge-secondary" style="font-size: 10px;">
+                            Saved: <?php echo $currentSavedRateValue !== '' ? htmlspecialchars($currentSavedRateValue, ENT_QUOTES, 'UTF-8') : 'None'; ?>
+                        </span>
+                    </div>
+                    <input type="text" 
+                           name="rate" 
+                           id="rate" 
+                           class="form-control" 
+                           placeholder="e.g. 124.50" 
+                           value="<?php echo htmlspecialchars($currentSavedRateValue, ENT_QUOTES, 'UTF-8'); ?>"
+                           required 
+                           pattern="^\d+(\.\d{1,6})?$" 
+                           oninput="updateRateDisplay()">
+                    <div class="form-text" style="font-size: 11px; margin-top: 4px;" id="rate-display-helper">
+                        1 USDT = <?php echo $currentSavedRateValue !== '' ? htmlspecialchars($currentSavedRateValue, ENT_QUOTES, 'UTF-8') : '[?]'; ?> BDT
+                    </div>
                 </div>
 
                 <div class="col-md-3 mb-3">
@@ -161,12 +274,12 @@
                     <label for="notes" class="form-label" style="display: block; font-size: 12px; font-weight: 600; margin-bottom: 4px;">
                         Audit Notes / Reason
                     </label>
-                    <input type="text" name="notes" id="notes" class="form-control" placeholder="e.g. Daily treasury rate update for Binance Pay">
+                    <input type="text" name="notes" id="notes" class="form-control" placeholder="e.g. Updated treasury conversion rate">
                     <div class="form-text" style="font-size: 11px; color: var(--wp-text-muted); margin-top: 4px;">Recorded in immutable rate log.</div>
                 </div>
 
                 <div class="col-md-3 mb-3" style="display: flex; align-items: flex-end;">
-                    <button type="submit" class="btn btn-primary w-100" style="padding-top: 9px; padding-bottom: 9px; font-weight: 600;">
+                    <button type="submit" class="btn btn-primary w-100" id="lock-rate-submit-btn" style="padding-top: 9px; padding-bottom: 9px; font-weight: 600;">
                         Lock Authoritative Rate
                     </button>
                 </div>
@@ -206,22 +319,28 @@
                         </tr>
                     <?php else: ?>
                         <?php 
-                        $now = date('Y-m-d H:i:s');
                         foreach ($rates as $row): 
                             $isExpired = !empty($row['expires_at']) && $row['expires_at'] < $now;
                             $status = (string)($row['status'] ?? 'active');
+                            $b = strtoupper((string)($row['base_currency'] ?? ''));
+                            $q = strtoupper((string)($row['quote_currency'] ?? ''));
+                            $pair = "{$b}/{$q}";
                             $rateVal = number_format((float)$row['rate'], 6, '.', '');
                             $rateValTrimmed = rtrim(rtrim($rateVal, '0'), '.');
+                            $isActivePairCurrent = isset($activePairsMap[$pair]) && ($activePairsMap[$pair]['id'] === (int)$row['id']);
                         ?>
-                            <tr>
+                            <tr style="<?php echo $isActivePairCurrent ? 'background: #f0fdf4; font-weight: 500;' : ''; ?>">
                                 <td><code style="font-weight: 600;">#<?php echo (int)$row['id']; ?></code></td>
                                 <td>
                                     <strong style="color: var(--wp-text-main);"><?php echo htmlspecialchars($row['base_currency'], ENT_QUOTES, 'UTF-8'); ?></strong>
                                     <span style="color: var(--wp-text-muted);">/</span>
                                     <strong style="color: var(--wp-text-main);"><?php echo htmlspecialchars($row['quote_currency'], ENT_QUOTES, 'UTF-8'); ?></strong>
+                                    <?php if ($isActivePairCurrent): ?>
+                                        <span class="badge badge-success" style="font-size: 10px; margin-left: 6px; padding: 2px 6px;">CURRENT</span>
+                                    <?php endif; ?>
                                 </td>
                                 <td>
-                                    <span style="font-size: 12px; background: #f8fafc; border: 1px solid #e2e8f0; padding: 3px 8px; border-radius: 4px;">
+                                    <span style="font-size: 12px; background: <?php echo $isActivePairCurrent ? '#dcfce7' : '#f8fafc'; ?>; border: 1px solid <?php echo $isActivePairCurrent ? '#86efac' : '#e2e8f0'; ?>; padding: 3px 8px; border-radius: 4px;">
                                         1 <?php echo htmlspecialchars($row['base_currency'], ENT_QUOTES, 'UTF-8'); ?> = 
                                         <strong><?php echo htmlspecialchars($rateValTrimmed, ENT_QUOTES, 'UTF-8'); ?></strong> 
                                         <?php echo htmlspecialchars($row['quote_currency'], ENT_QUOTES, 'UTF-8'); ?>
@@ -233,7 +352,12 @@
                                     </small>
                                 </td>
                                 <td>
-                                    <?php if ($status === 'inactive'): ?>
+                                    <?php if ($isActivePairCurrent): ?>
+                                        <span class="badge badge-success" style="font-weight: 700; display: inline-flex; align-items: center; gap: 4px;">
+                                            <span style="width: 6px; height: 6px; border-radius: 50%; background: #16a34a;"></span>
+                                            CURRENT ACTIVE
+                                        </span>
+                                    <?php elseif ($status === 'inactive'): ?>
                                         <span class="badge badge-secondary">INACTIVE</span>
                                     <?php elseif ($status === 'retired'): ?>
                                         <span class="badge badge-secondary">RETIRED</span>
@@ -286,19 +410,72 @@
 </div>
 
 <script>
+var ACTIVE_SAVED_RATES = <?php echo json_encode($activePairsMap, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>;
+
+function getSelectedPairKey() {
+    var baseEl = document.getElementById('base_currency');
+    var quoteEl = document.getElementById('quote_currency');
+    var base = (baseEl ? baseEl.value : 'USDT').toUpperCase();
+    var quote = (quoteEl ? quoteEl.value : 'BDT').toUpperCase();
+    return base + '/' + quote;
+}
+
+function handleCurrencyChange() {
+    var pair = getSelectedPairKey();
+    var rateEl = document.getElementById('rate');
+    var savedInfo = ACTIVE_SAVED_RATES[pair];
+
+    if (savedInfo && rateEl) {
+        rateEl.value = savedInfo.rate;
+    }
+    updateRateDisplay();
+}
+
 function updateRateDisplay() {
     var baseEl = document.getElementById('base_currency');
     var quoteEl = document.getElementById('quote_currency');
     var rateEl = document.getElementById('rate');
     var helperEl = document.getElementById('rate-display-helper');
+    var badgeEl = document.getElementById('current-saved-rate-badge');
 
     if (!baseEl || !quoteEl || !rateEl || !helperEl) return;
 
     var base = baseEl.value || 'USDT';
     var quote = quoteEl.value || 'BDT';
-    var rate = rateEl.value.trim() || '?';
+    var val = rateEl.value.trim();
+    var pair = (base + '/' + quote).toUpperCase();
+    var savedInfo = ACTIVE_SAVED_RATES[pair];
+    var savedRate = savedInfo ? savedInfo.rate : null;
 
-    helperEl.innerText = '1 ' + base + ' = ' + rate + ' ' + quote;
+    if (badgeEl) {
+        if (savedRate !== null) {
+            badgeEl.className = 'badge badge-success';
+            badgeEl.innerText = 'Current Saved: ' + savedRate + ' ' + quote;
+        } else {
+            badgeEl.className = 'badge badge-secondary';
+            badgeEl.innerText = 'Saved: None';
+        }
+    }
+
+    if (val === '') {
+        helperEl.style.color = 'var(--wp-text-muted)';
+        helperEl.innerText = 'Enter rate for 1 ' + base + ' in ' + quote;
+    } else if (savedRate !== null && val === savedRate) {
+        helperEl.style.color = '#15803d';
+        helperEl.style.fontWeight = '600';
+        helperEl.innerText = '✓ Current Saved Rate: 1 ' + base + ' = ' + val + ' ' + quote + ' (Active in Production)';
+    } else if (savedRate !== null) {
+        helperEl.style.color = '#b45309';
+        helperEl.style.fontWeight = '600';
+        helperEl.innerText = '⚠️ New Proposed Rate: 1 ' + base + ' = ' + val + ' ' + quote + ' (Unsaved — click Lock to save)';
+    } else {
+        helperEl.style.color = 'var(--wp-blue)';
+        helperEl.style.fontWeight = '600';
+        helperEl.innerText = 'New Rate: 1 ' + base + ' = ' + val + ' ' + quote;
+    }
 }
-document.addEventListener('DOMContentLoaded', updateRateDisplay);
+
+document.addEventListener('DOMContentLoaded', function() {
+    updateRateDisplay();
+});
 </script>
