@@ -137,6 +137,33 @@ class WalletRepository
         return $rows;
     }
 
+    public function countTransactions(int $walletId): int
+    {
+        $res = $this->db->selectOne(
+            "SELECT COUNT(*) as cnt FROM `favorite_digital_wallet_transactions` WHERE `wallet_id` = ?",
+            [$walletId]
+        );
+        return (int)($res->cnt ?? 0);
+    }
+
+    public function getTransactionsPaginated(int $walletId, int $page = 1, int $perPage = 15): array
+    {
+        $page = max(1, $page);
+        $perPage = max(1, min(100, $perPage));
+        $offset = ($page - 1) * $perPage;
+
+        $total = $this->countTransactions($walletId);
+        $rows = $this->getTransactions($walletId, $perPage, $offset);
+
+        return [
+            'data'        => $rows,
+            'total'       => $total,
+            'page'        => $page,
+            'per_page'    => $perPage,
+            'total_pages' => $total > 0 ? (int)ceil($total / $perPage) : 1,
+        ];
+    }
+
     protected function formatWallet(?object $wallet): ?object
     {
         if (!$wallet) {

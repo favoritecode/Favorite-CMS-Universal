@@ -6,8 +6,8 @@
  * @var array|null $wallet
  */
 $tab = $activeTab ?? 'library';
-$walletBalance = $wallet['balance'] ?? '0.00';
-$currency = $wallet['currency'] ?? 'BDT';
+$walletBalance = is_array($wallet) ? ($wallet['balance'] ?? '0.00') : ($wallet->balance_amount ?? ($wallet->balance ?? '0.00'));
+$currency = is_array($wallet) ? ($wallet['currency'] ?? 'BDT') : ($wallet->currency ?? 'BDT');
 ?>
 <style>
 .fav-account-nav-wrap {
@@ -96,11 +96,14 @@ $currency = $wallet['currency'] ?? 'BDT';
             <a href="/account/downloads" class="fav-nav-tab <?= $tab === 'downloads' ? 'active' : '' ?>" role="tab" aria-selected="<?= $tab === 'downloads' ? 'true' : 'false' ?>">
                 📥 Downloads
             </a>
+            <a href="/account/wallet" class="fav-nav-tab <?= $tab === 'wallet' ? 'active' : '' ?>" role="tab" aria-selected="<?= $tab === 'wallet' ? 'true' : 'false' ?>">
+                👛 Wallet
+            </a>
         </div>
         <div class="fav-wallet-badge-wrap">
-            <span class="fav-wallet-pill" title="Digital Wallet Balance">
+            <a href="/account/wallet" class="fav-wallet-pill" title="View Digital Wallet & Recharge">
                 👛 <span class="fav-wallet-label">Wallet:</span> <?= htmlspecialchars($currency, ENT_QUOTES, 'UTF-8') ?> <?= htmlspecialchars($walletBalance, ENT_QUOTES, 'UTF-8') ?>
-            </span>
+            </a>
         </div>
     </nav>
 </div>

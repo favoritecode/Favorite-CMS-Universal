@@ -300,6 +300,25 @@ final class FavoriteDigitalPlugin
                 $app->make(Services\CustomerAccountService::class)
             );
         });
+
+        $this->app->singleton(Services\WalletRechargeService::class, function ($app): Services\WalletRechargeService {
+            return new Services\WalletRechargeService(
+                $app->make(Repositories\WalletRepository::class),
+                $app->make(Services\WalletService::class),
+                $app->has(\FavoriteCMS\Pay\Contracts\PaymentServiceInterface::class) ? $app->make(\FavoriteCMS\Pay\Contracts\PaymentServiceInterface::class) : null,
+                $app->has(\FavoriteCMS\Pay\Contracts\CurrencyServiceInterface::class) ? $app->make(\FavoriteCMS\Pay\Contracts\CurrencyServiceInterface::class) : null,
+                $app->has(Database::class) ? $app->make(Database::class) : null
+            );
+        });
+
+        $this->app->singleton(Controllers\CustomerWalletController::class, function ($app): Controllers\CustomerWalletController {
+            return new Controllers\CustomerWalletController(
+                $app,
+                $app->make(Services\WalletService::class),
+                $app->make(Services\WalletRechargeService::class),
+                $app->has(\FavoriteCMS\Pay\Contracts\PaymentServiceInterface::class) ? $app->make(\FavoriteCMS\Pay\Contracts\PaymentServiceInterface::class) : null
+            );
+        });
     }
 
     public function boot(): void
@@ -475,6 +494,36 @@ final class FavoriteDigitalPlugin
                 $controller = $this->app->make(Controllers\CustomerAccountController::class);
                 return $controller->refunds($request);
             });
+
+            add_route('GET', '/account/wallet', function (Request $request) {
+                $controller = $this->app->make(Controllers\CustomerWalletController::class);
+                return $controller->index($request);
+            });
+
+            add_route('POST', '/account/wallet/recharge', function (Request $request) {
+                $controller = $this->app->make(Controllers\CustomerWalletController::class);
+                return $controller->recharge($request);
+            });
+
+            add_route('GET', '/account/wallet/recharge/manual', function (Request $request) {
+                $controller = $this->app->make(Controllers\CustomerWalletController::class);
+                return $controller->showManual($request);
+            });
+
+            add_route('POST', '/account/wallet/recharge/manual', function (Request $request) {
+                $controller = $this->app->make(Controllers\CustomerWalletController::class);
+                return $controller->submitManual($request);
+            });
+
+            add_route('GET', '/account/wallet/recharge/callback', function (Request $request) {
+                $controller = $this->app->make(Controllers\CustomerWalletController::class);
+                return $controller->callback($request);
+            });
+
+            add_route('POST', '/account/wallet/recharge/retry', function (Request $request) {
+                $controller = $this->app->make(Controllers\CustomerWalletController::class);
+                return $controller->retry($request);
+            });
         }
 
         // Lifecycle and Payment hooks
@@ -482,10 +531,16 @@ final class FavoriteDigitalPlugin
             add_action('favorite.pay.payment.succeeded', function (array $data): void {
                 if (($data['source_plugin'] ?? '') === 'favorite-digital') {
                     $txId = (string)($data['transaction_id'] ?? '');
-                    $orderId = (int)($data['source_reference'] ?? 0);
-                    if ($txId !== '' && $orderId > 0 && $this->app->has(Services\CheckoutService::class)) {
+                    $ref = (string)($data['source_reference'] ?? '');
+
+                    if (str_starts_with($ref, 'wrc_') && $this->app->has(Services\WalletRechargeService::class)) {
                         try {
-                            $this->app->make(Services\CheckoutService::class)->verifyAndSettlePayment($orderId, $txId);
+                            $this->app->make(Services\WalletRechargeService::class)->settleRecharge($txId);
+                        } catch (\Throwable) {
+                        }
+                    } elseif (is_numeric($ref) && (int)$ref > 0 && $this->app->has(Services\CheckoutService::class)) {
+                        try {
+                            $this->app->make(Services\CheckoutService::class)->verifyAndSettlePayment((int)$ref, $txId);
                         } catch (\Throwable) {
                         }
                     }
@@ -494,7 +549,7 @@ final class FavoriteDigitalPlugin
 
             add_action('favorite.pay.manual.approved', function (array $data): void {
                 $attemptId = (string)($data['attempt_id'] ?? '');
-                if ($attemptId !== '' && $this->app->has(Services\CheckoutService::class) && $this->app->has(\FavoriteCMS\Pay\Contracts\PaymentServiceInterface::class)) {
+                if ($attemptId !== '' && $this->app->has(\FavoriteCMS\Pay\Contracts\PaymentServiceInterface::class)) {
                     try {
                         $payService = $this->app->make(\FavoriteCMS\Pay\Contracts\PaymentServiceInterface::class);
                         if (method_exists($payService, 'getAttempt')) {
@@ -502,8 +557,13 @@ final class FavoriteDigitalPlugin
                             if ($attempt) {
                                 $intent = $payService->getIntent($attempt->getIntentId());
                                 if ($intent && $intent->getSourcePlugin() === 'favorite-digital') {
-                                    $orderId = (int)$intent->getSourceReference();
-                                    $this->app->make(Services\CheckoutService::class)->verifyAndSettlePayment($orderId, $intent->getId());
+                                    $ref = (string)$intent->getSourceReference();
+                                    if (str_starts_with($ref, 'wrc_') && $this->app->has(Services\WalletRechargeService::class)) {
+                                        $this->app->make(Services\WalletRechargeService::class)->settleRecharge($intent->getId());
+                                    } elseif (is_numeric($ref) && (int)$ref > 0 && $this->app->has(Services\CheckoutService::class)) {
+                                        $orderId = (int)$ref;
+                                        $this->app->make(Services\CheckoutService::class)->verifyAndSettlePayment($orderId, $intent->getId());
+                                    }
                                 }
                             }
                         }
