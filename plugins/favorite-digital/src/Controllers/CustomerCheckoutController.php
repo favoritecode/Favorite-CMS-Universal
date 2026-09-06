@@ -18,15 +18,33 @@ class CustomerCheckoutController
     protected Application $app;
     protected CheckoutService $checkoutService;
 
-    public function __construct(Application $app, CheckoutService $checkoutService)
-    {
+    protected ?\FavoriteCMS\Digital\Services\DigitalFileStorageService $fileStorageService = null;
+
+    public function __construct(
+        Application $app,
+        CheckoutService $checkoutService,
+        ?\FavoriteCMS\Digital\Services\DigitalFileStorageService $fileStorageService = null
+    ) {
         $this->app = $app;
         $this->checkoutService = $checkoutService;
+        $this->fileStorageService = $fileStorageService;
     }
 
     public function getCheckoutService(): CheckoutService
     {
         return $this->checkoutService;
+    }
+
+    public function getFileStorageService(): \FavoriteCMS\Digital\Services\DigitalFileStorageService
+    {
+        if ($this->fileStorageService === null) {
+            if ($this->app->has(\FavoriteCMS\Digital\Services\DigitalFileStorageService::class)) {
+                $this->fileStorageService = $this->app->make(\FavoriteCMS\Digital\Services\DigitalFileStorageService::class);
+            } else {
+                $this->fileStorageService = new \FavoriteCMS\Digital\Services\DigitalFileStorageService();
+            }
+        }
+        return $this->fileStorageService;
     }
 
     public function handle(Request $request, string $orderNumber): Response|string
@@ -136,8 +154,20 @@ class CustomerCheckoutController
                     throw CheckoutException::gatewayError('Please select a valid payment gateway.');
                 }
 
-                $result = $this->checkoutService->processFavoritePayPayment((int)$order->id, $userId, $gatewayId);
+                $isManual = $this->isManualGateway($gatewayId);
+                $params = [];
+                if ($isManual) {
+                    $params = $this->resolveManualPaymentParams($request);
+                }
+
+                $result = $this->checkoutService->processFavoritePayPayment((int)$order->id, $userId, $gatewayId, $params);
                 $attempt = $result['attempt'];
+
+                if ($isManual || (method_exists($attempt, 'getStatus') && $attempt->getStatus()->value === 'awaiting_verification')) {
+                    $trx = htmlspecialchars($params['trx_id'] ?? '', ENT_QUOTES, 'UTF-8');
+                    $_SESSION['flash_success'] = "Payment reference ({$trx}) submitted successfully. Your order is awaiting administrator verification.";
+                    return Response::redirect("/account/orders/{$orderNumber}");
+                }
 
                 // If gateway returns redirect URL, forward customer to gateway
                 if (method_exists($attempt, 'getRedirectUrl') && $attempt->getRedirectUrl()) {
@@ -156,14 +186,28 @@ class CustomerCheckoutController
                     throw CheckoutException::gatewayError('Please select a valid payment gateway for the remaining balance.');
                 }
 
+                $isManual = $this->isManualGateway($gatewayId);
+                $params = [];
+                if ($isManual) {
+                    $params = $this->resolveManualPaymentParams($request);
+                }
+
                 $result = $this->checkoutService->processMixedPayment(
                     (int)$order->id,
                     $userId,
                     $walletAmount,
-                    $gatewayId
+                    $gatewayId,
+                    $params
                 );
 
                 $attempt = $result['attempt'];
+
+                if ($isManual || (method_exists($attempt, 'getStatus') && $attempt->getStatus()->value === 'awaiting_verification')) {
+                    $trx = htmlspecialchars($params['trx_id'] ?? '', ENT_QUOTES, 'UTF-8');
+                    $_SESSION['flash_success'] = "Wallet amount deducted. Manual payment reference ({$trx}) submitted. Remaining balance is awaiting administrator verification.";
+                    return Response::redirect("/account/orders/{$orderNumber}");
+                }
+
                 if (method_exists($attempt, 'getRedirectUrl') && $attempt->getRedirectUrl()) {
                     return Response::redirect($attempt->getRedirectUrl());
                 }
@@ -225,10 +269,30 @@ class CustomerCheckoutController
     {
         $intentId = (string)$request->post('intent_id', '');
         $gatewayId = (string)$request->post('gateway_id', '');
-        $trxId = (string)$request->post('trx_id', '');
+        if ($gatewayId === '') {
+            $gatewayId = (string)$request->post('gateway', '');
+        }
 
         try {
+            $details = $this->resolveManualPaymentParams($request);
+            $trxId = $details['trx_id'];
+
             $order = $this->checkoutService->getOrderForCheckout($orderNumber, $userId);
+
+            if ($intentId === '') {
+                $payments = $this->checkoutService->getOrderRepository()->getOrderPayments((int)$order->id);
+                foreach ($payments as $p) {
+                    if (!empty($p->favorite_pay_tx_id)) {
+                        $intentId = (string)$p->favorite_pay_tx_id;
+                        break;
+                    }
+                }
+
+                if ($intentId === '') {
+                    $initResult = $this->checkoutService->processFavoritePayPayment((int)$order->id, $userId, $gatewayId, $details);
+                    $intentId = $initResult['intent']->getId();
+                }
+            }
 
             $this->checkoutService->submitManualPayment(
                 (int)$order->id,
@@ -236,7 +300,7 @@ class CustomerCheckoutController
                 $intentId,
                 $gatewayId,
                 $trxId,
-                ['idempotency_key' => $request->post('idempotency_key')]
+                $details
             );
 
             $_SESSION['flash_success'] = 'Manual transaction reference submitted. Awaiting operator review.';
@@ -245,6 +309,56 @@ class CustomerCheckoutController
             $_SESSION['flash_error'] = 'Manual submission error: ' . $e->getMessage();
             return Response::redirect("/checkout/{$orderNumber}");
         }
+    }
+
+    protected function isManualGateway(string $gatewayId): bool
+    {
+        if (str_starts_with($gatewayId, 'manual_')) {
+            return true;
+        }
+
+        $favPayService = $this->checkoutService->getFavoritePayService();
+        if ($favPayService !== null) {
+            try {
+                if ($favPayService->getGatewayRegistry()->has($gatewayId)) {
+                    $gw = $favPayService->getGatewayRegistry()->get($gatewayId);
+                    return $gw->getType()->requiresManualVerification();
+                }
+            } catch (Throwable) {
+            }
+        }
+
+        return false;
+    }
+
+    protected function resolveManualPaymentParams(Request $request): array
+    {
+        $trxId = trim((string)$request->post('trx_id', ''));
+        if ($trxId === '') {
+            throw CheckoutException::gatewayError('Transaction ID (TrxID) is required for manual payment.');
+        }
+
+        $senderAccount = trim((string)$request->post('sender_account', ''));
+        $notes = trim((string)$request->post('notes', ''));
+
+        $params = [
+            'transaction_reference' => $trxId,
+            'trx_id'                => $trxId,
+            'sender_account'        => $senderAccount !== '' ? $senderAccount : null,
+            'notes'                 => $notes !== '' ? $notes : null,
+            'idempotency_key'       => $request->post('idempotency_key'),
+        ];
+
+        if (isset($_FILES['payment_proof']) && !empty($_FILES['payment_proof']['tmp_name'])) {
+            $storage = $this->getFileStorageService();
+            $storedProof = $storage->storeProofUpload($_FILES['payment_proof']);
+            $params['proof_path'] = $storedProof['file_path'];
+            $params['proof_name'] = $storedProof['file_name'];
+            $params['proof_hash'] = $storedProof['file_hash'];
+            $params['proof_size'] = $storedProof['file_size'];
+        }
+
+        return $params;
     }
 
     protected function resolveCurrentUserId(): int

@@ -299,39 +299,62 @@ class CustomerAccountService
 
             if ($pType === ProductType::DIGITAL) {
                 $details = $this->productRepo->findProductDetails($pid);
+                $resourceType = (string)($details->resource_type ?? 'file');
+                $resourceUrl = (string)($details->resource_url ?? '');
+                $hasUrlResource = in_array($resourceType, ['url', 'both'], true) && !empty($resourceUrl);
+                $hasFileResource = in_array($resourceType, ['file', 'both'], true);
+
+                $item['resource_type'] = $resourceType;
+                $item['resource_url'] = $hasUrlResource ? $resourceUrl : null;
+                $item['has_url_resource'] = $hasUrlResource;
+                $item['has_file_resource'] = $hasFileResource;
+                $item['external_resource_url'] = $hasUrlResource ? ('/account/resource/' . $pid) : null;
+
                 $isUnlimited = ($hasActiveMembership && !empty($details->is_membership_eligible)) || $item['is_membership_covered'];
-                $item['file_size_formatted'] = $details ? $this->formatBytes((int)$details->file_size) : null;
-                $item['file_extension'] = $details && !empty($details->file_name) ? strtoupper(pathinfo($details->file_name, PATHINFO_EXTENSION)) : 'FILE';
+                $item['file_size_formatted'] = $details && !empty($details->file_size) ? $this->formatBytes((int)$details->file_size) : null;
+                $item['file_extension'] = $details && !empty($details->file_name) ? strtoupper(pathinfo($details->file_name, PATHINFO_EXTENSION)) : ($resourceType === 'url' ? 'LINK' : 'FILE');
                 $item['version'] = $details->version ?? null;
                 $item['is_unlimited'] = $isUnlimited;
 
                 if ($item['state'] === 'accessible') {
-                    $tokenRecord = $this->downloadService->getOrCreateDownloadToken(
-                        $userId,
-                        $pid,
-                        $item['primary_entitlement_id'] > 0 ? $item['primary_entitlement_id'] : null
-                    );
-                    $downloadCount = (int)$tokenRecord->download_count;
-                    $maxLimit = DownloadService::MAX_PURCHASE_DOWNLOADS;
-                    $remaining = max(0, $maxLimit - $downloadCount);
+                    if ($hasFileResource) {
+                        $tokenRecord = $this->downloadService->getOrCreateDownloadToken(
+                            $userId,
+                            $pid,
+                            $item['primary_entitlement_id'] > 0 ? $item['primary_entitlement_id'] : null
+                        );
+                        $downloadCount = (int)$tokenRecord->download_count;
+                        $maxLimit = DownloadService::MAX_PURCHASE_DOWNLOADS;
+                        $remaining = max(0, $maxLimit - $downloadCount);
 
-                    $item['download_token'] = (string)$tokenRecord->download_token;
-                    $item['download_url'] = '/download/' . urlencode((string)$tokenRecord->download_token);
-                    $item['download_count'] = $downloadCount;
-                    $item['max_limit'] = $maxLimit;
-                    $item['remaining'] = $remaining;
-                    $item['download_remaining'] = $isUnlimited ? null : $remaining;
+                        $item['download_token'] = (string)$tokenRecord->download_token;
+                        $item['download_url'] = '/download/' . urlencode((string)$tokenRecord->download_token);
+                        $item['download_count'] = $downloadCount;
+                        $item['max_limit'] = $maxLimit;
+                        $item['remaining'] = $remaining;
+                        $item['download_remaining'] = $isUnlimited ? null : $remaining;
 
-                    if (!$isUnlimited && $remaining <= 0) {
-                        $item['is_exhausted'] = true;
+                        if (!$isUnlimited && $remaining <= 0) {
+                            $item['is_exhausted'] = true;
+                            $item['can_download'] = false;
+                            $item['is_downloadable'] = false;
+                            $item['action_label'] = 'Download Limit Reached';
+                        } else {
+                            $item['is_exhausted'] = false;
+                            $item['can_download'] = true;
+                            $item['is_downloadable'] = true;
+                            $item['action_label'] = 'Download File';
+                        }
+                    } else {
+                        // URL only: no file download
+                        $item['download_url'] = null;
+                        $item['download_token'] = null;
+                        $item['download_count'] = 0;
+                        $item['download_remaining'] = null;
+                        $item['is_exhausted'] = false;
                         $item['can_download'] = false;
                         $item['is_downloadable'] = false;
-                        $item['action_label'] = 'Download Limit Reached';
-                    } else {
-                        $item['is_exhausted'] = false;
-                        $item['can_download'] = true;
-                        $item['is_downloadable'] = true;
-                        $item['action_label'] = 'Download File';
+                        $item['action_label'] = 'Access Online Resource';
                     }
                 } else {
                     $item['download_url'] = null;
@@ -343,7 +366,7 @@ class CustomerAccountService
                         'revoked'            => 'Access Revoked (Refunded)',
                         'expired'            => 'Access Expired',
                         'membership_expired' => 'Membership Expired',
-                        default              => 'Download Unavailable',
+                        default              => 'Access Unavailable',
                     };
                 }
             } elseif ($pType === ProductType::SERVICE) {
@@ -596,5 +619,94 @@ class CustomerAccountService
         $power = (int)floor(log($bytes, 1024));
         $power = min($power, count($units) - 1);
         return round($bytes / pow(1024, $power), 2) . ' ' . $units[$power];
+    }
+
+    /**
+     * Authorize access to an external resource URL for a digital product.
+     *
+     * Validates:
+     * 1. User authentication.
+     * 2. Digital product existence and resource_type supports external URL ('url' or 'both').
+     * 3. Valid safe HTTP/HTTPS URL scheme.
+     * 4. User entitlement (direct purchase, package, or active membership coverage).
+     * 5. Revocation and expiry status.
+     *
+     * NOTE: Does NOT exhaust file download quotas.
+     *
+     * @param int $userId
+     * @param int $productId
+     * @return string Validated external resource URL
+     * @throws \RuntimeException|\InvalidArgumentException If access denied or resource invalid
+     */
+    public function authorizeExternalResource(int $userId, int $productId): string
+    {
+        if ($userId <= 0) {
+            throw new \RuntimeException('Authentication required to access this resource.', 401);
+        }
+
+        if ($productId <= 0) {
+            throw new \InvalidArgumentException('Invalid product ID.', 400);
+        }
+
+        $product = $this->productRepo->findProduct($productId);
+        if (!$product) {
+            throw new \RuntimeException('Product not found.', 404);
+        }
+
+        if ($product->product_type !== ProductType::DIGITAL) {
+            throw new \RuntimeException('Only digital products provide online resources.', 400);
+        }
+
+        $details = $this->productRepo->findProductDetails($productId);
+        if (!$details) {
+            throw new \RuntimeException('Resource details not found.', 404);
+        }
+
+        $resourceType = (string)($details->resource_type ?? 'file');
+        if (!in_array($resourceType, ['url', 'both'], true) || empty($details->resource_url)) {
+            throw new \RuntimeException('No external resource configured for this product.', 404);
+        }
+
+        $safeUrl = trim((string)$details->resource_url);
+        $parsed = parse_url($safeUrl);
+        $scheme = strtolower((string)($parsed['scheme'] ?? ''));
+        if (!in_array($scheme, ['http', 'https'], true) || empty($parsed['host'])) {
+            throw new \RuntimeException('Invalid or unsafe external resource URL.', 400);
+        }
+
+        // 1. Check direct/package active entitlement
+        $activeEnt = $this->entitlementRepo->findActiveEntitlement($userId, $productId);
+        if ($activeEnt) {
+            return $safeUrl;
+        }
+
+        // 2. Check active membership access if membership-eligible
+        $hasActiveMembership = $this->membershipService->hasActiveMembership($userId);
+        $isMembershipEligible = !empty($details->is_membership_eligible);
+        if ($hasActiveMembership && $isMembershipEligible) {
+            return $safeUrl;
+        }
+
+        // 3. If no active entitlement or membership, check if revoked, expired, or unauthorized
+        $rawEntitlements = $this->entitlementRepo->getEntitlementsByUser($userId);
+        $userEntitlementsForProduct = array_filter($rawEntitlements, fn($e) => (int)$e->product_id === $productId);
+
+        if (!empty($userEntitlementsForProduct)) {
+            $nowStr = (new DateTimeImmutable())->format('Y-m-d H:i:s');
+            foreach ($userEntitlementsForProduct as $ent) {
+                if ($ent->status === 'revoked') {
+                    throw new \RuntimeException('Access has been revoked for this item (order refunded).', 403);
+                }
+                if ($ent->status === 'expired' || (!empty($ent->expires_at) && $ent->expires_at <= $nowStr)) {
+                    throw new \RuntimeException('Access to this resource has expired.', 403);
+                }
+            }
+        }
+
+        if ($isMembershipEligible && !$hasActiveMembership) {
+            throw new \RuntimeException('An active membership is required to access this resource.', 403);
+        }
+
+        throw new \RuntimeException('You do not have entitlement to access this resource.', 403);
     }
 }

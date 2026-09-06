@@ -295,6 +295,16 @@ if (!function_exists('buildStoreUrl')) {
                 $type    = (string)$p['product_type'];
                 ?>
                 <article class="product-card" data-product-id="<?= (int)$p['id'] ?>">
+                    <?php
+                    $cardCover = !empty($p['cover_image_url']) ? $p['cover_image_url'] : (!empty($p['cover_image_path']) ? $p['cover_image_path'] : null);
+                    ?>
+                    <?php if ($cardCover): ?>
+                        <div class="card-cover-image" style="width: 100%; height: 160px; overflow: hidden; border-top-left-radius: 12px; border-top-right-radius: 12px; background: #f8fafc;">
+                            <a href="/store/<?= htmlspecialchars($p['slug'], ENT_QUOTES, 'UTF-8') ?>" style="display: block; width: 100%; height: 100%;">
+                                <img src="<?= htmlspecialchars($cardCover, ENT_QUOTES, 'UTF-8') ?>" alt="<?= htmlspecialchars($p['title'], ENT_QUOTES, 'UTF-8') ?>" style="width: 100%; height: 100%; object-fit: cover; display: block;" loading="lazy">
+                            </a>
+                        </div>
+                    <?php endif; ?>
                     <div class="card-header-bar">
                         <span class="type-tag type-<?= htmlspecialchars($type, ENT_QUOTES, 'UTF-8') ?>">
                             <?= match ($type) {

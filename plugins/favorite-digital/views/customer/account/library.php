@@ -272,6 +272,12 @@ if (!function_exists('buildLibraryUrl')) {
                         <!-- Type Specifications -->
                         <?php if ($item['product_type'] === 'digital'): ?>
                             <div class="item-specs">
+                                <?php if (!empty($item['has_url_resource'])): ?>
+                                    <div class="spec-line">
+                                        <span>Resource:</span>
+                                        <strong style="color: #0284c7;">Online Access</strong>
+                                    </div>
+                                <?php endif; ?>
                                 <?php if (!empty($item['file_size_formatted'])): ?>
                                     <div class="spec-line">
                                         <span>File Size:</span>
@@ -319,23 +325,34 @@ if (!function_exists('buildLibraryUrl')) {
                     <div class="card-footer">
                         <?php if ($item['product_type'] === 'digital'): ?>
                             <?php if ($item['state'] === 'accessible'): ?>
-                                <?php if ($item['can_download']): ?>
-                                    <a href="<?= htmlspecialchars($item['download_url'], ENT_QUOTES, 'UTF-8') ?>"
-                                       class="btn-action btn-primary">
-                                        📥 <?= htmlspecialchars($item['action_label'], ENT_QUOTES, 'UTF-8') ?>
-                                    </a>
-                                <?php else: ?>
-                                    <button disabled class="btn-action btn-disabled">
-                                        <?= htmlspecialchars($item['action_label'], ENT_QUOTES, 'UTF-8') ?>
-                                    </button>
+                                <?php if (!empty($item['has_file_resource'])): ?>
+                                    <?php if ($item['can_download']): ?>
+                                        <a href="<?= htmlspecialchars($item['download_url'], ENT_QUOTES, 'UTF-8') ?>"
+                                           class="btn-action btn-primary">
+                                            📥 <?= htmlspecialchars($item['action_label'], ENT_QUOTES, 'UTF-8') ?>
+                                        </a>
+                                    <?php else: ?>
+                                        <button disabled class="btn-action btn-disabled">
+                                            <?= htmlspecialchars($item['action_label'], ENT_QUOTES, 'UTF-8') ?>
+                                        </button>
+                                    <?php endif; ?>
+
+                                    <?php if (!empty($item['is_unlimited'])): ?>
+                                        <span class="download-meta">✨ Unlimited Downloads (Active Membership)</span>
+                                    <?php elseif (isset($item['remaining'])): ?>
+                                        <span class="download-meta">
+                                            <?= (int)$item['remaining'] ?> / <?= (int)$item['max_limit'] ?> downloads remaining
+                                        </span>
+                                    <?php endif; ?>
                                 <?php endif; ?>
 
-                                <?php if (!empty($item['is_unlimited'])): ?>
-                                    <span class="download-meta">✨ Unlimited Downloads (Active Membership)</span>
-                                <?php elseif (isset($item['remaining'])): ?>
-                                    <span class="download-meta">
-                                        <?= (int)$item['remaining'] ?> / <?= (int)$item['max_limit'] ?> downloads remaining
-                                    </span>
+                                <?php if (!empty($item['has_url_resource'])): ?>
+                                    <a href="<?= htmlspecialchars($item['external_resource_url'], ENT_QUOTES, 'UTF-8') ?>"
+                                       target="_blank"
+                                       class="btn-action btn-primary"
+                                       style="<?= !empty($item['has_file_resource']) ? 'margin-top: 8px; background: #0284c7;' : '' ?>">
+                                        🔗 Access Online Resource
+                                    </a>
                                 <?php endif; ?>
                             <?php else: ?>
                                 <button disabled class="btn-action btn-disabled">

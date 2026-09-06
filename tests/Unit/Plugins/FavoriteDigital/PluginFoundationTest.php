@@ -59,7 +59,7 @@ class PluginFoundationTest extends TestCase
 
         $this->assertSame('favorite-digital', $meta['id']);
         $this->assertSame('Favorite Digital', $meta['name']);
-        $this->assertSame('1.0.0', $meta['version']);
+        $this->assertSame('1.0.1', $meta['version']);
         $this->assertSame('Favorite CMS Team', $meta['author']);
         $this->assertSame('plugin.php', $meta['entry_point']);
         $this->assertTrue($meta['valid']);
@@ -138,7 +138,7 @@ class PluginFoundationTest extends TestCase
         $migrationsPath = APP_ROOT . '/plugins/favorite-digital/database/migrations';
         $applied = $migrator->migrate($migrationsPath);
 
-        $this->assertCount(15, $applied, 'Migrator must execute all 15 migrations in sequence');
+        $this->assertCount(16, $applied, 'Migrator must execute all 16 migrations in sequence');
 
         foreach (FavoriteDigitalPlugin::TABLES as $table) {
             $this->assertTrue(
@@ -503,7 +503,7 @@ class PluginFoundationTest extends TestCase
         // Run migrations
         $migrator = new Migrator($mySqlDb);
         $applied = $migrator->migrate(APP_ROOT . '/plugins/favorite-digital/database/migrations');
-        $this->assertCount(15, $applied);
+        $this->assertCount(16, $applied);
 
         // Verify tables exist in MySQL with prefix
         foreach (FavoriteDigitalPlugin::TABLES as $table) {

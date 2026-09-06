@@ -23,7 +23,7 @@
         </div>
     <?php endif; ?>
 
-    <form method="POST" action="/admin/page/favorite-digital-services">
+    <form method="POST" action="/admin/page/favorite-digital-services" enctype="multipart/form-data">
         <input type="hidden" name="_token" value="<?php echo htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
         <input type="hidden" name="action" value="store">
 
@@ -38,7 +38,7 @@
                         <label style="display: block; font-weight: 600; font-size: 13px; margin-bottom: 6px; color: #1e1e1e;">
                             Service Title <span style="color: #dc3545;">*</span>
                         </label>
-                        <input type="text" name="title" id="fd-title" required value="<?php echo htmlspecialchars((string)($old['title'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>" placeholder="e.g., Custom WordPress Speed Optimization & Audit" style="width: 100%; box-sizing: border-box; padding: 8px 12px; border: 1px solid #8c8f94; border-radius: 4px; font-size: 14px;">
+                        <input type="text" name="title" id="fd-title" required value="<?php echo htmlspecialchars((string)($old['title'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>" placeholder="e.g., SEO Technical Audit & Optimization" style="width: 100%; box-sizing: border-box; padding: 8px 12px; border: 1px solid #8c8f94; border-radius: 4px; font-size: 14px;">
                     </div>
 
                     <div style="margin-bottom: 16px;">
@@ -46,7 +46,7 @@
                             URL Slug
                             <span style="font-weight: 400; color: #646970; font-size: 12px;">(optional, auto-generated from title)</span>
                         </label>
-                        <input type="text" name="slug" id="fd-slug" value="<?php echo htmlspecialchars((string)($old['slug'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>" placeholder="e.g., speed-optimization-audit" style="width: 100%; box-sizing: border-box; padding: 8px 12px; border: 1px solid #8c8f94; border-radius: 4px; font-size: 13px; font-family: monospace;">
+                        <input type="text" name="slug" id="fd-slug" value="<?php echo htmlspecialchars((string)($old['slug'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>" placeholder="e.g., seo-technical-audit" style="width: 100%; box-sizing: border-box; padding: 8px 12px; border: 1px solid #8c8f94; border-radius: 4px; font-size: 13px; font-family: monospace;">
                     </div>
 
                     <div style="margin-bottom: 16px;">
@@ -61,6 +61,28 @@
                             Full Description
                         </label>
                         <textarea name="description" rows="5" placeholder="Detailed service description and value proposition" style="width: 100%; box-sizing: border-box; padding: 8px 12px; border: 1px solid #8c8f94; border-radius: 4px; font-size: 13px; font-family: inherit;"><?php echo htmlspecialchars((string)($old['description'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></textarea>
+                    </div>
+                </div>
+
+                <!-- Cover Image / Media Card -->
+                <div style="background: #fff; border: 1px solid #c3c4c7; border-radius: 4px; padding: 20px; box-shadow: 0 1px 1px rgba(0,0,0,0.04);">
+                    <h3 style="font-size: 15px; font-weight: 600; margin: 0 0 16px 0; color: #1e1e1e; border-bottom: 1px solid #f0f0f1; padding-bottom: 10px;">Cover Image / Media</h3>
+
+                    <div style="margin-bottom: 14px;">
+                        <label style="display: block; font-weight: 600; font-size: 13px; margin-bottom: 6px; color: #1e1e1e;">
+                            Upload Cover Image
+                        </label>
+                        <input type="file" name="cover_image" accept="image/jpeg,image/png,image/webp,image/gif,image/svg+xml" style="display: block; width: 100%; font-size: 13px; color: #50575e;">
+                        <div style="font-size: 11px; color: #646970; margin-top: 4px;">
+                            Supported formats: JPG, PNG, WEBP, GIF, SVG.
+                        </div>
+                    </div>
+
+                    <div>
+                        <label style="display: block; font-weight: 600; font-size: 13px; margin-bottom: 6px; color: #1e1e1e;">
+                            Or External Cover Image URL
+                        </label>
+                        <input type="url" name="cover_image_url" value="<?php echo htmlspecialchars((string)($old['cover_image_url'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>" placeholder="https://example.com/images/cover.jpg" style="width: 100%; box-sizing: border-box; padding: 8px 12px; border: 1px solid #8c8f94; border-radius: 4px; font-size: 13px;">
                     </div>
                 </div>
 

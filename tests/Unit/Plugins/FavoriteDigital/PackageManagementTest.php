@@ -868,7 +868,7 @@ class PackageManagementTest extends TestCase
             // Run migrations on MySQL
             $migrator = new Migrator($mysqlDb);
             $applied = $migrator->migrate(APP_ROOT . '/plugins/favorite-digital/database/migrations');
-            $this->assertCount(15, $applied);
+            $this->assertCount(16, $applied);
 
             $repo = new ProductRepository($mysqlDb);
             $service = new ProductManagementService($repo, $this->storageService);

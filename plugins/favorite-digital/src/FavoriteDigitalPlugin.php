@@ -475,6 +475,11 @@ final class FavoriteDigitalPlugin
                 return $controller->library($request);
             });
 
+            add_route('GET', '/account/resource/{productId}', function (Request $request, string $productId) {
+                $controller = $this->app->make(Controllers\CustomerAccountController::class);
+                return $controller->accessResource($request, (int)$productId);
+            });
+
             add_route('GET', '/account/membership', function (Request $request) {
                 $controller = $this->app->make(Controllers\CustomerAccountController::class);
                 return $controller->membership($request);

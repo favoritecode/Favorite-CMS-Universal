@@ -38,9 +38,20 @@ class ProductManagementService
     // Digital Product Management
     // -------------------------------------------------------------------------
 
-    public function createDigitalProduct(array $productInput, array $detailsInput, ?array $uploadedFile = null): int
-    {
+    public function createDigitalProduct(
+        array $productInput,
+        array $detailsInput,
+        ?array $uploadedFile = null,
+        ?array $uploadedImage = null
+    ): int {
         $productInput['product_type'] = ProductType::DIGITAL;
+
+        // Handle uploaded cover image if provided
+        if ($uploadedImage !== null && !empty($uploadedImage['name'])) {
+            $imageMeta = $this->storageService->storeImageUpload($uploadedImage);
+            $productInput['cover_image_path'] = $imageMeta['file_path'];
+        }
+
         $validatedProduct = $this->validateProductData($productInput);
 
         // Handle uploaded digital file if provided
@@ -67,14 +78,32 @@ class ProductManagementService
         return $productId;
     }
 
-    public function updateDigitalProduct(int $id, array $productInput, array $detailsInput, ?array $uploadedFile = null): bool
-    {
+    public function updateDigitalProduct(
+        int $id,
+        array $productInput,
+        array $detailsInput,
+        ?array $uploadedFile = null,
+        ?array $uploadedImage = null
+    ): bool {
         $existing = $this->repository->findProduct($id);
         if (!$existing) {
             throw new InvalidArgumentException("Digital product with ID {$id} not found.");
         }
 
         $productInput['product_type'] = ProductType::DIGITAL;
+
+        // Handle new uploaded cover image if provided
+        if ($uploadedImage !== null && !empty($uploadedImage['name'])) {
+            $imageMeta = $this->storageService->storeImageUpload($uploadedImage);
+            $productInput['cover_image_path'] = $imageMeta['file_path'];
+        } elseif (!array_key_exists('cover_image_path', $productInput)) {
+            $productInput['cover_image_path'] = $existing->cover_image_path ?? null;
+        }
+
+        if (!array_key_exists('cover_image_url', $productInput)) {
+            $productInput['cover_image_url'] = $existing->cover_image_url ?? null;
+        }
+
         $validatedProduct = $this->validateProductData($productInput, $id);
 
         $existingDetails = (array)($this->repository->findProductDetails($id) ?? []);
@@ -103,9 +132,16 @@ class ProductManagementService
     // Service Management
     // -------------------------------------------------------------------------
 
-    public function createService(array $productInput, array $serviceInput): int
+    public function createService(array $productInput, array $serviceInput, ?array $uploadedImage = null): int
     {
         $productInput['product_type'] = ProductType::SERVICE;
+
+        // Handle uploaded cover image if provided
+        if ($uploadedImage !== null && !empty($uploadedImage['name'])) {
+            $imageMeta = $this->storageService->storeImageUpload($uploadedImage);
+            $productInput['cover_image_path'] = $imageMeta['file_path'];
+        }
+
         $validatedProduct = $this->validateProductData($productInput);
         $validatedService = $this->validateServiceDetails($serviceInput);
 
@@ -119,7 +155,7 @@ class ProductManagementService
         return $productId;
     }
 
-    public function updateService(int $id, array $productInput, array $serviceInput): bool
+    public function updateService(int $id, array $productInput, array $serviceInput, ?array $uploadedImage = null): bool
     {
         $existing = $this->repository->findProduct($id);
         if (!$existing) {
@@ -127,6 +163,19 @@ class ProductManagementService
         }
 
         $productInput['product_type'] = ProductType::SERVICE;
+
+        // Handle uploaded cover image if provided
+        if ($uploadedImage !== null && !empty($uploadedImage['name'])) {
+            $imageMeta = $this->storageService->storeImageUpload($uploadedImage);
+            $productInput['cover_image_path'] = $imageMeta['file_path'];
+        } elseif (!array_key_exists('cover_image_path', $productInput)) {
+            $productInput['cover_image_path'] = $existing->cover_image_path ?? null;
+        }
+
+        if (!array_key_exists('cover_image_url', $productInput)) {
+            $productInput['cover_image_url'] = $existing->cover_image_url ?? null;
+        }
+
         $validatedProduct = $this->validateProductData($productInput, $id);
         $validatedService = $this->validateServiceDetails($serviceInput);
 
@@ -453,10 +502,19 @@ class ProductManagementService
             $isFree
         );
 
+        $coverImageUrl = null;
+        if (!empty($input['cover_image_url'])) {
+            $coverImageUrl = $this->storageService->validateSafeUrl((string)$input['cover_image_url']);
+        }
+
+        $coverImagePath = !empty($input['cover_image_path']) ? trim((string)$input['cover_image_path']) : null;
+
         return [
             'title'            => $title,
             'slug'             => $slug,
             'description'      => !empty($input['description']) ? trim((string)$input['description']) : null,
+            'cover_image_path' => $coverImagePath,
+            'cover_image_url'  => $coverImageUrl,
             'product_type'     => $type,
             'status'           => $status,
             'original_price'   => number_format($originalPrice, 2, '.', ''),
@@ -484,23 +542,54 @@ class ProductManagementService
             throw new InvalidArgumentException('Download expiry days cannot be negative.');
         }
 
+        $resourceType = strtolower(trim((string)($input['resource_type'] ?? ($existing['resource_type'] ?? 'file'))));
+        if (!in_array($resourceType, ['file', 'url', 'both'], true)) {
+            $resourceType = 'file';
+        }
+
+        $resourceUrl = null;
+        if (!empty($input['resource_url'])) {
+            $resourceUrl = $this->storageService->validateSafeUrl((string)$input['resource_url']);
+        } elseif (!empty($existing['resource_url'])) {
+            $resourceUrl = (string)$existing['resource_url'];
+        }
+
         $filePath = (string)($input['file_path'] ?? ($existing['file_path'] ?? ''));
         $fileName = (string)($input['file_name'] ?? ($existing['file_name'] ?? ''));
         $fileHash = (string)($input['file_hash'] ?? ($existing['file_hash'] ?? ''));
         $fileSize = (int)($input['file_size'] ?? ($existing['file_size'] ?? 0));
         $mimeType = (string)($input['mime_type'] ?? ($existing['mime_type'] ?? ''));
 
-        // If product is being published, downloadable resource is mandatory
-        if ($isPublishing && ($filePath === '' || !file_exists(APP_ROOT . '/' . $filePath))) {
-            // Check if file exists relative to storageDir
-            $absolutePath = (str_starts_with($filePath, 'storage/') ? APP_ROOT . '/' . $filePath : $filePath);
-            if ($filePath === '' || !file_exists($absolutePath)) {
-                throw new InvalidArgumentException('Digital product must have a valid uploaded file or resource before it can be published.');
+        // If product is being published, validate resource availability based on resource_type
+        if ($isPublishing) {
+            $hasValidFile = false;
+            if ($filePath !== '') {
+                $baseRoot = defined('APP_ROOT') ? APP_ROOT : dirname(__DIR__, 4);
+                $absolutePath = (str_starts_with($filePath, 'storage/') ? $baseRoot . '/' . $filePath : $filePath);
+                $hasValidFile = file_exists($absolutePath);
+            }
+
+            $hasValidUrl = (!empty($resourceUrl));
+
+            if ($resourceType === 'file' && !$hasValidFile) {
+                throw new InvalidArgumentException('Digital product must have a valid uploaded file before it can be published.');
+            }
+
+            if ($resourceType === 'url' && !$hasValidUrl) {
+                throw new InvalidArgumentException('Digital product must have a valid external resource URL before it can be published.');
+            }
+
+            if ($resourceType === 'both') {
+                if (!$hasValidFile || !$hasValidUrl) {
+                    throw new InvalidArgumentException('Digital product with resource type "both" must have both an uploaded file and an external resource URL before it can be published.');
+                }
             }
         }
 
         return [
             'version'                => $version,
+            'resource_type'          => $resourceType,
+            'resource_url'           => $resourceUrl,
             'file_path'              => $filePath !== '' ? $filePath : null,
             'file_name'              => $fileName !== '' ? $fileName : null,
             'file_hash'              => $fileHash !== '' ? $fileHash : null,

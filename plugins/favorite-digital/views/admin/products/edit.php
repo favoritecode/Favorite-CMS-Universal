@@ -97,44 +97,98 @@ $expiryDays = $old['download_expiry_days'] ?? ($details->download_expiry_days ??
                     </div>
                 </div>
 
+                <!-- Cover Image / Media Card -->
+                <div style="background: #fff; border: 1px solid #c3c4c7; border-radius: 4px; padding: 20px; box-shadow: 0 1px 1px rgba(0,0,0,0.04);">
+                    <h3 style="font-size: 15px; font-weight: 600; margin: 0 0 16px 0; color: #1e1e1e; border-bottom: 1px solid #f0f0f1; padding-bottom: 10px;">Cover Image / Media</h3>
+
+                    <?php if (!empty($product->cover_image_path) || !empty($product->cover_image_url)): ?>
+                        <?php $imgSrc = !empty($product->cover_image_url) ? $product->cover_image_url : '/' . ltrim((string)$product->cover_image_path, '/'); ?>
+                        <div style="margin-bottom: 14px; text-align: center; background: #f8f9fa; border: 1px solid #e2e3e5; border-radius: 4px; padding: 10px;">
+                            <div style="font-size: 12px; color: #646970; margin-bottom: 6px; font-weight: 600;">Current Cover Image</div>
+                            <img src="<?php echo htmlspecialchars($imgSrc, ENT_QUOTES, 'UTF-8'); ?>" alt="Cover" style="max-height: 140px; max-width: 100%; border-radius: 4px; object-fit: contain;">
+                        </div>
+                    <?php endif; ?>
+
+                    <div style="margin-bottom: 14px;">
+                        <label style="display: block; font-weight: 600; font-size: 13px; margin-bottom: 6px; color: #1e1e1e;">
+                            <?php echo (!empty($product->cover_image_path) || !empty($product->cover_image_url)) ? 'Replace Cover Image' : 'Upload Cover Image'; ?>
+                        </label>
+                        <input type="file" name="cover_image" accept="image/jpeg,image/png,image/webp,image/gif,image/svg+xml" style="display: block; width: 100%; font-size: 13px; color: #50575e;">
+                        <div style="font-size: 11px; color: #646970; margin-top: 4px;">
+                            Supported formats: JPG, PNG, WEBP, GIF, SVG.
+                        </div>
+                    </div>
+
+                    <div>
+                        <label style="display: block; font-weight: 600; font-size: 13px; margin-bottom: 6px; color: #1e1e1e;">
+                            Or External Cover Image URL
+                        </label>
+                        <input type="url" name="cover_image_url" value="<?php echo htmlspecialchars((string)($old['cover_image_url'] ?? $product->cover_image_url ?? ''), ENT_QUOTES, 'UTF-8'); ?>" placeholder="https://example.com/images/cover.jpg" style="width: 100%; box-sizing: border-box; padding: 8px 12px; border: 1px solid #8c8f94; border-radius: 4px; font-size: 13px;">
+                    </div>
+                </div>
+
                 <!-- Digital File Card -->
                 <div style="background: #fff; border: 1px solid #c3c4c7; border-radius: 4px; padding: 20px; box-shadow: 0 1px 1px rgba(0,0,0,0.04);">
                     <h3 style="font-size: 15px; font-weight: 600; margin: 0 0 16px 0; color: #1e1e1e; border-bottom: 1px solid #f0f0f1; padding-bottom: 10px;">Downloadable Resource / File</h3>
 
-                    <!-- Current File Information -->
-                    <?php if (!empty($details->file_path)): ?>
-                        <div style="background: #f8f9fa; border: 1px solid #e2e3e5; border-radius: 4px; padding: 12px 14px; margin-bottom: 16px;">
-                            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
-                                <div style="font-weight: 600; font-size: 13px; color: #155724; display: flex; align-items: center; gap: 6px;">
-                                    <span>✔</span> Active File Configured
-                                </div>
-                                <span style="font-size: 11px; background: #e8f0fe; color: #1967d2; padding: 2px 6px; border-radius: 3px; font-family: monospace;">
-                                    <?php echo htmlspecialchars($details->file_mime ?? 'application/octet-stream', ENT_QUOTES, 'UTF-8'); ?>
-                                </span>
-                            </div>
-                            <div style="font-size: 13px; color: #1e1e1e; font-weight: 500; word-break: break-all;">
-                                <?php echo htmlspecialchars($details->file_original_name ?? basename($details->file_path), ENT_QUOTES, 'UTF-8'); ?>
-                            </div>
-                            <div style="font-size: 12px; color: #646970; margin-top: 4px;">
-                                Size: <?php echo htmlspecialchars(number_format(((int)($details->file_size_bytes ?? 0)) / 1024, 1), ENT_QUOTES, 'UTF-8'); ?> KB
-                                <?php if (!empty($details->file_hash)): ?>
-                                    &bull; SHA-256: <code style="font-size: 11px;"><?php echo htmlspecialchars(substr($details->file_hash, 0, 16) . '...', ENT_QUOTES, 'UTF-8'); ?></code>
-                                <?php endif; ?>
-                            </div>
-                        </div>
-                    <?php else: ?>
-                        <div style="background: #fff3cd; border: 1px solid #ffeeba; border-radius: 4px; padding: 12px 14px; margin-bottom: 16px; color: #856404; font-size: 13px;">
-                            <strong>Warning:</strong> No downloadable file has been uploaded for this digital product yet. It cannot be published until a file is attached.
-                        </div>
-                    <?php endif; ?>
-
                     <div style="margin-bottom: 16px;">
                         <label style="display: block; font-weight: 600; font-size: 13px; margin-bottom: 6px; color: #1e1e1e;">
-                            <?php echo !empty($details->file_path) ? 'Replace File (Leave empty to keep current file)' : 'Upload Digital File'; ?>
+                            Resource Type <span style="color: #dc3545;">*</span>
                         </label>
-                        <input type="file" name="digital_file" style="display: block; width: 100%; font-size: 13px; color: #50575e;">
-                        <div style="font-size: 12px; color: #646970; margin-top: 6px;">
-                            Supported formats: <code>.zip</code>, <code>.pdf</code>, <code>.epub</code>, <code>.mp3</code>, <code>.mp4</code>, <code>.json</code>, <code>.csv</code>.
+                        <?php $currentResType = $old['resource_type'] ?? $details->resource_type ?? 'file'; ?>
+                        <select name="resource_type" id="fd-resource-type" onchange="onResourceTypeChange()" style="width: 100%; box-sizing: border-box; padding: 8px 12px; border: 1px solid #8c8f94; border-radius: 4px; font-size: 13px; background: #fff;">
+                            <option value="file" <?php echo $currentResType === 'file' ? 'selected' : ''; ?>>Uploaded File Only</option>
+                            <option value="url" <?php echo $currentResType === 'url' ? 'selected' : ''; ?>>External Resource URL Only</option>
+                            <option value="both" <?php echo $currentResType === 'both' ? 'selected' : ''; ?>>Both (Uploaded File + External URL)</option>
+                        </select>
+                    </div>
+
+                    <div id="fd-url-block" style="margin-bottom: 16px; display: <?php echo in_array($currentResType, ['url', 'both'], true) ? 'block' : 'none'; ?>;">
+                        <label style="display: block; font-weight: 600; font-size: 13px; margin-bottom: 6px; color: #1e1e1e;">
+                            External Resource URL <span style="color: #dc3545;">*</span>
+                        </label>
+                        <input type="url" name="resource_url" id="fd-resource-url" value="<?php echo htmlspecialchars((string)($old['resource_url'] ?? $details->resource_url ?? ''), ENT_QUOTES, 'UTF-8'); ?>" placeholder="https://secure.example.com/assets/resource" style="width: 100%; box-sizing: border-box; padding: 8px 12px; border: 1px solid #8c8f94; border-radius: 4px; font-size: 13px;">
+                        <div style="font-size: 11px; color: #646970; margin-top: 4px;">
+                            Must use safe HTTP/HTTPS. Customers receive protected access via entitlement verification.
+                        </div>
+                    </div>
+
+                    <div id="fd-file-block" style="display: <?php echo in_array($currentResType, ['file', 'both'], true) ? 'block' : 'none'; ?>;">
+                        <!-- Current File Information -->
+                        <?php if (!empty($details->file_path)): ?>
+                            <div style="background: #f8f9fa; border: 1px solid #e2e3e5; border-radius: 4px; padding: 12px 14px; margin-bottom: 16px;">
+                                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
+                                    <div style="font-weight: 600; font-size: 13px; color: #155724; display: flex; align-items: center; gap: 6px;">
+                                        <span>✔</span> Active File Configured
+                                    </div>
+                                    <span style="font-size: 11px; background: #e8f0fe; color: #1967d2; padding: 2px 6px; border-radius: 3px; font-family: monospace;">
+                                        <?php echo htmlspecialchars($details->file_mime ?? 'application/octet-stream', ENT_QUOTES, 'UTF-8'); ?>
+                                    </span>
+                                </div>
+                                <div style="font-size: 13px; color: #1e1e1e; font-weight: 500; word-break: break-all;">
+                                    <?php echo htmlspecialchars($details->file_original_name ?? basename($details->file_path), ENT_QUOTES, 'UTF-8'); ?>
+                                </div>
+                                <div style="font-size: 12px; color: #646970; margin-top: 4px;">
+                                    Size: <?php echo htmlspecialchars(number_format(((int)($details->file_size_bytes ?? 0)) / 1024, 1), ENT_QUOTES, 'UTF-8'); ?> KB
+                                    <?php if (!empty($details->file_hash)): ?>
+                                        &bull; SHA-256: <code style="font-size: 11px;"><?php echo htmlspecialchars(substr($details->file_hash, 0, 16) . '...', ENT_QUOTES, 'UTF-8'); ?></code>
+                                    <?php endif; ?>
+                                </div>
+                            </div>
+                        <?php else: ?>
+                            <div style="background: #fff3cd; border: 1px solid #ffeeba; border-radius: 4px; padding: 12px 14px; margin-bottom: 16px; color: #856404; font-size: 13px;">
+                                <strong>Notice:</strong> No downloadable file has been uploaded yet for this product.
+                            </div>
+                        <?php endif; ?>
+
+                        <div style="margin-bottom: 16px;">
+                            <label style="display: block; font-weight: 600; font-size: 13px; margin-bottom: 6px; color: #1e1e1e;">
+                                <?php echo !empty($details->file_path) ? 'Replace File (Leave empty to keep current file)' : 'Upload Digital File'; ?>
+                            </label>
+                            <input type="file" name="digital_file" style="display: block; width: 100%; font-size: 13px; color: #50575e;">
+                            <div style="font-size: 12px; color: #646970; margin-top: 6px;">
+                                Supported formats: <code>.zip</code>, <code>.pdf</code>, <code>.epub</code>, <code>.mp3</code>, <code>.mp4</code>, <code>.json</code>, <code>.csv</code>, <code>.docx</code>, <code>.xlsx</code>.
+                            </div>
                         </div>
                     </div>
 
@@ -280,5 +334,19 @@ $expiryDays = $old['download_expiry_days'] ?? ($details->download_expiry_days ??
         calculateSellingPrice();
     }
 })();
+
+function onResourceTypeChange() {
+    var sel = document.getElementById('fd-resource-type');
+    var urlBlock = document.getElementById('fd-url-block');
+    var fileBlock = document.getElementById('fd-file-block');
+    if (!sel) return;
+    var val = sel.value;
+    if (urlBlock) {
+        urlBlock.style.display = (val === 'url' || val === 'both') ? 'block' : 'none';
+    }
+    if (fileBlock) {
+        fileBlock.style.display = (val === 'file' || val === 'both') ? 'block' : 'none';
+    }
+}
 </script>
 

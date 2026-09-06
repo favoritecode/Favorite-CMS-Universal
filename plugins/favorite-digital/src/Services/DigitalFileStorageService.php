@@ -10,38 +10,61 @@ use RuntimeException;
 class DigitalFileStorageService
 {
     protected string $storageDir;
+    protected string $imagesDir;
+    protected string $proofsDir;
     protected int $maxUploadBytes;
 
     protected array $allowedExtensions = [
         // Archives
         'zip', 'rar', '7z', 'tar', 'gz',
         // Documents & Books
-        'pdf', 'epub', 'mobi', 'docx', 'xlsx', 'pptx', 'txt', 'csv', 'json',
+        'pdf', 'epub', 'mobi', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'odt', 'ods', 'txt', 'csv', 'json',
         // Audio
-        'mp3', 'wav', 'ogg', 'm4a', 'flac',
+        'mp3', 'wav', 'ogg', 'm4a', 'flac', 'aac',
         // Video
-        'mp4', 'webm', 'mov', 'mkv',
+        'mp4', 'webm', 'mov', 'mkv', 'avi',
         // Graphics & Design
-        'png', 'jpg', 'jpeg', 'webp', 'svg', 'bmp', 'psd', 'ai',
+        'png', 'jpg', 'jpeg', 'webp', 'svg', 'bmp', 'psd', 'ai', 'gif',
+    ];
+
+    protected array $allowedImageExtensions = [
+        'jpg', 'jpeg', 'png', 'webp', 'gif', 'svg',
     ];
 
     protected array $blacklistedExtensions = [
-        'php', 'phtml', 'php3', 'php4', 'php5', 'php7', 'pht', 'phar',
+        'php', 'phtml', 'php3', 'php4', 'php5', 'php7', 'php8', 'pht', 'phar',
         'pl', 'py', 'cgi', 'asp', 'aspx', 'jsp', 'sh', 'bash',
-        'exe', 'bat', 'cmd', 'com', 'vbs', 'dll', 'so',
-        'html', 'htm', 'xhtml', 'shtml', 'js', 'jar', 'app',
+        'exe', 'bat', 'cmd', 'com', 'vbs', 'vbe', 'wsf', 'wsh', 'scr', 'cpl', 'dll', 'so', 'dylib', 'bin',
+        'html', 'htm', 'xhtml', 'shtml', 'js', 'jar', 'app', 'msi',
     ];
 
-    public function __construct(?string $storageDir = null, int $maxUploadBytes = 104857600) // Default 100MB
-    {
-        $this->storageDir = $storageDir ?? (APP_ROOT . '/storage/plugins/favorite-digital/files');
+    public function __construct(
+        ?string $storageDir = null,
+        int $maxUploadBytes = 104857600, // Default 100MB
+        ?string $imagesDir = null,
+        ?string $proofsDir = null
+    ) {
+        $baseStorage = defined('APP_ROOT') ? APP_ROOT . '/storage/plugins/favorite-digital' : sys_get_temp_dir() . '/favorite-digital';
+        $this->storageDir = $storageDir ?? ($baseStorage . '/files');
+        $this->imagesDir = $imagesDir ?? ($baseStorage . '/images');
+        $this->proofsDir = $proofsDir ?? ($baseStorage . '/proofs');
         $this->maxUploadBytes = $maxUploadBytes;
-        $this->ensureStorageDirectory();
+        $this->ensureStorageDirectories();
     }
 
     public function getStorageDir(): string
     {
         return $this->storageDir;
+    }
+
+    public function getImagesDir(): string
+    {
+        return $this->imagesDir;
+    }
+
+    public function getProofsDir(): string
+    {
+        return $this->proofsDir;
     }
 
     /**
@@ -165,6 +188,231 @@ class DigitalFileStorageService
         return $name;
     }
 
+    /**
+     * Store an uploaded cover/card image after strict image security validation.
+     *
+     * @param array $file $_FILES item
+     * @return array [file_path, file_name, file_hash, file_size, mime_type]
+     */
+    public function storeImageUpload(array $file): array
+    {
+        if (isset($file['error']) && $file['error'] !== UPLOAD_ERR_OK) {
+            throw new InvalidArgumentException($this->getUploadErrorMessage((int)$file['error']));
+        }
+
+        $tmpPath = (string)($file['tmp_name'] ?? '');
+        if ($tmpPath === '' || !is_uploaded_file($tmpPath)) {
+            if (!defined('PHPUNIT_RUNNING') || !file_exists($tmpPath)) {
+                throw new InvalidArgumentException('Invalid uploaded image or temporary file missing.');
+            }
+        }
+
+        $rawName = (string)($file['name'] ?? '');
+        $originalName = $this->sanitizeFileName($rawName);
+        $size = (int)($file['size'] ?? 0);
+
+        if ($size <= 0) {
+            $size = (int)@filesize($tmpPath);
+        }
+        if ($size <= 0) {
+            throw new InvalidArgumentException('Uploaded image is empty (0 bytes).');
+        }
+        $maxImageBytes = 10485760; // 10MB
+        if ($size > $maxImageBytes) {
+            throw new InvalidArgumentException('Image size exceeds maximum allowed limit of 10MB.');
+        }
+
+        // Validate image extension
+        $this->validateImageExtension($originalName);
+
+        // Binary MIME detection
+        $mimeType = $this->detectMimeType($tmpPath);
+        $ext = strtolower((string)pathinfo($originalName, PATHINFO_EXTENSION));
+
+        if (!str_starts_with($mimeType, 'image/') && $ext !== 'svg') {
+            throw new InvalidArgumentException("Invalid image MIME type '{$mimeType}'.");
+        }
+
+        // SVG security: reject embedded scripts
+        if ($ext === 'svg') {
+            $svgContent = (string)@file_get_contents($tmpPath);
+            if (preg_match('/<script|javascript:|onload|onerror|data:/i', $svgContent)) {
+                throw new InvalidArgumentException('SVG image contains dangerous script or event handlers.');
+            }
+        }
+
+        $hash = hash_file('sha256', $tmpPath);
+        if ($hash === false) {
+            throw new RuntimeException('Failed to generate SHA-256 hash for image.');
+        }
+
+        $targetFileName = $hash . ($ext !== '' ? '.' . $ext : '');
+        $destination = $this->imagesDir . '/' . $targetFileName;
+
+        if (defined('PHPUNIT_RUNNING') && !is_uploaded_file($tmpPath)) {
+            if (!copy($tmpPath, $destination)) {
+                throw new RuntimeException('Failed to copy image into secure storage.');
+            }
+        } else {
+            if (!move_uploaded_file($tmpPath, $destination)) {
+                throw new RuntimeException('Failed to move uploaded image into secure storage.');
+            }
+        }
+
+        return [
+            'file_path' => 'storage/plugins/favorite-digital/images/' . $targetFileName,
+            'file_name' => $originalName,
+            'file_hash' => $hash,
+            'file_size' => $size,
+            'mime_type' => $mimeType,
+        ];
+    }
+
+    /**
+     * Store an uploaded payment proof screenshot.
+     */
+    public function storeProofUpload(array $file): array
+    {
+        if (isset($file['error']) && $file['error'] !== UPLOAD_ERR_OK) {
+            throw new InvalidArgumentException($this->getUploadErrorMessage((int)$file['error']));
+        }
+
+        $tmpPath = (string)($file['tmp_name'] ?? '');
+        if ($tmpPath === '' || !is_uploaded_file($tmpPath)) {
+            if (!defined('PHPUNIT_RUNNING') || !file_exists($tmpPath)) {
+                throw new InvalidArgumentException('Invalid uploaded proof file or temporary file missing.');
+            }
+        }
+
+        $rawName = (string)($file['name'] ?? '');
+        $originalName = $this->sanitizeFileName($rawName);
+        $size = (int)($file['size'] ?? 0);
+
+        if ($size <= 0) {
+            $size = (int)@filesize($tmpPath);
+        }
+        if ($size <= 0) {
+            throw new InvalidArgumentException('Uploaded proof file is empty (0 bytes).');
+        }
+        $maxProofBytes = 10485760; // 10MB
+        if ($size > $maxProofBytes) {
+            throw new InvalidArgumentException('Proof file exceeds maximum limit of 10MB.');
+        }
+
+        $clean = strtolower(trim($originalName));
+        $ext = (string)pathinfo($clean, PATHINFO_EXTENSION);
+        $allowedProofExts = ['jpg', 'jpeg', 'png', 'webp', 'pdf'];
+        if (!in_array($ext, $allowedProofExts, true)) {
+            throw new InvalidArgumentException("Proof file extension '{$ext}' is not allowed. Accepted: JPG, PNG, WEBP, PDF.");
+        }
+
+        // Multi-extension check
+        $parts = explode('.', $clean);
+        if (count($parts) > 2) {
+            foreach (array_slice($parts, 1, -1) as $intermediate) {
+                if (in_array($intermediate, $this->blacklistedExtensions, true)) {
+                    throw new InvalidArgumentException("Forbidden intermediate extension '{$intermediate}' in proof filename.");
+                }
+            }
+        }
+
+        $mimeType = $this->detectMimeType($tmpPath);
+        if (!str_starts_with($mimeType, 'image/') && $mimeType !== 'application/pdf') {
+            throw new InvalidArgumentException("Invalid proof file MIME type '{$mimeType}'.");
+        }
+
+        $hash = hash_file('sha256', $tmpPath);
+        if ($hash === false) {
+            throw new RuntimeException('Failed to hash proof file.');
+        }
+
+        $targetFileName = $hash . ($ext !== '' ? '.' . $ext : '');
+        $destination = $this->proofsDir . '/' . $targetFileName;
+
+        if (defined('PHPUNIT_RUNNING') && !is_uploaded_file($tmpPath)) {
+            if (!copy($tmpPath, $destination)) {
+                throw new RuntimeException('Failed to copy proof file into storage.');
+            }
+        } else {
+            if (!move_uploaded_file($tmpPath, $destination)) {
+                throw new RuntimeException('Failed to move proof file into storage.');
+            }
+        }
+
+        return [
+            'file_path' => 'storage/plugins/favorite-digital/proofs/' . $targetFileName,
+            'file_name' => $originalName,
+            'file_hash' => $hash,
+            'file_size' => $size,
+            'mime_type' => $mimeType,
+        ];
+    }
+
+    /**
+     * Validate image extension against whitelist and blacklist.
+     */
+    public function validateImageExtension(string $filename): void
+    {
+        $clean = strtolower(trim($filename));
+        $ext = (string)pathinfo($clean, PATHINFO_EXTENSION);
+
+        if ($ext === '') {
+            throw new InvalidArgumentException('Image file must have a valid extension.');
+        }
+
+        if (in_array($ext, $this->blacklistedExtensions, true)) {
+            throw new InvalidArgumentException("File extension '{$ext}' is strictly forbidden.");
+        }
+
+        if (!in_array($ext, $this->allowedImageExtensions, true)) {
+            throw new InvalidArgumentException("Extension '{$ext}' is not an allowed image format.");
+        }
+
+        $parts = explode('.', $clean);
+        if (count($parts) > 2) {
+            foreach (array_slice($parts, 1, -1) as $intermediate) {
+                if (in_array($intermediate, $this->blacklistedExtensions, true)) {
+                    throw new InvalidArgumentException("Dangerous multi-extension detected: '{$intermediate}'.");
+                }
+            }
+        }
+    }
+
+    /**
+     * Validate external URL strictly. Only http and https allowed.
+     */
+    public function validateSafeUrl(string $url): string
+    {
+        $url = trim($url);
+        if ($url === '') {
+            throw new InvalidArgumentException('URL cannot be empty.');
+        }
+
+        $parsed = parse_url($url);
+        if ($parsed === false || empty($parsed['scheme']) || empty($parsed['host'])) {
+            throw new InvalidArgumentException('Invalid URL structure provided.');
+        }
+
+        $scheme = strtolower((string)$parsed['scheme']);
+        if (!in_array($scheme, ['http', 'https'], true)) {
+            throw new InvalidArgumentException("Insecure or dangerous URL scheme '{$scheme}' is not allowed.");
+        }
+
+        $lower = strtolower($url);
+        $forbiddenSchemes = ['javascript:', 'data:', 'vbscript:', 'file:', 'about:', 'blob:'];
+        foreach ($forbiddenSchemes as $f) {
+            if (str_contains($lower, $f)) {
+                throw new InvalidArgumentException("URL contains forbidden protocol prefix '{$f}'.");
+            }
+        }
+
+        if (filter_var($url, FILTER_VALIDATE_URL) === false) {
+            throw new InvalidArgumentException('Malformed URL format.');
+        }
+
+        return $url;
+    }
+
     protected function detectMimeType(string $path): string
     {
         try {
@@ -179,17 +427,18 @@ class DigitalFileStorageService
         return 'application/octet-stream';
     }
 
-    protected function ensureStorageDirectory(): void
+    protected function ensureStorageDirectories(): void
     {
-        if (!is_dir($this->storageDir)) {
-            mkdir($this->storageDir, 0755, true);
-        }
+        foreach ([$this->storageDir, $this->imagesDir, $this->proofsDir] as $dir) {
+            if (!is_dir($dir)) {
+                mkdir($dir, 0755, true);
+            }
 
-        // Hardening: ensure .htaccess blocks any script execution
-        $htaccess = $this->storageDir . '/.htaccess';
-        if (!file_exists($htaccess)) {
-            $rules = "Deny from all\n<IfModule mod_php.c>\n    php_flag engine off\n</IfModule>\n";
-            @file_put_contents($htaccess, $rules);
+            $htaccess = $dir . '/.htaccess';
+            if (!file_exists($htaccess)) {
+                $rules = "Deny from all\n<IfModule mod_php.c>\n    php_flag engine off\n</IfModule>\n";
+                @file_put_contents($htaccess, $rules);
+            }
         }
     }
 

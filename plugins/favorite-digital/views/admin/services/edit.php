@@ -56,7 +56,7 @@ $requirements = $old['requirements_prompt'] ?? ($details->requirements_prompt ??
         </div>
     <?php endif; ?>
 
-    <form method="POST" action="/admin/page/favorite-digital-services">
+    <form method="POST" action="/admin/page/favorite-digital-services" enctype="multipart/form-data">
         <input type="hidden" name="_token" value="<?php echo htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
         <input type="hidden" name="action" value="update">
         <input type="hidden" name="id" value="<?php echo (int)$product->id; ?>">
@@ -94,6 +94,36 @@ $requirements = $old['requirements_prompt'] ?? ($details->requirements_prompt ??
                             Full Description
                         </label>
                         <textarea name="description" rows="5" style="width: 100%; box-sizing: border-box; padding: 8px 12px; border: 1px solid #8c8f94; border-radius: 4px; font-size: 13px; font-family: inherit;"><?php echo htmlspecialchars((string)($desc ?? ''), ENT_QUOTES, 'UTF-8'); ?></textarea>
+                    </div>
+                </div>
+
+                <!-- Cover Image / Media Card -->
+                <div style="background: #fff; border: 1px solid #c3c4c7; border-radius: 4px; padding: 20px; box-shadow: 0 1px 1px rgba(0,0,0,0.04);">
+                    <h3 style="font-size: 15px; font-weight: 600; margin: 0 0 16px 0; color: #1e1e1e; border-bottom: 1px solid #f0f0f1; padding-bottom: 10px;">Cover Image / Media</h3>
+
+                    <?php if (!empty($product->cover_image_path) || !empty($product->cover_image_url)): ?>
+                        <?php $imgSrc = !empty($product->cover_image_url) ? $product->cover_image_url : '/' . ltrim((string)$product->cover_image_path, '/'); ?>
+                        <div style="margin-bottom: 14px; text-align: center; background: #f8f9fa; border: 1px solid #e2e3e5; border-radius: 4px; padding: 10px;">
+                            <div style="font-size: 12px; color: #646970; margin-bottom: 6px; font-weight: 600;">Current Cover Image</div>
+                            <img src="<?php echo htmlspecialchars($imgSrc, ENT_QUOTES, 'UTF-8'); ?>" alt="Cover" style="max-height: 140px; max-width: 100%; border-radius: 4px; object-fit: contain;">
+                        </div>
+                    <?php endif; ?>
+
+                    <div style="margin-bottom: 14px;">
+                        <label style="display: block; font-weight: 600; font-size: 13px; margin-bottom: 6px; color: #1e1e1e;">
+                            <?php echo (!empty($product->cover_image_path) || !empty($product->cover_image_url)) ? 'Replace Cover Image' : 'Upload Cover Image'; ?>
+                        </label>
+                        <input type="file" name="cover_image" accept="image/jpeg,image/png,image/webp,image/gif,image/svg+xml" style="display: block; width: 100%; font-size: 13px; color: #50575e;">
+                        <div style="font-size: 11px; color: #646970; margin-top: 4px;">
+                            Supported formats: JPG, PNG, WEBP, GIF, SVG. Max 10MB.
+                        </div>
+                    </div>
+
+                    <div>
+                        <label style="display: block; font-weight: 600; font-size: 13px; margin-bottom: 6px; color: #1e1e1e;">
+                            Or External Cover Image URL
+                        </label>
+                        <input type="url" name="cover_image_url" value="<?php echo htmlspecialchars((string)($old['cover_image_url'] ?? $product->cover_image_url ?? ''), ENT_QUOTES, 'UTF-8'); ?>" placeholder="https://example.com/images/cover.jpg" style="width: 100%; box-sizing: border-box; padding: 8px 12px; border: 1px solid #8c8f94; border-radius: 4px; font-size: 13px;">
                     </div>
                 </div>
 

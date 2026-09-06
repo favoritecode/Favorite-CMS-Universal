@@ -115,6 +115,9 @@ class StorefrontService
                 // Safe customer-facing metadata ONLY. No internal storage paths or private tokens!
                 $typeDetails = [
                     'version'                => (string)($details->version ?? '1.0.0'),
+                    'resource_type'          => (string)($details->resource_type ?? 'file'),
+                    'has_url_resource'       => !empty($details->resource_url),
+                    'has_file_resource'      => !empty($details->file_path),
                     'file_name'              => (string)($details->file_name ?? 'Downloadable File'),
                     'file_size'              => (int)($details->file_size ?? 0),
                     'formatted_file_size'    => $this->formatFileSize((int)($details->file_size ?? 0)),
@@ -413,6 +416,8 @@ class StorefrontService
             'status'              => (string)$product->status,
             'currency'            => (string)($product->currency ?? $this->getSiteCurrency()),
             'is_free'             => !empty($product->is_free),
+            'cover_image_path'    => !empty($product->cover_image_path) ? (string)$product->cover_image_path : null,
+            'cover_image_url'     => !empty($product->cover_image_url) ? (string)$product->cover_image_url : null,
             'pricing'             => $pricing,
             'customer_state'      => $customerState,
             'package_count'       => $packageCount,

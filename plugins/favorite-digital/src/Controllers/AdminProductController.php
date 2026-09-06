@@ -163,6 +163,7 @@ class AdminProductController
             'is_free'               => (int)($request->post('is_free') ? 1 : 0),
             'status'                => (string)$request->post('status', ProductStatus::DRAFT),
             'is_membership_eligible'=> (int)($request->post('is_membership_eligible') ? 1 : 0),
+            'cover_image_url'       => (string)$request->post('cover_image_url', ''),
         ];
 
         $maxDownloads = $request->post('max_downloads', $request->post('max_downloads_per_user'));
@@ -173,12 +174,15 @@ class AdminProductController
                                         ? (int)$request->post('download_expiry_days')
                                         : 0,
             'is_membership_eligible' => (int)($request->post('is_membership_eligible') ? 1 : 0),
+            'resource_type'          => (string)$request->post('resource_type', 'file'),
+            'resource_url'           => (string)$request->post('resource_url', ''),
         ];
 
         $uploadedFile = $request->file('digital_file');
+        $uploadedImage = $request->file('cover_image');
 
         try {
-            $productId = $this->service->createDigitalProduct($productInput, $detailsInput, $uploadedFile);
+            $productId = $this->service->createDigitalProduct($productInput, $detailsInput, $uploadedFile, $uploadedImage);
             $_SESSION['flash_success'] = "Digital product #{$productId} created successfully.";
             return Response::redirect('/admin/page/favorite-digital?action=view&id=' . $productId);
         } catch (Throwable $e) {
@@ -233,6 +237,7 @@ class AdminProductController
             'is_free'               => (int)($request->post('is_free') ? 1 : 0),
             'status'                => (string)$request->post('status', ProductStatus::DRAFT),
             'is_membership_eligible'=> (int)($request->post('is_membership_eligible') ? 1 : 0),
+            'cover_image_url'       => (string)$request->post('cover_image_url', ''),
         ];
 
         $maxDownloads = $request->post('max_downloads', $request->post('max_downloads_per_user'));
@@ -243,12 +248,15 @@ class AdminProductController
                                         ? (int)$request->post('download_expiry_days')
                                         : 0,
             'is_membership_eligible' => (int)($request->post('is_membership_eligible') ? 1 : 0),
+            'resource_type'          => (string)$request->post('resource_type', 'file'),
+            'resource_url'           => (string)$request->post('resource_url', ''),
         ];
 
         $uploadedFile = $request->file('digital_file');
+        $uploadedImage = $request->file('cover_image');
 
         try {
-            $this->service->updateDigitalProduct($id, $productInput, $detailsInput, $uploadedFile);
+            $this->service->updateDigitalProduct($id, $productInput, $detailsInput, $uploadedFile, $uploadedImage);
             $_SESSION['flash_success'] = 'Digital product updated successfully.';
             return Response::redirect('/admin/page/favorite-digital?action=view&id=' . $id);
         } catch (Throwable $e) {

@@ -161,6 +161,7 @@ class AdminServiceController
             'is_free'               => (int)($request->post('is_free') ? 1 : 0),
             'status'                => (string)$request->post('status', ProductStatus::DRAFT),
             'is_membership_eligible'=> (int)($request->post('is_membership_eligible') ? 1 : 0),
+            'cover_image_url'       => (string)$request->post('cover_image_url', ''),
         ];
 
         $deliveryDays = $request->post('delivery_time_days', $request->post('delivery_days'));
@@ -171,8 +172,10 @@ class AdminServiceController
             'requirements_prompt' => (string)$request->post('requirements_prompt', ''),
         ];
 
+        $uploadedImage = $request->file('cover_image');
+
         try {
-            $serviceId = $this->service->createService($productInput, $serviceInput);
+            $serviceId = $this->service->createService($productInput, $serviceInput, $uploadedImage);
             $_SESSION['flash_success'] = "Service #{$serviceId} created successfully.";
             return Response::redirect('/admin/page/favorite-digital-services?action=view&id=' . $serviceId);
         } catch (Throwable $e) {
@@ -227,6 +230,7 @@ class AdminServiceController
             'is_free'               => (int)($request->post('is_free') ? 1 : 0),
             'status'                => (string)$request->post('status', ProductStatus::DRAFT),
             'is_membership_eligible'=> (int)($request->post('is_membership_eligible') ? 1 : 0),
+            'cover_image_url'       => (string)$request->post('cover_image_url', ''),
         ];
 
         $deliveryDays = $request->post('delivery_time_days', $request->post('delivery_days'));
@@ -237,8 +241,10 @@ class AdminServiceController
             'requirements_prompt' => (string)$request->post('requirements_prompt', ''),
         ];
 
+        $uploadedImage = $request->file('cover_image');
+
         try {
-            $this->service->updateService($id, $productInput, $serviceInput);
+            $this->service->updateService($id, $productInput, $serviceInput, $uploadedImage);
             $_SESSION['flash_success'] = 'Service updated successfully.';
             return Response::redirect('/admin/page/favorite-digital-services?action=view&id=' . $id);
         } catch (Throwable $e) {

@@ -41,6 +41,17 @@
         .btn-pay:hover { background: #1d4ed8; }
         .items-list { margin-top: 12px; border-top: 1px dashed #cbd5e1; padding-top: 12px; }
         .item-row { display: flex; justify-content: space-between; font-size: 13px; color: #475569; margin-bottom: 4px; }
+        .manual-box { background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 8px; padding: 16px; margin-top: 14px; margin-left: 28px; font-size: 13px; }
+        .manual-box h3 { margin: 0 0 10px; font-size: 14px; font-weight: 700; color: #0f172a; }
+        .manual-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; margin-bottom: 12px; }
+        .manual-item { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 6px; padding: 8px 12px; }
+        .manual-item-lbl { font-size: 11px; font-weight: 600; color: #64748b; text-transform: uppercase; margin-bottom: 2px; }
+        .manual-item-val { font-size: 14px; font-weight: 700; color: #0f172a; }
+        .manual-instructions { background: #fffbeb; border: 1px solid #fde68a; border-radius: 6px; padding: 10px 12px; color: #92400e; margin-bottom: 12px; font-size: 13px; }
+        .manual-inputs-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; }
+        .manual-inputs-grid .full-span { grid-column: 1 / -1; }
+        .manual-inputs-grid label { font-size: 12px; font-weight: 600; color: #334155; display: block; margin-bottom: 4px; }
+        .manual-inputs-grid input, .manual-inputs-grid textarea { width: 100%; box-sizing: border-box; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 13px; }
     </style>
 </head>
 <body>
@@ -93,7 +104,7 @@
         <?php endif; ?>
     </div>
 
-    <form method="POST" action="/checkout/<?= urlencode($order->order_number) ?>" id="checkoutForm">
+    <form method="POST" action="/checkout/<?= urlencode($order->order_number) ?>" id="checkoutForm" enctype="multipart/form-data">
         <input type="hidden" name="_token" value="<?= htmlspecialchars($_SESSION['_token'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
         <input type="hidden" name="action" value="pay">
 
@@ -124,21 +135,55 @@
                         <span>Online / Mobile Payment (Favorite Pay)</span>
                     </label>
                     <div class="method-desc">bKash, Nagad, Rocket, Bank Transfer, or Binance Pay.</div>
+                    
                     <div class="field-group" id="gateway_selector" style="<?= $canUseWallet ? 'display: none;' : '' ?>">
                         <label for="gateway_id">Select Payment Gateway:</label>
-                        <select name="gateway_id" id="gateway_id">
+                        <select name="gateway_id" id="gateway_id" onchange="onGatewayChange()">
                             <?php if (!empty($availableGateways)): ?>
                                 <?php foreach ($availableGateways as $gw): ?>
-                                    <option value="<?= htmlspecialchars($gw['id'], ENT_QUOTES, 'UTF-8') ?>">
+                                    <option value="<?= htmlspecialchars($gw['id'], ENT_QUOTES, 'UTF-8') ?>"
+                                            data-is-manual="<?= !empty($gw['is_manual']) ? '1' : '0' ?>"
+                                            data-instructions='<?= htmlspecialchars(json_encode($gw['instructions'] ?? []), ENT_QUOTES, 'UTF-8') ?>'>
                                         <?= htmlspecialchars($gw['title'], ENT_QUOTES, 'UTF-8') ?> <?= !empty($gw['is_manual']) ? '(Manual)' : '(Instant)' ?>
                                     </option>
                                 <?php endforeach; ?>
                             <?php else: ?>
-                                <option value="manual_bkash">bKash Personal / Manual</option>
-                                <option value="manual_nagad">Nagad Personal / Manual</option>
-                                <option value="manual_bank">Bank Wire Transfer</option>
+                                <option value="" disabled selected>No payment gateways configured</option>
                             <?php endif; ?>
                         </select>
+                    </div>
+
+                    <!-- Manual Payment Receiving Details & Inputs Box -->
+                    <div class="manual-box" id="manual_payment_box" style="display: none;">
+                        <h3 id="manual_box_title">Manual Payment Instructions</h3>
+                        
+                        <div class="manual-grid" id="manual_receiving_grid">
+                            <!-- Populated via JS -->
+                        </div>
+
+                        <div class="manual-instructions" id="manual_instructions_text">
+                            Please send the exact amount to the account above and submit your transaction reference (TrxID).
+                        </div>
+
+                        <div class="manual-inputs-grid">
+                            <div>
+                                <label for="sender_account">Your Account / Sender Number:</label>
+                                <input type="text" name="sender_account" id="sender_account" placeholder="e.g., 017XXXXXXXX">
+                            </div>
+                            <div>
+                                <label for="trx_id">Transaction ID (TrxID) <span style="color: #dc2626;">*</span>:</label>
+                                <input type="text" name="trx_id" id="trx_id" placeholder="e.g., 9J28A74LK">
+                            </div>
+                            <div class="full-span">
+                                <label for="payment_proof">Payment Proof / Screenshot (Optional):</label>
+                                <input type="file" name="payment_proof" id="payment_proof" accept="image/jpeg,image/png,image/webp,application/pdf">
+                                <div style="font-size: 11px; color: #64748b; margin-top: 2px;">Supported: JPG, PNG, WEBP, PDF (max 10MB)</div>
+                            </div>
+                            <div class="full-span">
+                                <label for="payment_notes">Notes / Deposit Remarks (Optional):</label>
+                                <input type="text" name="notes" id="payment_notes" placeholder="Optional notes for admin verification...">
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -158,7 +203,7 @@
                 <?php endif; ?>
             </div>
 
-            <button type="submit" class="btn-pay">Proceed to Payment</button>
+            <button type="submit" class="btn-pay" id="btn_submit_pay">Proceed to Payment</button>
         <?php endif; ?>
     </form>
 </div>
@@ -176,18 +221,108 @@ function onMethodChange(method) {
 
     var gwSelect = document.getElementById('gateway_selector');
     var mixedFields = document.getElementById('mixed_fields');
+    var manualBox = document.getElementById('manual_payment_box');
 
     if (method === 'wallet') {
         if (gwSelect) gwSelect.style.display = 'none';
         if (mixedFields) mixedFields.style.display = 'none';
+        if (manualBox) manualBox.style.display = 'none';
+        setTrxRequired(false);
     } else if (method === 'favorite_pay') {
         if (gwSelect) gwSelect.style.display = 'block';
         if (mixedFields) mixedFields.style.display = 'none';
+        onGatewayChange();
     } else if (method === 'mixed') {
         if (gwSelect) gwSelect.style.display = 'block';
         if (mixedFields) mixedFields.style.display = 'block';
+        onGatewayChange();
     }
 }
+
+function onGatewayChange() {
+    var sel = document.getElementById('gateway_id');
+    var manualBox = document.getElementById('manual_payment_box');
+    if (!sel || !manualBox) return;
+
+    var selectedOption = sel.options[sel.selectedIndex];
+    if (!selectedOption) {
+        manualBox.style.display = 'none';
+        setTrxRequired(false);
+        return;
+    }
+
+    var isManual = selectedOption.getAttribute('data-is-manual') === '1' || selectedOption.value.indexOf('manual_') === 0;
+
+    if (!isManual) {
+        manualBox.style.display = 'none';
+        setTrxRequired(false);
+        return;
+    }
+
+    manualBox.style.display = 'block';
+    setTrxRequired(true);
+
+    var rawInst = selectedOption.getAttribute('data-instructions');
+    var inst = {};
+    try {
+        if (rawInst) inst = JSON.parse(rawInst);
+    } catch(e) {}
+
+    var grid = document.getElementById('manual_receiving_grid');
+    if (grid) {
+        var html = '';
+        if (inst.account_number) {
+            html += '<div class="manual-item"><div class="manual-item-lbl">Receiver Number / Account</div><div class="manual-item-val">' + escapeHtml(inst.account_number) + '</div></div>';
+        }
+        if (inst.account_name) {
+            html += '<div class="manual-item"><div class="manual-item-lbl">Account Name</div><div class="manual-item-val">' + escapeHtml(inst.account_name) + '</div></div>';
+        }
+        if (inst.account_type) {
+            html += '<div class="manual-item"><div class="manual-item-lbl">Account Type</div><div class="manual-item-val">' + escapeHtml(inst.account_type) + '</div></div>';
+        }
+        if (inst.bank_name) {
+            html += '<div class="manual-item"><div class="manual-item-lbl">Bank Name</div><div class="manual-item-val">' + escapeHtml(inst.bank_name) + '</div></div>';
+        }
+        if (inst.branch_name) {
+            html += '<div class="manual-item"><div class="manual-item-lbl">Branch</div><div class="manual-item-val">' + escapeHtml(inst.branch_name) + '</div></div>';
+        }
+        if (inst.routing_no) {
+            html += '<div class="manual-item"><div class="manual-item-lbl">Routing Number</div><div class="manual-item-val">' + escapeHtml(inst.routing_no) + '</div></div>';
+        }
+        grid.innerHTML = html;
+    }
+
+    var instrText = document.getElementById('manual_instructions_text');
+    if (instrText) {
+        var text = inst.instructions || inst.reference_instructions || 'Please send the exact amount to the account above and submit your transaction reference (TrxID).';
+        instrText.textContent = text;
+    }
+}
+
+function setTrxRequired(required) {
+    var trxInput = document.getElementById('trx_id');
+    if (trxInput) {
+        if (required) {
+            trxInput.setAttribute('required', 'required');
+        } else {
+            trxInput.removeAttribute('required');
+        }
+    }
+}
+
+function escapeHtml(text) {
+    var div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', function() {
+    var activeMethod = document.querySelector('input[name="payment_method"]:checked');
+    if (activeMethod) {
+        onMethodChange(activeMethod.value);
+    }
+});
 </script>
 
 </body>

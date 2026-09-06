@@ -125,6 +125,31 @@ class CustomerAccountController
         ]);
     }
 
+    /**
+     * Authorize customer access and redirect to an external online resource.
+     */
+    public function accessResource(Request $request, int $productId): Response
+    {
+        $userId = $this->resolveCurrentUserId();
+        if ($userId <= 0) {
+            return Response::redirect('/login?redirect=' . urlencode('/account/resource/' . $productId));
+        }
+
+        try {
+            $url = $this->accountService->authorizeExternalResource($userId, $productId);
+            return Response::redirect($url);
+        } catch (\Throwable $e) {
+            $status = (int)$e->getCode();
+            if ($status < 400 || $status > 599) {
+                $status = 403;
+            }
+            return Response::make(
+                '<h1>Access Denied</h1><p>' . htmlspecialchars($e->getMessage(), ENT_QUOTES, 'UTF-8') . '</p><p><a href="/account/digital">Return to Digital Library</a></p>',
+                $status
+            );
+        }
+    }
+
     protected function resolveCurrentUserId(): int
     {
         if (isset($GLOBALS['_test_current_user_id']) && (int)$GLOBALS['_test_current_user_id'] > 0) {

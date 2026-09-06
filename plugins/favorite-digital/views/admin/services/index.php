@@ -151,7 +151,11 @@
                             </td>
                             <td style="padding: 12px 14px; text-align: right;">
                                 <div style="display: inline-flex; align-items: center; gap: 8px;">
-                                    <a href="/admin/page/favorite-digital-services?action=view&id=<?php echo (int)$s->id; ?>" style="color: #2271b1; text-decoration: none; font-weight: 500;">View</a>
+                                    <?php if ($s->status === 'published'): ?>
+                                        <a href="/digital-store/<?php echo htmlspecialchars($s->slug, ENT_QUOTES, 'UTF-8'); ?>" target="_blank" style="color: #2271b1; text-decoration: none; font-weight: 500;">View</a>
+                                    <?php else: ?>
+                                        <span style="color: #a7aaad; font-weight: 500; cursor: not-allowed;" title="Item is unpublished (draft/archived) and cannot be viewed on public storefront">View</span>
+                                    <?php endif; ?>
                                     <span style="color: #dcdcde;">|</span>
                                     <a href="/admin/page/favorite-digital-services?action=edit&id=<?php echo (int)$s->id; ?>" style="color: #2271b1; text-decoration: none; font-weight: 500;">Edit</a>
                                     <span style="color: #dcdcde;">|</span>

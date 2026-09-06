@@ -135,6 +135,15 @@ $state = $customer_state;
     <div class="detail-layout">
         <!-- Main Description & Specs -->
         <main class="main-content">
+            <?php
+            $coverImg = !empty($product->cover_image_url) ? $product->cover_image_url : (!empty($product->cover_image_path) ? $product->cover_image_path : null);
+            ?>
+            <?php if ($coverImg): ?>
+                <div class="product-cover-banner" style="margin-bottom: 24px; border-radius: 12px; overflow: hidden; max-height: 380px; border: 1px solid #e2e8f0; background: #f8fafc;">
+                    <img src="<?= htmlspecialchars($coverImg, ENT_QUOTES, 'UTF-8') ?>" alt="<?= htmlspecialchars($product->title, ENT_QUOTES, 'UTF-8') ?>" style="width: 100%; height: auto; max-height: 380px; object-fit: cover; display: block;">
+                </div>
+            <?php endif; ?>
+
             <header class="title-header">
                 <div class="badge-row">
                     <span class="type-tag type-<?= htmlspecialchars($type, ENT_QUOTES, 'UTF-8') ?>">
@@ -166,6 +175,16 @@ $state = $customer_state;
                 <section class="specs-section" aria-label="Digital Product Specifications">
                     <h2>Digital File Specifications</h2>
                     <div class="specs-grid">
+                        <?php if (!empty($type_details['resource_type']) && $type_details['resource_type'] !== 'file'): ?>
+                            <div class="spec-item">
+                                <div class="spec-label">Resource Type</div>
+                                <div class="spec-value"><?= match ($type_details['resource_type']) {
+                                    'url'   => 'Online Resource Access',
+                                    'both'  => 'Downloadable File + Online Resource',
+                                    default => 'Downloadable File',
+                                } ?></div>
+                            </div>
+                        <?php endif; ?>
                         <div class="spec-item">
                             <div class="spec-label">File Format</div>
                             <div class="spec-value"><?= htmlspecialchars($type_details['mime_type'], ENT_QUOTES, 'UTF-8') ?></div>
