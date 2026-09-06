@@ -48,4 +48,31 @@
         <?php endif; ?>
         <h2 style="margin: 8px 0; font-size: 20px;">Total: <?= htmlspecialchars((string)$order->currency, ENT_QUOTES, 'UTF-8') ?> <?= htmlspecialchars((string)$order->total_amount, ENT_QUOTES, 'UTF-8') ?></h2>
     </div>
+
+    <?php if (!empty($refunds)): ?>
+        <div style="margin-top: 25px; padding: 15px 20px; background: #fff5f5; border: 1px solid #fed7d7; border-radius: 6px;">
+            <h3 style="margin-top: 0; color: #c53030; font-size: 16px;">Refund Details</h3>
+            <?php foreach ($refunds as $ref): ?>
+                <div style="font-size: 14px; color: #4a5568; line-height: 1.6;">
+                    <p style="margin: 4px 0;">
+                        <strong>Refund Status:</strong> <span class="badge badge-refunded" style="background: #e53e3e; color: #fff; padding: 2px 8px; border-radius: 4px; font-size: 12px;"><?= strtoupper(htmlspecialchars((string)$ref->status, ENT_QUOTES, 'UTF-8')) ?></span>
+                    </p>
+                    <p style="margin: 4px 0;">
+                        <strong>Refund Amount:</strong> <?= htmlspecialchars((string)$ref->currency, ENT_QUOTES, 'UTF-8') ?> <?= htmlspecialchars((string)$ref->refund_amount, ENT_QUOTES, 'UTF-8') ?>
+                    </p>
+                    <p style="margin: 4px 0;">
+                        <strong>Refund Destination:</strong> Favorite Digital Wallet
+                    </p>
+                    <p style="margin: 4px 0;">
+                        <strong>Processed Date:</strong> <?= htmlspecialchars((string)$ref->processed_at, ENT_QUOTES, 'UTF-8') ?>
+                    </p>
+                    <?php if (!empty($ref->reason)): ?>
+                        <p style="margin: 4px 0;">
+                            <strong>Reason:</strong> <?= htmlspecialchars((string)$ref->reason, ENT_QUOTES, 'UTF-8') ?>
+                        </p>
+                    <?php endif; ?>
+                </div>
+            <?php endforeach; ?>
+        </div>
+    <?php endif; ?>
 </div>

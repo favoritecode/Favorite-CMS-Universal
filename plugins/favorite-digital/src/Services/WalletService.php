@@ -40,7 +40,8 @@ class WalletService
         string $amount,
         string $referenceId,
         string $description = '',
-        ?int $orderId = null
+        ?int $orderId = null,
+        string $type = 'credit'
     ): object {
         $amountMinor = $this->parseAmountMinor($amount);
         if ($amountMinor <= 0) {
@@ -53,7 +54,7 @@ class WalletService
             return $existing;
         }
 
-        return $this->executeInTransaction(function () use ($userId, $amountMinor, $referenceId, $description, $orderId) {
+        return $this->executeInTransaction(function () use ($userId, $amountMinor, $referenceId, $description, $orderId, $type) {
             $wallet = $this->walletRepo->lockWalletForUpdate($userId);
             if (!$wallet) {
                 $wallet = $this->walletRepo->getOrCreateWallet($userId);
@@ -73,7 +74,7 @@ class WalletService
 
             $txId = $this->walletRepo->createTransaction([
                 'wallet_id'     => (int)$wallet->id,
-                'type'          => 'credit',
+                'type'          => $type,
                 'amount'        => $amountDec,
                 'balance_after' => $newBalance,
                 'order_id'      => $orderId,
@@ -85,7 +86,7 @@ class WalletService
             return (object)[
                 'id'            => $txId,
                 'wallet_id'     => (int)$wallet->id,
-                'type'          => 'credit',
+                'type'          => $type,
                 'amount'        => $amountDec,
                 'balance_after' => $newBalance,
                 'order_id'      => $orderId,

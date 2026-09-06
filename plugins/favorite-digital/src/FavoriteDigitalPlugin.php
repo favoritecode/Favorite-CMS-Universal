@@ -176,14 +176,16 @@ final class FavoriteDigitalPlugin
                 $app,
                 $app->make(OrderService::class),
                 $app->has(Services\FulfillmentService::class) ? $app->make(Services\FulfillmentService::class) : null,
-                $app->has(Repositories\EntitlementRepository::class) ? $app->make(Repositories\EntitlementRepository::class) : null
+                $app->has(Repositories\EntitlementRepository::class) ? $app->make(Repositories\EntitlementRepository::class) : null,
+                $app->has(Services\RefundService::class) ? $app->make(Services\RefundService::class) : null
             );
         });
 
         $this->app->singleton(CustomerOrderController::class, function ($app): CustomerOrderController {
             return new CustomerOrderController(
                 $app,
-                $app->make(OrderService::class)
+                $app->make(OrderService::class),
+                $app->has(Repositories\RefundRepository::class) ? $app->make(Repositories\RefundRepository::class) : null
             );
         });
 
@@ -243,6 +245,21 @@ final class FavoriteDigitalPlugin
                 $app->make(Repositories\EntitlementRepository::class),
                 $app->make(Repositories\ProductRepository::class),
                 $app->make(Services\MembershipLifecycleService::class)
+            );
+        });
+
+        $this->app->singleton(Repositories\RefundRepository::class, function ($app): Repositories\RefundRepository {
+            return new Repositories\RefundRepository($app->make(Database::class));
+        });
+
+        $this->app->singleton(Services\RefundService::class, function ($app): Services\RefundService {
+            return new Services\RefundService(
+                $app->make(Repositories\OrderRepository::class),
+                $app->make(Repositories\RefundRepository::class),
+                $app->make(Services\WalletService::class),
+                $app->make(Repositories\EntitlementRepository::class),
+                $app->make(Services\MembershipLifecycleService::class),
+                $app->has(Database::class) ? $app->make(Database::class) : null
             );
         });
     }

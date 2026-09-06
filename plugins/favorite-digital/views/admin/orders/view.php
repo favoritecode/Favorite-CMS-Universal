@@ -165,6 +165,44 @@
                 </div>
             <?php endif; ?>
 
+            <?php if (!empty($refunds)): ?>
+                <div class="postbox" style="padding: 15px; margin-top: 20px; border-left: 4px solid #d63638;">
+                    <h2>Refund Audit & History</h2>
+                    <table class="widefat fixed striped" style="margin-top: 10px;">
+                        <thead>
+                            <tr>
+                                <th>Refund ID</th>
+                                <th>Amount</th>
+                                <th>Destination</th>
+                                <th>Wallet Tx ID</th>
+                                <th>Reason</th>
+                                <th>Status</th>
+                                <th>Processed At</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($refunds as $ref): ?>
+                                <tr>
+                                    <td>#<?= (int)$ref->id ?></td>
+                                    <td><strong><?= htmlspecialchars((string)$ref->currency, ENT_QUOTES, 'UTF-8') ?> <?= htmlspecialchars((string)$ref->refund_amount, ENT_QUOTES, 'UTF-8') ?></strong></td>
+                                    <td><span class="badge badge-wallet"><?= htmlspecialchars(strtoupper((string)$ref->destination), ENT_QUOTES, 'UTF-8') ?></span></td>
+                                    <td>
+                                        <?php if (!empty($ref->wallet_transaction_id)): ?>
+                                            <code>Tx #<?= (int)$ref->wallet_transaction_id ?></code>
+                                        <?php else: ?>
+                                            <em>N/A</em>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td><?= htmlspecialchars((string)$ref->reason, ENT_QUOTES, 'UTF-8') ?></td>
+                                    <td><span class="badge badge-completed"><?= htmlspecialchars(ucfirst((string)$ref->status), ENT_QUOTES, 'UTF-8') ?></span></td>
+                                    <td><?= htmlspecialchars((string)$ref->processed_at, ENT_QUOTES, 'UTF-8') ?></td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+            <?php endif; ?>
+
             <?php if (!empty($order->notes)): ?>
                 <div class="postbox" style="padding: 15px; margin-top: 20px;">
                     <h3>Order Notes</h3>
@@ -220,6 +258,7 @@
                             <option value="partially_fulfilled" <?= ($order->fulfillment_status === 'partially_fulfilled') ? 'selected' : '' ?>>Partially Fulfilled</option>
                             <option value="fulfilled" <?= ($order->fulfillment_status === 'fulfilled') ? 'selected' : '' ?>>Fulfilled</option>
                             <option value="cancelled" <?= ($order->fulfillment_status === 'cancelled') ? 'selected' : '' ?>>Cancelled</option>
+                            <option value="revoked" <?= ($order->fulfillment_status === 'revoked') ? 'selected' : '' ?>>Revoked</option>
                         </select>
                     </div>
 
@@ -234,6 +273,44 @@
                             <input type="hidden" name="id" value="<?= (int)$order->id ?>">
                             <button type="submit" class="button button-secondary" style="width: 100%; font-weight: bold;">
                                 ⚡ Fulfill / Retry Fulfillment
+                            </button>
+                        </form>
+                    </div>
+                <?php endif; ?>
+
+                <?php
+                $verifiedPaidAmount = 0.0;
+                if (!empty($order->payments)) {
+                    foreach ($order->payments as $p) {
+                        if ($p->status === 'completed' || $p->status === 'paid') {
+                            $verifiedPaidAmount += (float)$p->amount_paid;
+                        }
+                    }
+                }
+                $isRefundEligible = ($order->payment_status !== 'refunded' && $order->status !== 'refunded' && $verifiedPaidAmount > 0);
+                ?>
+
+                <?php if ($isRefundEligible): ?>
+                    <div style="margin-top: 20px; border-top: 2px solid #d63638; padding-top: 15px;">
+                        <h3 style="color: #d63638; margin-top: 0;">Issue Refund</h3>
+                        <p style="font-size: 13px; color: #555; margin-bottom: 8px;">
+                            Refunds are credited directly to the customer's <strong>Favorite Digital Wallet</strong> in <strong><?= htmlspecialchars((string)$order->currency, ENT_QUOTES, 'UTF-8') ?></strong> and revoke granted order access.
+                        </p>
+                        <p style="margin: 4px 0;"><strong>Verified Paid:</strong> <?= htmlspecialchars((string)$order->currency, ENT_QUOTES, 'UTF-8') ?> <?= number_format($verifiedPaidAmount, 2, '.', '') ?></p>
+                        <p style="margin: 4px 0;"><strong>Refund Destination:</strong> Customer Wallet</p>
+
+                        <form method="post" action="/admin/page/favorite-digital-orders" onsubmit="return confirm('Are you sure you want to issue a full wallet refund of <?= htmlspecialchars((string)$order->currency, ENT_QUOTES, 'UTF-8') ?> <?= number_format($verifiedPaidAmount, 2, '.', '') ?>? This will revoke access and cannot be undone.');">
+                            <input type="hidden" name="_token" value="<?= htmlspecialchars((string)$csrfToken, ENT_QUOTES, 'UTF-8') ?>">
+                            <input type="hidden" name="action" value="refund">
+                            <input type="hidden" name="id" value="<?= (int)$order->id ?>">
+
+                            <div style="margin: 10px 0;">
+                                <label for="refund_reason"><strong>Refund Reason <span style="color:red;">*</span>:</strong></label><br>
+                                <textarea name="reason" id="refund_reason" required rows="2" style="width: 100%; font-size: 12px;" placeholder="e.g. Seller failed to deliver service / customer dispute"></textarea>
+                            </div>
+
+                            <button type="submit" class="button button-danger" style="width: 100%; background: #d63638; color: #fff; border-color: #b32d2e; font-weight: bold;">
+                                ↩ Issue Full Wallet Refund
                             </button>
                         </form>
                     </div>

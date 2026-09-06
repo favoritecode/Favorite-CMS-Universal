@@ -15,16 +15,26 @@ class CustomerOrderController
 {
     protected Application $app;
     protected OrderService $orderService;
+    protected ?\FavoriteCMS\Digital\Repositories\RefundRepository $refundRepo;
 
-    public function __construct(Application $app, OrderService $orderService)
-    {
+    public function __construct(
+        Application $app,
+        OrderService $orderService,
+        ?\FavoriteCMS\Digital\Repositories\RefundRepository $refundRepo = null
+    ) {
         $this->app = $app;
         $this->orderService = $orderService;
+        $this->refundRepo = $refundRepo;
     }
 
     public function getOrderService(): OrderService
     {
         return $this->orderService;
+    }
+
+    public function getRefundRepository(): ?\FavoriteCMS\Digital\Repositories\RefundRepository
+    {
+        return $this->refundRepo;
     }
 
     public function index(Request $request): Response|string
@@ -76,9 +86,15 @@ class CustomerOrderController
             }
         }
 
+        $refunds = [];
+        if ($this->refundRepo !== null) {
+            $refunds = $this->refundRepo->findRefundsByOrderId((int)$order->id);
+        }
+
         return $this->renderView('orders/view', [
-            'order'  => $order,
-            'userId' => $userId,
+            'order'   => $order,
+            'refunds' => $refunds,
+            'userId'  => $userId,
         ]);
     }
 

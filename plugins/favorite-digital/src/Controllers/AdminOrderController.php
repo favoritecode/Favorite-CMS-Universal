@@ -18,22 +18,30 @@ class AdminOrderController
     protected OrderService $orderService;
     protected ?\FavoriteCMS\Digital\Services\FulfillmentService $fulfillmentService;
     protected ?\FavoriteCMS\Digital\Repositories\EntitlementRepository $entitlementRepo;
+    protected ?\FavoriteCMS\Digital\Services\RefundService $refundService;
 
     public function __construct(
         Application $app,
         OrderService $orderService,
         ?\FavoriteCMS\Digital\Services\FulfillmentService $fulfillmentService = null,
-        ?\FavoriteCMS\Digital\Repositories\EntitlementRepository $entitlementRepo = null
+        ?\FavoriteCMS\Digital\Repositories\EntitlementRepository $entitlementRepo = null,
+        ?\FavoriteCMS\Digital\Services\RefundService $refundService = null
     ) {
         $this->app = $app;
         $this->orderService = $orderService;
         $this->fulfillmentService = $fulfillmentService;
         $this->entitlementRepo = $entitlementRepo;
+        $this->refundService = $refundService;
     }
 
     public function getOrderService(): OrderService
     {
         return $this->orderService;
+    }
+
+    public function getRefundService(): ?\FavoriteCMS\Digital\Services\RefundService
+    {
+        return $this->refundService;
     }
 
     public function handle(Request $request): Response|string
@@ -97,6 +105,7 @@ class AdminOrderController
         return match ($action) {
             'update_status' => $this->updateStatus($request, $id),
             'fulfill'       => $this->fulfillOrder($request, $id),
+            'refund'        => $this->processRefund($request, $id),
             default         => Response::redirect('/admin/page/favorite-digital-orders'),
         };
     }
@@ -162,9 +171,15 @@ class AdminOrderController
             $entitlements = $this->entitlementRepo->getEntitlementsByOrder((int)$order->id);
         }
 
+        $refunds = [];
+        if ($this->refundService !== null) {
+            $refunds = $this->refundService->getRefundRepository()->findRefundsByOrderId((int)$order->id);
+        }
+
         return $this->renderView('orders/view', [
             'order'        => $order,
             'entitlements' => $entitlements,
+            'refunds'      => $refunds,
             'csrfToken'    => $this->getCsrfToken(),
             'flashSuccess' => $_SESSION['flash_success'] ?? null,
             'flashError'   => $_SESSION['flash_error'] ?? null,
@@ -270,6 +285,40 @@ class AdminOrderController
             $_SESSION['flash_success'] = "Order #{$order->order_number} fulfilled successfully.";
         } catch (Throwable $e) {
             $_SESSION['flash_error'] = "Fulfillment failed: " . $e->getMessage();
+        }
+
+        return Response::redirect('/admin/page/favorite-digital-orders?action=view&id=' . $id);
+    }
+
+    public function processRefund(Request $request, int $id): Response
+    {
+        $order = $this->orderService->getOrder($id);
+        if (!$order) {
+            $_SESSION['flash_error'] = 'Order not found.';
+            return Response::redirect('/admin/page/favorite-digital-orders');
+        }
+
+        if ($this->refundService === null) {
+            $_SESSION['flash_error'] = 'Refund service is unavailable.';
+            return Response::redirect('/admin/page/favorite-digital-orders?action=view&id=' . $id);
+        }
+
+        $reason = trim((string)$request->post('reason', ''));
+        if ($reason === '') {
+            $_SESSION['flash_error'] = 'A refund reason must be provided.';
+            return Response::redirect('/admin/page/favorite-digital-orders?action=view&id=' . $id);
+        }
+
+        $actorUserId = (int)($_SESSION['auth_user_id'] ?? 0);
+        if (isset($GLOBALS['_test_current_user']->id)) {
+            $actorUserId = (int)$GLOBALS['_test_current_user']->id;
+        }
+
+        try {
+            $refund = $this->refundService->processRefund($id, $reason, $actorUserId, true);
+            $_SESSION['flash_success'] = "Refund of ৳{$refund->refund_amount} processed successfully to customer wallet.";
+        } catch (Throwable $e) {
+            $_SESSION['flash_error'] = "Refund failed: " . $e->getMessage();
         }
 
         return Response::redirect('/admin/page/favorite-digital-orders?action=view&id=' . $id);
