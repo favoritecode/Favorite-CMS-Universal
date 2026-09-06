@@ -20,16 +20,41 @@ class CheckoutService
     protected ?PaymentServiceInterface $favoritePayService;
     protected ?Database $db;
 
+    protected ?FulfillmentService $fulfillmentService;
+
     public function __construct(
         OrderRepository $orderRepo,
         WalletService $walletService,
         ?PaymentServiceInterface $favoritePayService = null,
-        ?Database $db = null
+        ?Database $db = null,
+        ?FulfillmentService $fulfillmentService = null
     ) {
         $this->orderRepo = $orderRepo;
         $this->walletService = $walletService;
         $this->favoritePayService = $favoritePayService;
         $this->db = $db ?? $orderRepo->getDatabase();
+        $this->fulfillmentService = $fulfillmentService;
+    }
+
+    public function getFulfillmentService(): ?FulfillmentService
+    {
+        return $this->fulfillmentService;
+    }
+
+    public function setFulfillmentService(?FulfillmentService $service): void
+    {
+        $this->fulfillmentService = $service;
+    }
+
+    protected function triggerFulfillmentIfPaid(int $orderId): void
+    {
+        if ($this->fulfillmentService !== null) {
+            try {
+                $this->fulfillmentService->fulfillOrder($orderId);
+            } catch (Throwable) {
+                // Legitimate payment is preserved; fulfillment can be retried
+            }
+        }
     }
 
     public function getOrderRepository(): OrderRepository
@@ -130,7 +155,7 @@ class CheckoutService
             throw CheckoutException::orderNotPayable($order->order_number, "Order total is not zero");
         }
 
-        return $this->executeInTransaction(function () use ($order, $orderId) {
+        $res = $this->executeInTransaction(function () use ($order, $orderId) {
             $this->orderRepo->createOrderPayment([
                 'order_id'           => $orderId,
                 'payment_method'     => 'free',
@@ -148,6 +173,9 @@ class CheckoutService
 
             return $this->orderRepo->findOrderWithItems($orderId);
         });
+
+        $this->triggerFulfillmentIfPaid($orderId);
+        return $this->orderRepo->findOrderWithItems($orderId) ?? $res;
     }
 
     /**
@@ -169,7 +197,7 @@ class CheckoutService
             return $order;
         }
 
-        return $this->executeInTransaction(function () use ($order, $orderId, $userId, $remaining) {
+        $res = $this->executeInTransaction(function () use ($order, $orderId, $userId, $remaining) {
             $refId = "fd_ord_{$orderId}_wal_" . bin2hex(random_bytes(6));
             $walletTx = $this->walletService->debit(
                 $userId,
@@ -196,6 +224,9 @@ class CheckoutService
 
             return $this->orderRepo->findOrderWithItems($orderId);
         });
+
+        $this->triggerFulfillmentIfPaid($orderId);
+        return $this->orderRepo->findOrderWithItems($orderId) ?? $res;
     }
 
     /**
@@ -431,6 +462,7 @@ class CheckoutService
             if ($this->parseAmountMinor($remaining) === 0) {
                 $this->orderRepo->updatePaymentStatus($orderId, OrderLifecycleState::PAYMENT_PAID);
                 $this->orderRepo->updateOrderStatus($orderId, OrderLifecycleState::STATUS_PROCESSING);
+                $this->triggerFulfillmentIfPaid($orderId);
             } else {
                 $this->orderRepo->updatePaymentStatus($orderId, OrderLifecycleState::PAYMENT_PARTIALLY_PAID);
             }

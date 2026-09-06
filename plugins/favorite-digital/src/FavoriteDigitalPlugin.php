@@ -139,9 +139,26 @@ final class FavoriteDigitalPlugin
             return new OrderRepository($app->make(Database::class));
         });
 
+        $this->app->singleton(Repositories\EntitlementRepository::class, function ($app): Repositories\EntitlementRepository {
+            return new Repositories\EntitlementRepository($app->make(Database::class));
+        });
+
+        $this->app->singleton(Services\FulfillmentService::class, function ($app): Services\FulfillmentService {
+            return new Services\FulfillmentService(
+                $app->make(OrderRepository::class),
+                $app->make(Repositories\EntitlementRepository::class),
+                $app->make(ProductRepository::class),
+                $app->make(MembershipLifecycleService::class),
+                $app->has(Database::class) ? $app->make(Database::class) : null
+            );
+        });
+
         $this->app->singleton(EntitlementCheckerInterface::class, function ($app): EntitlementCheckerInterface {
             $db = $app->has(Database::class) ? $app->make(Database::class) : null;
-            return new DefaultEntitlementChecker($db);
+            $entRepo = $app->has(Repositories\EntitlementRepository::class) ? $app->make(Repositories\EntitlementRepository::class) : null;
+            $memSvc = $app->has(MembershipLifecycleService::class) ? $app->make(MembershipLifecycleService::class) : null;
+            $prodRepo = $app->has(ProductRepository::class) ? $app->make(ProductRepository::class) : null;
+            return new DefaultEntitlementChecker($db, $entRepo, $memSvc, $prodRepo);
         });
 
         $this->app->singleton(OrderService::class, function ($app): OrderService {
@@ -157,7 +174,9 @@ final class FavoriteDigitalPlugin
         $this->app->singleton(AdminOrderController::class, function ($app): AdminOrderController {
             return new AdminOrderController(
                 $app,
-                $app->make(OrderService::class)
+                $app->make(OrderService::class),
+                $app->has(Services\FulfillmentService::class) ? $app->make(Services\FulfillmentService::class) : null,
+                $app->has(Repositories\EntitlementRepository::class) ? $app->make(Repositories\EntitlementRepository::class) : null
             );
         });
 
@@ -189,7 +208,8 @@ final class FavoriteDigitalPlugin
                 $app->make(Repositories\OrderRepository::class),
                 $app->make(Services\WalletService::class),
                 $favPay,
-                $app->has(Database::class) ? $app->make(Database::class) : null
+                $app->has(Database::class) ? $app->make(Database::class) : null,
+                $app->has(Services\FulfillmentService::class) ? $app->make(Services\FulfillmentService::class) : null
             );
         });
 

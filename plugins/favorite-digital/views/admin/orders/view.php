@@ -127,6 +127,42 @@
                 <?php endif; ?>
             </div>
 
+            <?php if (!empty($entitlements)): ?>
+                <div class="postbox" style="padding: 15px; margin-top: 20px;">
+                    <h2>Granted Entitlements & Access</h2>
+                    <table class="widefat fixed striped" style="margin-top: 10px;">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Product / Item</th>
+                                <th>Source Type</th>
+                                <th>Status</th>
+                                <th>Granted At</th>
+                                <th>Expires At</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($entitlements as $ent): ?>
+                                <tr>
+                                    <td>#<?= (int)$ent->id ?></td>
+                                    <td>
+                                        <strong><?= htmlspecialchars((string)($ent->product_title ?? 'Product #' . $ent->product_id), ENT_QUOTES, 'UTF-8') ?></strong>
+                                    </td>
+                                    <td><span class="badge"><?= htmlspecialchars(strtoupper((string)$ent->source_type), ENT_QUOTES, 'UTF-8') ?></span></td>
+                                    <td>
+                                        <span class="badge badge-<?= htmlspecialchars((string)$ent->status, ENT_QUOTES, 'UTF-8') ?>">
+                                            <?= htmlspecialchars(ucfirst((string)$ent->status), ENT_QUOTES, 'UTF-8') ?>
+                                        </span>
+                                    </td>
+                                    <td><?= htmlspecialchars((string)$ent->granted_at, ENT_QUOTES, 'UTF-8') ?></td>
+                                    <td><?= !empty($ent->expires_at) ? htmlspecialchars((string)$ent->expires_at, ENT_QUOTES, 'UTF-8') : '<em>Lifetime</em>' ?></td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+            <?php endif; ?>
+
             <?php if (!empty($order->notes)): ?>
                 <div class="postbox" style="padding: 15px; margin-top: 20px;">
                     <h3>Order Notes</h3>
@@ -187,6 +223,19 @@
 
                     <button type="submit" class="button button-primary" style="width: 100%;">Save Status Updates</button>
                 </form>
+
+                <?php if ($order->payment_status === 'paid' && $order->fulfillment_status !== 'fulfilled'): ?>
+                    <div style="margin-top: 15px; border-top: 1px solid #ddd; padding-top: 15px;">
+                        <form method="post" action="/admin/page/favorite-digital-orders">
+                            <input type="hidden" name="_token" value="<?= htmlspecialchars((string)$csrfToken, ENT_QUOTES, 'UTF-8') ?>">
+                            <input type="hidden" name="action" value="fulfill">
+                            <input type="hidden" name="id" value="<?= (int)$order->id ?>">
+                            <button type="submit" class="button button-secondary" style="width: 100%; font-weight: bold;">
+                                ⚡ Fulfill / Retry Fulfillment
+                            </button>
+                        </form>
+                    </div>
+                <?php endif; ?>
             </div>
         </div>
     </div>

@@ -16,11 +16,19 @@ class AdminOrderController
 {
     protected Application $app;
     protected OrderService $orderService;
+    protected ?\FavoriteCMS\Digital\Services\FulfillmentService $fulfillmentService;
+    protected ?\FavoriteCMS\Digital\Repositories\EntitlementRepository $entitlementRepo;
 
-    public function __construct(Application $app, OrderService $orderService)
-    {
+    public function __construct(
+        Application $app,
+        OrderService $orderService,
+        ?\FavoriteCMS\Digital\Services\FulfillmentService $fulfillmentService = null,
+        ?\FavoriteCMS\Digital\Repositories\EntitlementRepository $entitlementRepo = null
+    ) {
         $this->app = $app;
         $this->orderService = $orderService;
+        $this->fulfillmentService = $fulfillmentService;
+        $this->entitlementRepo = $entitlementRepo;
     }
 
     public function getOrderService(): OrderService
@@ -88,6 +96,7 @@ class AdminOrderController
 
         return match ($action) {
             'update_status' => $this->updateStatus($request, $id),
+            'fulfill'       => $this->fulfillOrder($request, $id),
             default         => Response::redirect('/admin/page/favorite-digital-orders'),
         };
     }
@@ -148,8 +157,14 @@ class AdminOrderController
             return Response::redirect('/admin/page/favorite-digital-orders');
         }
 
+        $entitlements = [];
+        if ($this->entitlementRepo !== null) {
+            $entitlements = $this->entitlementRepo->getEntitlementsByOrder((int)$order->id);
+        }
+
         return $this->renderView('orders/view', [
             'order'        => $order,
+            'entitlements' => $entitlements,
             'csrfToken'    => $this->getCsrfToken(),
             'flashSuccess' => $_SESSION['flash_success'] ?? null,
             'flashError'   => $_SESSION['flash_error'] ?? null,
@@ -236,4 +251,28 @@ class AdminOrderController
 
         return null;
     }
+
+    public function fulfillOrder(Request $request, int $id): Response
+    {
+        $order = $this->orderService->getOrder($id);
+        if (!$order) {
+            $_SESSION['flash_error'] = 'Order not found.';
+            return Response::redirect('/admin/page/favorite-digital-orders');
+        }
+
+        if ($this->fulfillmentService === null) {
+            $_SESSION['flash_error'] = 'Fulfillment service is unavailable.';
+            return Response::redirect('/admin/page/favorite-digital-orders?action=view&id=' . $id);
+        }
+
+        try {
+            $this->fulfillmentService->fulfillOrder($id);
+            $_SESSION['flash_success'] = "Order #{$order->order_number} fulfilled successfully.";
+        } catch (Throwable $e) {
+            $_SESSION['flash_error'] = "Fulfillment failed: " . $e->getMessage();
+        }
+
+        return Response::redirect('/admin/page/favorite-digital-orders?action=view&id=' . $id);
+    }
+
 }
