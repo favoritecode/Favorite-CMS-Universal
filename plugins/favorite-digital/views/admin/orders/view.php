@@ -139,6 +139,7 @@
                                 <th>Status</th>
                                 <th>Granted At</th>
                                 <th>Expires At</th>
+                                <th>Downloads</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -156,6 +157,7 @@
                                     </td>
                                     <td><?= htmlspecialchars((string)$ent->granted_at, ENT_QUOTES, 'UTF-8') ?></td>
                                     <td><?= !empty($ent->expires_at) ? htmlspecialchars((string)$ent->expires_at, ENT_QUOTES, 'UTF-8') : '<em>Lifetime</em>' ?></td>
+                                    <td><?= ($ent->product_type === 'digital') ? (isset($ent->download_count) ? (int)$ent->download_count . ' / 3 used' : '0 / 3 used') : '—' ?></td>
                                 </tr>
                             <?php endforeach; ?>
                         </tbody>

@@ -219,6 +219,32 @@ final class FavoriteDigitalPlugin
                 $app->make(Services\CheckoutService::class)
             );
         });
+
+        $this->app->singleton(Repositories\DownloadRepository::class, function ($app): Repositories\DownloadRepository {
+            return new Repositories\DownloadRepository($app->make(Database::class));
+        });
+
+        $this->app->singleton(Services\DownloadService::class, function ($app): Services\DownloadService {
+            return new Services\DownloadService(
+                $app->make(Repositories\DownloadRepository::class),
+                $app->make(Repositories\EntitlementRepository::class),
+                $app->make(Repositories\ProductRepository::class),
+                $app->make(Services\MembershipLifecycleService::class),
+                $app->make(Services\DefaultEntitlementChecker::class),
+                $app->make(Services\DigitalFileStorageService::class),
+                $app->has(Database::class) ? $app->make(Database::class) : null
+            );
+        });
+
+        $this->app->singleton(Controllers\CustomerDownloadController::class, function ($app): Controllers\CustomerDownloadController {
+            return new Controllers\CustomerDownloadController(
+                $app,
+                $app->make(Services\DownloadService::class),
+                $app->make(Repositories\EntitlementRepository::class),
+                $app->make(Repositories\ProductRepository::class),
+                $app->make(Services\MembershipLifecycleService::class)
+            );
+        });
     }
 
     public function boot(): void
@@ -326,6 +352,16 @@ final class FavoriteDigitalPlugin
             add_route('POST', '/checkout/{orderNumber}', function (Request $request, string $orderNumber) {
                 $controller = $this->app->make(Controllers\CustomerCheckoutController::class);
                 return $controller->handle($request, $orderNumber);
+            });
+
+            add_route('GET', '/download/{token}', function (Request $request, string $token) {
+                $controller = $this->app->make(Controllers\CustomerDownloadController::class);
+                return $controller->download($request, $token);
+            });
+
+            add_route('GET', '/account/downloads', function (Request $request) {
+                $controller = $this->app->make(Controllers\CustomerDownloadController::class);
+                return $controller->index($request);
             });
         }
 

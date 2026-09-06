@@ -99,9 +99,11 @@ class EntitlementRepository
     public function getEntitlementsByOrder(int $orderId): array
     {
         return $this->db->select(
-            "SELECT e.*, p.title AS product_title, p.product_type, p.slug AS product_slug
+            "SELECT e.*, p.title AS product_title, p.product_type, p.slug AS product_slug,
+                    dl.download_count, dl.downloaded_at
              FROM `favorite_digital_entitlements` e
              LEFT JOIN `favorite_digital_products` p ON e.product_id = p.id
+             LEFT JOIN `favorite_digital_downloads` dl ON dl.entitlement_id = e.id
              INNER JOIN `favorite_digital_order_items` oi ON (
                  (e.source_type IN ('purchase', 'package') AND e.source_id = oi.id)
              )
