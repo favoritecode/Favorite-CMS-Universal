@@ -262,6 +262,23 @@ final class FavoriteDigitalPlugin
                 $app->has(Database::class) ? $app->make(Database::class) : null
             );
         });
+
+        $this->app->singleton(Services\StorefrontService::class, function ($app): Services\StorefrontService {
+            return new Services\StorefrontService(
+                $app->make(Repositories\ProductRepository::class),
+                $app->make(Contracts\EntitlementCheckerInterface::class),
+                $app->make(Services\MembershipLifecycleService::class),
+                $app->make(Services\OrderService::class),
+                $app->make(Services\CheckoutService::class)
+            );
+        });
+
+        $this->app->singleton(Controllers\CustomerStorefrontController::class, function ($app): Controllers\CustomerStorefrontController {
+            return new Controllers\CustomerStorefrontController(
+                $app,
+                $app->make(Services\StorefrontService::class)
+            );
+        });
     }
 
     public function boot(): void
@@ -379,6 +396,32 @@ final class FavoriteDigitalPlugin
             add_route('GET', '/account/downloads', function (Request $request) {
                 $controller = $this->app->make(Controllers\CustomerDownloadController::class);
                 return $controller->index($request);
+            });
+
+            // Customer Storefront Routes
+            add_route('GET', '/store', function (Request $request) {
+                $controller = $this->app->make(Controllers\CustomerStorefrontController::class);
+                return $controller->index($request);
+            });
+
+            add_route('GET', '/digital-store', function (Request $request) {
+                $controller = $this->app->make(Controllers\CustomerStorefrontController::class);
+                return $controller->index($request);
+            });
+
+            add_route('GET', '/store/{slug}', function (Request $request, string $slug) {
+                $controller = $this->app->make(Controllers\CustomerStorefrontController::class);
+                return $controller->show($request, $slug);
+            });
+
+            add_route('GET', '/digital-store/{slug}', function (Request $request, string $slug) {
+                $controller = $this->app->make(Controllers\CustomerStorefrontController::class);
+                return $controller->show($request, $slug);
+            });
+
+            add_route('POST', '/store/{slug}/buy', function (Request $request, string $slug) {
+                $controller = $this->app->make(Controllers\CustomerStorefrontController::class);
+                return $controller->buy($request, $slug);
             });
         }
 

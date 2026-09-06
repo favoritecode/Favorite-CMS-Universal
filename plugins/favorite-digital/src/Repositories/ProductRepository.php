@@ -54,12 +54,122 @@ class ProductRepository
         );
     }
 
+    public function findPublishedProductBySlug(string $slug): ?object
+    {
+        return $this->db->selectOne(
+            "SELECT * FROM `favorite_digital_products` WHERE `slug` = ? AND `status` = 'published' LIMIT 1",
+            [$slug]
+        );
+    }
+
     public function updateStatus(int $id, string $status): bool
     {
         return $this->updateProduct($id, [
             'status'     => $status,
             'updated_at' => date('Y-m-d H:i:s'),
         ]);
+    }
+
+    /**
+     * List published products for customer storefront with search, filters, safe sorting, and pagination.
+     */
+    public function listStorefrontProducts(array $filters = [], int $page = 1, int $perPage = 12): array
+    {
+        $page = max(1, $page);
+        $perPage = max(1, min(100, $perPage));
+        $offset = ($page - 1) * $perPage;
+
+        $conditions = ["p.`status` = 'published'"];
+        $bindings = [];
+
+        // Search by title or description
+        $searchTerm = trim((string)($filters['search'] ?? $filters['q'] ?? ''));
+        if ($searchTerm !== '') {
+            $term = '%' . $searchTerm . '%';
+            $conditions[] = "(p.`title` LIKE ? OR p.`description` LIKE ?)";
+            $bindings[] = $term;
+            $bindings[] = $term;
+        }
+
+        // Product type filter
+        $validTypes = ['digital', 'service', 'package', 'membership'];
+        if (!empty($filters['product_type']) && in_array($filters['product_type'], $validTypes, true)) {
+            $conditions[] = "p.`product_type` = ?";
+            $bindings[] = $filters['product_type'];
+        }
+
+        // Price filter: free vs paid
+        if (!empty($filters['price'])) {
+            if ($filters['price'] === 'free') {
+                $conditions[] = "(p.`is_free` = 1 OR p.`final_price` = 0.00)";
+            } elseif ($filters['price'] === 'paid') {
+                $conditions[] = "(p.`is_free` = 0 AND p.`final_price` > 0.00)";
+            }
+        }
+
+        // Membership requirement / eligibility filter
+        if (!empty($filters['membership'])) {
+            if ($filters['membership'] === 'eligible') {
+                $conditions[] = "(p.`product_type` = 'digital' AND EXISTS (
+                    SELECT 1 FROM `favorite_digital_product_details` pdet
+                    WHERE pdet.`product_id` = p.`id` AND pdet.`is_membership_eligible` = 1
+                ))";
+            } elseif ($filters['membership'] === 'plans') {
+                $conditions[] = "p.`product_type` = 'membership'";
+            }
+        }
+
+        $whereClause = 'WHERE ' . implode(' AND ', $conditions);
+
+        // Whitelisted safe sorting
+        $sort = (string)($filters['sort'] ?? 'newest');
+        $orderBy = match ($sort) {
+            'price_asc'  => 'p.`final_price` ASC, p.`id` ASC',
+            'price_desc' => 'p.`final_price` DESC, p.`id` DESC',
+            'name_asc'   => 'p.`title` ASC, p.`id` ASC',
+            'name_desc'  => 'p.`title` DESC, p.`id` DESC',
+            default      => 'p.`id` DESC',
+        };
+
+        // Total count
+        $countSql = "SELECT COUNT(*) as total FROM `favorite_digital_products` p {$whereClause}";
+        $totalRow = $this->db->selectOne($countSql, $bindings);
+        $total = $totalRow ? (int)$totalRow->total : 0;
+        $totalPages = max(1, (int)ceil($total / $perPage));
+
+        // Summary counts by product type for published storefront tabs
+        $typeRows = $this->db->select(
+            "SELECT `product_type`, COUNT(*) as cnt FROM `favorite_digital_products` WHERE `status` = 'published' GROUP BY `product_type`"
+        );
+        $typeCounts = [
+            'all'        => 0,
+            'digital'    => 0,
+            'service'    => 0,
+            'package'    => 0,
+            'membership' => 0,
+        ];
+        foreach ($typeRows as $tr) {
+            $cnt = (int)$tr->cnt;
+            $typeCounts['all'] += $cnt;
+            if (isset($typeCounts[$tr->product_type])) {
+                $typeCounts[$tr->product_type] = $cnt;
+            }
+        }
+
+        // Fetch paginated records
+        $dataSql = "SELECT p.* FROM `favorite_digital_products` p {$whereClause} ORDER BY {$orderBy} LIMIT {$perPage} OFFSET {$offset}";
+        $items = $this->db->select($dataSql, $bindings);
+
+        return [
+            'items'       => $items,
+            'total'       => $total,
+            'page'        => $page,
+            'perPage'     => $perPage,
+            'totalPages'  => $totalPages,
+            'typeCounts'  => $typeCounts,
+            'activeSort'  => $sort,
+            'searchTerm'  => $searchTerm,
+        ];
     }
 
     /**
