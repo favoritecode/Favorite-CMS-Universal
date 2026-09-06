@@ -15,6 +15,9 @@ require APP_ROOT . '/app/Core/helpers.php';
 if (file_exists(APP_ROOT . '/plugins/favorite-pay/autoload.php')) {
     require_once APP_ROOT . '/plugins/favorite-pay/autoload.php';
 }
+if (file_exists(APP_ROOT . '/plugins/favorite-digital/autoload.php')) {
+    require_once APP_ROOT . '/plugins/favorite-digital/autoload.php';
+}
 
 // Load .env
 if (file_exists(APP_ROOT . '/.env')) {

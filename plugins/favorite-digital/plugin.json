@@ -1,0 +1,30 @@
+{
+    "id": "favorite-digital",
+    "name": "Favorite Digital",
+    "version": "1.0.0",
+    "description": "Digital products, downloadable files, services, bundles, and membership access management plugin for Favorite CMS.",
+    "author": "Favorite CMS Team",
+    "requires_php": "8.1.0",
+    "dependencies": [
+        "favorite-pay"
+    ],
+    "entry_point": "plugin.php",
+    "tables": [
+        "favorite_digital_products",
+        "favorite_digital_product_details",
+        "favorite_digital_service_details",
+        "favorite_digital_packages",
+        "favorite_digital_package_items",
+        "favorite_digital_membership_plans",
+        "favorite_digital_memberships",
+        "favorite_digital_orders",
+        "favorite_digital_order_items",
+        "favorite_digital_order_payments",
+        "favorite_digital_entitlements",
+        "favorite_digital_downloads",
+        "favorite_digital_wallets",
+        "favorite_digital_wallet_transactions",
+        "favorite_digital_refunds"
+    ]
+}
+
