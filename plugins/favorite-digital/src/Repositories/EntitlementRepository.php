@@ -27,6 +27,14 @@ class EntitlementRepository
 
     public function createEntitlement(array $data): int
     {
+        if (isset($data['source']) && !isset($data['source_type'])) {
+            $data['source_type'] = $data['source'];
+        }
+        unset($data['source'], $data['package_id'], $data['order_id'], $data['order_item_id'], $data['download_limit'], $data['download_count']);
+
+        if (empty($data['source_type'])) {
+            $data['source_type'] = 'direct';
+        }
         if (empty($data['granted_at'])) {
             $data['granted_at'] = date('Y-m-d H:i:s');
         }
@@ -94,6 +102,58 @@ class EntitlementRepository
              ORDER BY e.id DESC",
             [$userId]
         );
+    }
+
+    public function listEntitlementsForUser(int $userId, array $filters = [], int $page = 1, int $perPage = 12): array
+    {
+        $page = max(1, $page);
+        $perPage = max(1, min(100, $perPage));
+        $offset = ($page - 1) * $perPage;
+
+        $conditions = ["e.`user_id` = ?"];
+        $bindings = [$userId];
+
+        if (!empty($filters['product_type'])) {
+            $conditions[] = "p.`product_type` = ?";
+            $bindings[] = $filters['product_type'];
+        }
+
+        if (!empty($filters['status'])) {
+            $conditions[] = "e.`status` = ?";
+            $bindings[] = $filters['status'];
+        }
+
+        if (!empty($filters['search'])) {
+            $conditions[] = "p.`title` LIKE ?";
+            $bindings[] = '%' . trim((string)$filters['search']) . '%';
+        }
+
+        $whereClause = 'WHERE ' . implode(' AND ', $conditions);
+
+        $countSql = "SELECT COUNT(*) as total
+                     FROM `favorite_digital_entitlements` e
+                     LEFT JOIN `favorite_digital_products` p ON e.`product_id` = p.`id`
+                     {$whereClause}";
+        $totalRow = $this->db->selectOne($countSql, $bindings);
+        $total = $totalRow ? (int)$totalRow->total : 0;
+        $totalPages = max(1, (int)ceil($total / $perPage));
+
+        $dataSql = "SELECT e.*, p.`title` AS product_title, p.`product_type`, p.`slug` AS product_slug,
+                           p.`description` AS product_description, p.`is_free`, p.`final_price`, p.`currency`
+                    FROM `favorite_digital_entitlements` e
+                    LEFT JOIN `favorite_digital_products` p ON e.`product_id` = p.`id`
+                    {$whereClause}
+                    ORDER BY e.`id` DESC
+                    LIMIT {$perPage} OFFSET {$offset}";
+        $items = $this->db->select($dataSql, $bindings);
+
+        return [
+            'data'        => $items,
+            'total'       => $total,
+            'page'        => $page,
+            'per_page'    => $perPage,
+            'total_pages' => $totalPages,
+        ];
     }
 
     public function getEntitlementsByOrder(int $orderId): array

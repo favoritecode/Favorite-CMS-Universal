@@ -279,6 +279,27 @@ final class FavoriteDigitalPlugin
                 $app->make(Services\StorefrontService::class)
             );
         });
+
+        $this->app->singleton(Services\CustomerAccountService::class, function ($app): Services\CustomerAccountService {
+            return new Services\CustomerAccountService(
+                $app->make(Repositories\EntitlementRepository::class),
+                $app->make(Repositories\ProductRepository::class),
+                $app->make(Repositories\OrderRepository::class),
+                $app->make(Services\OrderService::class),
+                $app->make(Services\MembershipLifecycleService::class),
+                $app->make(Services\DownloadService::class),
+                $app->make(Repositories\RefundRepository::class),
+                $app->make(Services\WalletService::class),
+                $app->has(Database::class) ? $app->make(Database::class) : null
+            );
+        });
+
+        $this->app->singleton(Controllers\CustomerAccountController::class, function ($app): Controllers\CustomerAccountController {
+            return new Controllers\CustomerAccountController(
+                $app,
+                $app->make(Services\CustomerAccountService::class)
+            );
+        });
     }
 
     public function boot(): void
@@ -422,6 +443,37 @@ final class FavoriteDigitalPlugin
             add_route('POST', '/store/{slug}/buy', function (Request $request, string $slug) {
                 $controller = $this->app->make(Controllers\CustomerStorefrontController::class);
                 return $controller->buy($request, $slug);
+            });
+
+            // Customer Digital Account & Library Routes
+            add_route('GET', '/account/digital', function (Request $request) {
+                $controller = $this->app->make(Controllers\CustomerAccountController::class);
+                return $controller->library($request);
+            });
+
+            add_route('GET', '/account/library', function (Request $request) {
+                $controller = $this->app->make(Controllers\CustomerAccountController::class);
+                return $controller->library($request);
+            });
+
+            add_route('GET', '/account/membership', function (Request $request) {
+                $controller = $this->app->make(Controllers\CustomerAccountController::class);
+                return $controller->membership($request);
+            });
+
+            add_route('GET', '/account/memberships', function (Request $request) {
+                $controller = $this->app->make(Controllers\CustomerAccountController::class);
+                return $controller->membership($request);
+            });
+
+            add_route('GET', '/account/refunds', function (Request $request) {
+                $controller = $this->app->make(Controllers\CustomerAccountController::class);
+                return $controller->refunds($request);
+            });
+
+            add_route('GET', '/account/digital/refunds', function (Request $request) {
+                $controller = $this->app->make(Controllers\CustomerAccountController::class);
+                return $controller->refunds($request);
             });
         }
 
