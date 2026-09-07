@@ -10,6 +10,7 @@
   <a href="#-core-philosophy">Core Philosophy</a> &bull;
   <a href="#-system-requirements">Requirements</a> &bull;
   <a href="#-quick-installation-overview">Installation</a> &bull;
+  <a href="#-updating-an-existing-site">Updating</a> &bull;
   <a href="#-documentation-index">Documentation</a> &bull;
   <a href="#-automated-testing">Testing</a> &bull;
   <a href="#-license">License</a>
@@ -171,6 +172,22 @@ For complete platform-specific guides, consult:
 
 ---
 
+## 🔄 Updating an Existing Site
+
+> [!CAUTION]
+> **Never perform a fresh installation to update an existing site.**  
+> An update is **NOT** a new installation. Do NOT delete your website directory, do NOT drop your database, and do NOT re-run the web installer.
+
+Before updating:
+1. **Back up your files**: Create a ZIP archive of your website files before touching anything.
+2. **Back up your database**: Export your complete MySQL/MariaDB database via phpMyAdmin.
+3. **Read the release notes**: Check for any special notes or new configuration keys.
+4. **Follow the safe update guide**:
+
+👉 **[Read the Full Safe Core Update Guide](docs/UPDATING.md)**
+
+---
+
 ## 📂 Project Directory Structure
 
 ```
@@ -208,7 +225,7 @@ The complete documentation library is organized inside the [`docs/`](docs/README
 | **Plugin Development** | Extending Core | [Plugin Overview](docs/plugins/overview.md) &bull; [Development Guide](docs/plugins/plugin-development.md) &bull; [Manifest Spec](docs/plugins/plugin-manifest.md) &bull; [Hooks & Filters](docs/plugins/hooks-events-filters.md) &bull; [Routes & Admin Panels](docs/plugins/routes-and-admin-panels.md) &bull; [Best Practices](docs/plugins/plugin-best-practices.md) |
 | **Theme Development** | Presentation & Design | [Theme Overview](docs/themes/overview.md) &bull; [Theme Development](docs/themes/theme-development.md) &bull; [Theme Manifest](docs/themes/theme-manifest.md) &bull; [Widgets & Layout](docs/themes/widgets-and-layout.md) &bull; [Template Overrides](docs/themes/template-overrides.md) |
 | **Security** | Hardening & Defenses | [Security Overview](docs/security/overview.md) &bull; [Authentication](docs/security/authentication.md) &bull; [Authorization](docs/security/authorization.md) &bull; [Upload Hardening](docs/security/uploads.md) &bull; [Sanitization](docs/security/content-sanitization.md) &bull; [Deployment Security](docs/security/deployment-security.md) |
-| **Operations** | Maintenance & Ops | [Backup & Restore](docs/operations/backup-restore.md) &bull; [Site Migration](docs/operations/migration.md) &bull; [Upgrades](docs/operations/upgrade.md) &bull; [Troubleshooting](docs/operations/troubleshooting.md) &bull; [Performance](docs/operations/performance.md) |
+| **Operations** | Maintenance & Ops | [Safe Core Updating](docs/UPDATING.md) &bull; [Backup & Restore](docs/operations/backup-restore.md) &bull; [Site Migration](docs/operations/migration.md) &bull; [Upgrades](docs/operations/upgrade.md) &bull; [Troubleshooting](docs/operations/troubleshooting.md) &bull; [Performance](docs/operations/performance.md) |
 | **Development** | Contributing & Tests | [Dev Setup](docs/development/development-setup.md) &bull; [Automated Testing](docs/development/testing.md) &bull; [Contributing](docs/development/contributing.md) &bull; [Release Process](docs/development/release-process.md) |
 
 ---
