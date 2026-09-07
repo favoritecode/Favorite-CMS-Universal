@@ -44,6 +44,14 @@ class UserSignupAndModerationTest extends TestCase
         $_GET = [];
         $_FILES = [];
         Setting::set('general', 'allow_registration', 1, 'bool');
+        Setting::set('general', 'require_email_verification', 0, 'bool');
+    }
+
+    protected function tearDown(): void
+    {
+        parent::tearDown();
+        Setting::set('general', 'allow_registration', 1, 'bool');
+        Setting::set('general', 'require_email_verification', 1, 'bool');
     }
 
     protected function createTestUser(string $prefix, string $roleSlug = 'subscriber', string $status = 'active'): User

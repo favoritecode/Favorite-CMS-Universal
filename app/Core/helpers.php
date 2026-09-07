@@ -356,7 +356,20 @@ if (!function_exists('current_user')) {
         if ($id <= 0) {
             return null;
         }
-        return \FavoriteCMS\Models\User::find($id);
+        $user = \FavoriteCMS\Models\User::find($id);
+        if (!$user) {
+            return null;
+        }
+        if ($user->isBanned()) {
+            unset(
+                $_SESSION['auth_user_id'],
+                $_SESSION['auth_user_name'],
+                $_SESSION['auth_user_email'],
+                $_SESSION['auth_user_role']
+            );
+            return null;
+        }
+        return $user;
     }
 }
 

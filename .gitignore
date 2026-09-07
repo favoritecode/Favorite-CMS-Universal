@@ -25,6 +25,12 @@ storage/backups/*
 # User media uploads (local content)
 public/uploads/*
 !public/uploads/.gitkeep
+!public/uploads/avatars/
+public/uploads/avatars/*
+!public/uploads/avatars/.gitkeep
+
+# Plugin runtime storage
+storage/plugins/*
 
 # Testing and tooling caches
 .phpunit.result.cache

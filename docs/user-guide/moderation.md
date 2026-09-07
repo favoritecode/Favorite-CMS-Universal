@@ -85,3 +85,17 @@ Users assigned the **Moderator** role:
 - Can moderate, edit, approve, and reject posts submitted by others.
 - Are strictly prevented from accessing administrative system areas (Settings, Themes, Plugins, Users, Widgets, and Tools).
 
+---
+
+## 5. Account Status & Posting Enforcement
+
+The Core enforces strict server-side moderation and access control based on user account status:
+
+| Status | Post Creation | Post Editing | Direct Publishing | Commenting |
+|---|---|---|---|---|
+| **Active (Admin / Moderator)** | Allowed | Allowed | Yes (`published`) | Allowed |
+| **Active (Subscriber / Contributor)** | Allowed (`pending`) | Own posts | No (forced to `pending`) | Allowed |
+| **Suspended** | **Blocked** | **Blocked** | **Blocked** | **Blocked** |
+| **Banned** | **Blocked** | **Blocked** | **Blocked** | **Blocked** |
+
+

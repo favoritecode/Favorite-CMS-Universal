@@ -115,6 +115,8 @@ if (is_dir($uploadsDir)) {
     @mkdir($uploadsDir, 0775, true);
 }
 @file_put_contents($uploadsDir . '/.gitkeep', '');
+@mkdir($uploadsDir . '/avatars', 0775, true);
+@file_put_contents($uploadsDir . '/avatars/.gitkeep', '');
 
 // 7. Verify critical public entrypoints
 if (!file_exists($stageDir . '/public/.htaccess')) {

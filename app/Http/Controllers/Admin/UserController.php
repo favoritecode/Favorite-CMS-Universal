@@ -10,6 +10,8 @@ use FavoriteCMS\Core\Request;
 use FavoriteCMS\Core\Response;
 use FavoriteCMS\Models\User;
 use FavoriteCMS\Models\Role;
+use FavoriteCMS\Services\AvatarService;
+use FavoriteCMS\Services\EmailVerificationService;
 
 class UserController
 {
@@ -257,14 +259,31 @@ class UserController
 
     public function profile(Request $request): Response
     {
-        $id = (int)($_SESSION['auth_user_id'] ?? 1);
+        $id = (int)($_SESSION['auth_user_id'] ?? 0);
+        if ($id <= 0) {
+            return Response::redirect('/admin/login');
+        }
+
         $user = User::find($id);
+        if (!$user || $user->isBanned()) {
+            return Response::redirect('/admin/login');
+        }
+
+        $db = $this->app->make(Database::class);
+        $verifService = new EmailVerificationService($db);
+        $pendingEmail = $verifService->getPendingEmailChange((int)$user->id);
 
         $viewData = [
-            'pageTitle'   => 'Profile',
-            'activeMenu'  => 'profile',
-            'user'        => $user,
-            'contentView' => APP_ROOT . '/resources/views/admin/users/profile.php',
+            'pageTitle'       => 'Profile & Account Settings',
+            'activeMenu'      => 'profile',
+            'user'            => $user,
+            'primaryRole'     => $user->getPrimaryRoleName(),
+            'avatarUrl'       => $user->getAvatarUrl(),
+            'postCount'       => $user->getPostCount(),
+            'isEmailVerified' => $user->isEmailVerified(),
+            'pendingEmail'    => $pendingEmail,
+            'canSelfDelete'   => $user->canSelfDelete(),
+            'contentView'     => APP_ROOT . '/resources/views/admin/users/profile.php',
         ];
 
         extract($viewData, EXTR_SKIP);
@@ -275,29 +294,141 @@ class UserController
 
     public function updateProfile(Request $request): Response
     {
-        $id = (int)($_SESSION['auth_user_id'] ?? 1);
+        $id = (int)($_SESSION['auth_user_id'] ?? 0);
+        if ($id <= 0) {
+            return Response::redirect('/admin/login');
+        }
+
         $user = User::find($id);
-        if ($user) {
-            $name     = trim((string)$request->post('name', ''));
-            $email    = trim((string)$request->post('email', ''));
-            $bio      = trim((string)$request->post('bio', ''));
-            $password = (string)$request->post('password', '');
+        if (!$user || $user->isBanned()) {
+            return Response::redirect('/admin/login');
+        }
 
-            $data = [
-                'name'       => $name,
-                'email'      => $email,
-                'bio'        => $bio,
-                'updated_at' => date('Y-m-d H:i:s'),
-            ];
+        // 1. Verify CSRF Token
+        $token = (string)$request->post('_token', '');
+        $storedToken = (string)($_SESSION['_token'] ?? '');
+        if ($storedToken === '' || !hash_equals($storedToken, $token)) {
+            $_SESSION['flash_error'] = 'Invalid security token. Please reload the page and try again.';
+            return Response::redirect('/admin/users/profile');
+        }
 
-            if ($password !== '') {
-                $data['password'] = password_hash($password, PASSWORD_DEFAULT);
+        $avatarService = new AvatarService();
+        $avatarAction = (string)$request->post('avatar_action', '');
+
+        // 2. Handle Avatar Removal
+        if ($avatarAction === 'remove' || $request->post('remove_avatar') === '1') {
+            $avatarService->removeAvatar($user);
+            $_SESSION['flash_success'] = 'Profile picture removed successfully.';
+            return Response::redirect('/admin/users/profile');
+        }
+
+        // 3. Handle External Avatar URL
+        if ($avatarAction === 'set_url' || !empty($request->post('avatar_url_submit'))) {
+            $urlInput = trim((string)$request->post('avatar_url', ''));
+            $urlValidation = $avatarService->validateExternalUrl($urlInput);
+            if (!$urlValidation['valid']) {
+                $_SESSION['flash_error'] = $urlValidation['error'];
+                return Response::redirect('/admin/users/profile');
             }
 
-            $user->update($data);
-            $_SESSION['auth_user_name'] = $name;
-            $_SESSION['auth_user_email'] = $email;
-            $_SESSION['flash_success'] = 'Profile updated.';
+            // Remove any old local uploaded file if switching to external URL
+            $avatarService->deleteLocalAvatarFile($user->avatar);
+            $user->update([
+                'avatar'     => $urlValidation['url'],
+                'updated_at' => date('Y-m-d H:i:s'),
+            ]);
+            $_SESSION['flash_success'] = 'External profile image URL updated successfully.';
+            return Response::redirect('/admin/users/profile');
+        }
+
+        // 4. Handle Uploaded Avatar File
+        if (isset($_FILES['avatar']) && is_array($_FILES['avatar']) && ($_FILES['avatar']['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE) {
+            try {
+                $newAvatarPath = $avatarService->storeUploadedAvatar($_FILES['avatar'], (int)$user->id, $user->avatar);
+                $user->update([
+                    'avatar'     => $newAvatarPath,
+                    'updated_at' => date('Y-m-d H:i:s'),
+                ]);
+                $_SESSION['flash_success'] = 'Profile picture uploaded and updated successfully.';
+                if ($avatarAction === 'upload_avatar') {
+                    return Response::redirect('/admin/users/profile');
+                }
+            } catch (\Throwable $e) {
+                $_SESSION['flash_error'] = 'Avatar upload failed: ' . $e->getMessage();
+                return Response::redirect('/admin/users/profile');
+            }
+        }
+
+        // 5. Update Profile Fields (Name, Email, Bio, Password)
+        $name            = trim((string)$request->post('name', $user->name ?? ''));
+        $email           = trim((string)$request->post('email', $user->email ?? ''));
+        $bio             = trim((string)$request->post('bio', ''));
+        $password        = (string)$request->post('password', '');
+        $passwordConfirm = (string)$request->post('password_confirmation', '');
+
+        if ($name === '') {
+            $_SESSION['flash_error'] = 'Display name cannot be empty.';
+            return Response::redirect('/admin/users/profile');
+        }
+
+        if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $_SESSION['flash_error'] = 'Please enter a valid email address.';
+            return Response::redirect('/admin/users/profile');
+        }
+
+        $targetEmail = (string)$user->email;
+        $emailNotice = '';
+
+        // Check email uniqueness if modified
+        if (strtolower($email) !== strtolower((string)$user->email)) {
+            $existing = User::findByEmail($email);
+            if ($existing && (int)$existing->id !== (int)$user->id) {
+                $_SESSION['flash_error'] = 'The email address is already in use by another user.';
+                return Response::redirect('/admin/users/profile');
+            }
+
+            if (EmailVerificationService::isRequired()) {
+                $db = $this->app->make(Database::class);
+                $verifService = new EmailVerificationService($db);
+                $verifToken = $verifService->createVerificationToken($user, $email);
+                $verifService->sendVerificationEmail($user, $email, $verifToken, true);
+                $emailNotice = ' A confirmation link has been sent to ' . htmlspecialchars($email) . '. Your email address will be updated once confirmed.';
+            } else {
+                $targetEmail = $email;
+                $_SESSION['auth_user_email'] = $email;
+            }
+        }
+
+        $data = [
+            'name'       => $name,
+            'email'      => $targetEmail,
+            'bio'        => $bio,
+            'updated_at' => date('Y-m-d H:i:s'),
+        ];
+
+        // Password update check
+        if ($password !== '') {
+            if (strlen($password) < 6) {
+                $_SESSION['flash_error'] = 'New password must be at least 6 characters long.';
+                return Response::redirect('/admin/users/profile');
+            }
+            if ($passwordConfirm !== '' && $password !== $passwordConfirm) {
+                $_SESSION['flash_error'] = 'New password and password confirmation do not match.';
+                return Response::redirect('/admin/users/profile');
+            }
+            $data['password'] = password_hash($password, PASSWORD_DEFAULT);
+        }
+
+        // Strictly prevent user from modifying their own role or status through profile update
+        // (Role and status are excluded from $data)
+
+        $user->update($data);
+        $_SESSION['auth_user_name'] = $name;
+
+        if ($emailNotice !== '') {
+            $_SESSION['flash_success'] = 'Profile updated.' . $emailNotice;
+        } elseif (empty($_SESSION['flash_success'])) {
+            $_SESSION['flash_success'] = 'Profile updated successfully.';
         }
 
         return Response::redirect('/admin/users/profile');
@@ -313,15 +444,86 @@ class UserController
             return Response::redirect('/admin/users');
         }
 
+        $currentUser = User::find($currentId);
+        if (!$currentUser || !$currentUser->canManageUsers()) {
+            return Response::make('<h1>403 Access Denied</h1><p>You do not have permission to delete users.</p>', 403);
+        }
+
         $user = User::find($id);
         if ($user) {
-            $db = $this->app->make(Database::class);
-            $db->execute("DELETE FROM `user_roles` WHERE `user_id` = ?", [$id]);
-            $user->delete();
+            $user->deleteAccount($currentId);
             $_SESSION['flash_success'] = 'User deleted.';
         }
 
         return Response::redirect('/admin/users');
+    }
+
+    public function deleteOwnAccount(Request $request): Response
+    {
+        $id = (int)($_SESSION['auth_user_id'] ?? 0);
+        if ($id <= 0) {
+            return Response::redirect('/admin/login');
+        }
+
+        $user = User::find($id);
+        if (!$user) {
+            return Response::redirect('/admin/login');
+        }
+
+        // Suspended or banned accounts cannot self-delete
+        if (!$user->isActive() || !$user->canSelfDelete()) {
+            $_SESSION['flash_error'] = 'Your account is not eligible for self-deletion.';
+            return Response::redirect('/admin/users/profile');
+        }
+
+        // Verify CSRF Token
+        $token = (string)$request->post('_token', '');
+        $storedToken = (string)($_SESSION['_token'] ?? '');
+        if ($storedToken === '' || !hash_equals($storedToken, $token)) {
+            $_SESSION['flash_error'] = 'Security verification failed (invalid CSRF token). Please try again.';
+            return Response::redirect('/admin/users/profile');
+        }
+
+        // Verify confirmation checkbox
+        if ($request->post('confirm_delete') !== '1') {
+            $_SESSION['flash_error'] = 'Please check the confirmation box to confirm account deletion.';
+            return Response::redirect('/admin/users/profile');
+        }
+
+        // Verify password
+        $password = (string)$request->post('password', '');
+        if ($password === '' || !$user->verifyPassword($password)) {
+            $_SESSION['flash_error'] = 'Incorrect password. Account deletion cancelled.';
+            return Response::redirect('/admin/users/profile');
+        }
+
+        // Find a fallback administrator to inherit authored content
+        $db = $this->app->make(Database::class);
+        $adminRow = $db->selectOne(
+            "SELECT u.id FROM `users` u
+             JOIN `user_roles` ur ON u.id = ur.user_id
+             JOIN `roles` r ON ur.role_id = r.id
+             WHERE r.slug IN ('super-admin', 'admin') AND u.id != ? AND u.status = 'active'
+             ORDER BY u.id ASC LIMIT 1",
+            [$user->id]
+        );
+        $fallbackAdminId = $adminRow ? (int)$adminRow->id : (int)$user->id;
+
+        try {
+            $user->deleteAccount($fallbackAdminId);
+
+            // Destroy session and log out
+            $_SESSION = [];
+            if (session_status() === PHP_SESSION_ACTIVE) {
+                session_destroy();
+            }
+            session_start();
+            $_SESSION['flash_success'] = 'Your account has been permanently deleted.';
+            return Response::redirect('/');
+        } catch (\Throwable $e) {
+            $_SESSION['flash_error'] = 'Account deletion failed: ' . $e->getMessage();
+            return Response::redirect('/admin/users/profile');
+        }
     }
 
     public function bulkAction(Request $request): Response

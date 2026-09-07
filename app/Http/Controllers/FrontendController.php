@@ -13,6 +13,7 @@ use FavoriteCMS\Models\Page;
 use FavoriteCMS\Models\Taxonomy;
 use FavoriteCMS\Models\Comment;
 use FavoriteCMS\Models\Setting;
+use FavoriteCMS\Models\User;
 use FavoriteCMS\Rendering\Engine;
 
 class FrontendController
@@ -188,7 +189,23 @@ class FrontendController
 
         if ($name === '' || $email === '' || $text === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
             $_SESSION['comment_error'] = 'Please provide your name, valid email, and comment.';
-            return Response::redirect('/post/' . $post->slug);
+            return Response::redirect('/post/' . $post->slug . '#comments');
+        }
+
+        // Check if current authenticated user or commenter email is suspended or banned
+        $currentUserId = (int)($_SESSION['auth_user_id'] ?? 0);
+        if ($currentUserId > 0) {
+            $currentUser = User::find($currentUserId);
+            if ($currentUser && !$currentUser->canSubmitComments()) {
+                $_SESSION['comment_error'] = 'Your account is suspended and cannot submit comments.';
+                return Response::redirect('/post/' . $post->slug . '#comments');
+            }
+        }
+
+        $userByEmail = User::findByEmail($email);
+        if ($userByEmail && !$userByEmail->canSubmitComments()) {
+            $_SESSION['comment_error'] = 'This account is suspended and cannot submit comments.';
+            return Response::redirect('/post/' . $post->slug . '#comments');
         }
 
         $db = $this->app->make(Database::class);

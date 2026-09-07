@@ -29,6 +29,7 @@
                     <th>Email</th>
                     <th>Role</th>
                     <th>Status</th>
+                    <th>Verified</th>
                     <th style="text-align: center;">Posts</th>
                     <th>Actions</th>
                 </tr>
@@ -97,6 +98,17 @@
                             <span style="display: inline-block; padding: 2px 8px; border-radius: 3px; font-size: 11px; text-transform: uppercase; <?php echo $statusBadgeStyle; ?>">
                                 <?php echo htmlspecialchars(ucfirst($userStatus), ENT_QUOTES, 'UTF-8'); ?>
                             </span>
+                        </td>
+                        <td>
+                            <?php if ($u->isEmailVerified()): ?>
+                                <span style="display: inline-block; padding: 2px 8px; border-radius: 3px; font-size: 11px; font-weight: 600; background: #dcfce7; color: #15803d;" title="Email verified at <?php echo htmlspecialchars($u->email_verified_at ?? '', ENT_QUOTES, 'UTF-8'); ?>">
+                                    Verified
+                                </span>
+                            <?php else: ?>
+                                <span style="display: inline-block; padding: 2px 8px; border-radius: 3px; font-size: 11px; font-weight: 600; background: #fef3c7; color: #b45309;" title="Email verification pending">
+                                    Unverified
+                                </span>
+                            <?php endif; ?>
                         </td>
                         <td style="text-align: center;">
                             <a href="/admin/posts?s=<?php echo urlencode($u->username); ?>" style="font-weight: 600; color: #2271b1;" title="View Posts by <?php echo htmlspecialchars($u->username); ?>">

@@ -76,14 +76,14 @@ class AccountMenuTest extends TestCase
     // 1. Core Default Items & Authenticated Access
     // -------------------------------------------------------------------------
 
-    public function testCoreDefaultItemsRegisteredForAuthenticatedUser(): void
+    public function testCoreRegistersDefaultItems(): void
     {
         $user = $this->createMockUser();
         $items = AccountMenu::getItems($user);
 
         $this->assertNotEmpty($items);
         $this->assertArrayHasKey('profile', $items);
-        $this->assertArrayHasKey('account-settings', $items);
+        $this->assertArrayNotHasKey('account-settings', $items);
         $this->assertArrayHasKey('dashboard', $items);
         $this->assertArrayHasKey('logout', $items);
 
@@ -183,10 +183,11 @@ class AccountMenuTest extends TestCase
 
         // 'early-item' (order 5) should appear before 'profile' (order 10)
         $this->assertSame('early-item', $keys[0]);
-        // 'middle-item' (order 15) should appear between 'profile' (10) and 'account-settings' (20)
+        // 'middle-item' (order 15) should appear between 'profile' (10) and 'dashboard' (30)
         $this->assertSame('profile', $keys[1]);
         $this->assertSame('middle-item', $keys[2]);
-        $this->assertSame('account-settings', $keys[3]);
+        $this->assertSame('dashboard', $keys[3]);
+        $this->assertSame('logout', $keys[4]);
     }
 
     // -------------------------------------------------------------------------

@@ -27,6 +27,7 @@ use FavoriteCMS\Http\Controllers\Admin\ToolController;
 use FavoriteCMS\Models\Setting;
 use FavoriteCMS\Models\User;
 use FavoriteCMS\Rendering\Engine;
+use FavoriteCMS\Services\EmailVerificationService;
 
 class Kernel
 {
@@ -106,6 +107,24 @@ class Kernel
         $path   = $request->path();
         $method = $request->method();
 
+        // Immediately invalidate session if authenticated user was banned
+        if (!empty($_SESSION['auth_user_id'])) {
+            $checkUser = User::find((int)$_SESSION['auth_user_id']);
+            if (!$checkUser || $checkUser->isBanned()) {
+                unset(
+                    $_SESSION['auth_user_id'],
+                    $_SESSION['auth_user_name'],
+                    $_SESSION['auth_user_email'],
+                    $_SESSION['auth_user_role']
+                );
+                $_SESSION['login_flash'] = 'Your account has been permanently banned.';
+                $_SESSION['flash_error'] = 'Your account has been permanently banned.';
+                if (str_starts_with($path, '/admin')) {
+                    return Response::redirect('/admin/login');
+                }
+            }
+        }
+
         // ---------------------------------------------------------------------
         // Public Auth & Registration Routes
         // ---------------------------------------------------------------------
@@ -115,6 +134,14 @@ class Kernel
 
         if ($path === '/login') {
             return Response::redirect('/admin/login');
+        }
+
+        if ($path === '/verify-email') {
+            return $this->handleEmailVerification($request);
+        }
+
+        if ($path === '/resend-verification') {
+            return $method === 'POST' ? $this->processResendVerification($request) : $this->showResendVerification($request);
         }
 
         // ---------------------------------------------------------------------
@@ -223,10 +250,34 @@ class Kernel
 
         $currentUser = User::find((int)$_SESSION['auth_user_id']);
         if (!$currentUser || $currentUser->isBanned()) {
-            unset($_SESSION['auth_user_id'], $_SESSION['auth_user_name'], $_SESSION['auth_user_email']);
+            unset(
+                $_SESSION['auth_user_id'],
+                $_SESSION['auth_user_name'],
+                $_SESSION['auth_user_email'],
+                $_SESSION['auth_user_role']
+            );
             $_SESSION['login_flash'] = 'Your account has been permanently banned.';
             $_SESSION['flash_error'] = 'Your account has been permanently banned.';
             return Response::redirect('/admin/login');
+        }
+
+        // Enforce suspended restrictions: suspended users can view profile/settings and logout
+        if ($currentUser->isSuspended()) {
+            $allowedForSuspended = [
+                '/admin',
+                '/admin/',
+                '/admin/users/profile',
+                '/admin/users/profile/update',
+                '/admin/logout',
+            ];
+            if (!in_array($path, $allowedForSuspended, true)) {
+                if ($path === '/admin/posts' && $method === 'GET') {
+                    // Allowed read-only posts index
+                } else {
+                    $_SESSION['flash_error'] = 'Your account is currently suspended. Protected site activities, content creation, and modifications are restricted.';
+                    return Response::redirect('/admin/users/profile');
+                }
+            }
         }
 
         // Module 1: Dashboard
@@ -328,6 +379,9 @@ class Kernel
             $ctrl = new UserController($this->app);
             if ($path === '/admin/users/profile' || $path === '/admin/users/profile/update') {
                 return $method === 'POST' ? $ctrl->updateProfile($request) : $ctrl->profile($request);
+            }
+            if ($path === '/admin/users/profile/delete-account' && $method === 'POST') {
+                return $ctrl->deleteOwnAccount($request);
             }
 
             if (!$currentUser->canManageUsers()) {
@@ -606,6 +660,9 @@ class Kernel
         <div style="margin-top: 16px; padding-top: 14px; border-top: 1px solid #e2e8f0; text-align: center; font-size: 13px;">
             Don't have an account? <a href="/register" style="color: #2271b1; text-decoration: none; font-weight: 600;">Sign Up</a>
         </div>
+        <div style="margin-top: 8px; text-align: center; font-size: 12.5px;">
+            <a href="/resend-verification" style="color: #64748b; text-decoration: none;">Resend email verification</a>
+        </div>
     </div>
     <div class="back-link">
         <a href="/">&larr; Go to $sn</a>
@@ -643,20 +700,28 @@ HTML;
                 return $this->showLogin($request, 'Error: The password you entered for the username or email is incorrect.');
             }
 
-            if (($user->status ?? 'active') !== 'active') {
-                $statusMsg = match ($user->status) {
-                    'banned'    => 'Your account has been permanently banned.',
-                    'suspended' => 'Your account is suspended. You cannot log in or submit content.',
-                    default     => 'Your account is currently inactive.',
-                };
-                return $this->showLogin($request, $statusMsg);
+            if ($user->status === 'banned') {
+                return $this->showLogin($request, 'Your account has been permanently banned.');
+            }
+
+            if ($user->status === 'inactive') {
+                return $this->showLogin($request, 'Your account is currently inactive.');
+            }
+
+            if (EmailVerificationService::isRequired() && empty($user->email_verified_at)) {
+                return $this->showLogin($request, 'Your email address is not yet verified. Please check your inbox or resend verification link.');
             }
 
             $_SESSION['auth_user_id']    = $user->id;
-            $_SESSION['auth_user_name']  = $user->name ?? $user->username ?? 'Admin';
+            $_SESSION['auth_user_name']  = $user->name ?? $user->username ?? 'User';
             $_SESSION['auth_user_email'] = $user->email;
 
             $db->execute("UPDATE `users` SET `last_login_at` = ? WHERE `id` = ?", [date('Y-m-d H:i:s'), $user->id]);
+
+            if ($user->status === 'suspended') {
+                $_SESSION['flash_error'] = 'Your account is currently suspended. Site activity and content creation are restricted.';
+                return Response::redirect('/admin/users/profile');
+            }
 
             return Response::redirect('/admin');
 
@@ -843,18 +908,22 @@ HTML;
         try {
             $db = $this->app->make(Database::class);
 
-            // Check if username or email already exists
-            $existing = $db->selectOne(
-                "SELECT id FROM `users` WHERE `email` = ? OR `username` = ? LIMIT 1",
+            // Anti-ban / Anti-suspension bypass check: reject recycling suspended/banned accounts
+            $statusCheck = $db->selectOne(
+                "SELECT `status` FROM `users` WHERE `email` = ? OR `username` = ? LIMIT 1",
                 [$email, $username]
             );
+            if ($statusCheck && in_array($statusCheck->status, ['suspended', 'banned'], true)) {
+                return $this->showRegister($request, 'This email address or username is unavailable for registration. Please contact site support.', $old);
+            }
 
-            if ($existing) {
+            if ($statusCheck) {
                 return $this->showRegister($request, 'A user with this username or email already exists.', $old);
             }
 
             $now = date('Y-m-d H:i:s');
             $hash = password_hash($password, PASSWORD_DEFAULT);
+            $requiresVerification = EmailVerificationService::isRequired();
 
             $userId = $db->insert('users', [
                 'username'          => $username,
@@ -862,7 +931,7 @@ HTML;
                 'email'             => $email,
                 'password'          => $hash,
                 'status'            => 'active',
-                'email_verified_at' => $now,
+                'email_verified_at' => $requiresVerification ? null : $now,
                 'created_at'        => $now,
                 'updated_at'        => $now,
             ]);
@@ -873,7 +942,20 @@ HTML;
                 $db->execute("INSERT INTO `user_roles` (`user_id`, `role_id`) VALUES (?, ?)", [$userId, $role->id]);
             }
 
-            // Automatically authenticate user
+            if ($requiresVerification) {
+                $user = User::find($userId);
+                if ($user) {
+                    $verifService = new EmailVerificationService($db);
+                    $token = $verifService->createVerificationToken($user, $email);
+                    $verifService->sendVerificationEmail($user, $email, $token, false);
+                }
+
+                $_SESSION['login_flash'] = 'Registration successful! A verification email has been sent. Please check your inbox and verify your email to log in.';
+                $_SESSION['flash_info']  = 'Registration successful! A verification email has been sent. Please check your inbox and verify your email to log in.';
+                return Response::redirect('/admin/login');
+            }
+
+            // Automatically authenticate user if email verification is not required
             $_SESSION['auth_user_id']    = $userId;
             $_SESSION['auth_user_name']  = $name !== '' ? $name : $username;
             $_SESSION['auth_user_email'] = $email;
@@ -895,6 +977,229 @@ HTML;
             return Response::redirect((string)$redirect);
         }
         return Response::redirect($request->path() === '/logout' ? '/' : '/admin/login');
+    }
+
+    // -------------------------------------------------------------------------
+    // Email Verification Endpoints
+    // -------------------------------------------------------------------------
+    protected function handleEmailVerification(Request $request): Response
+    {
+        $token = (string)$request->get('token', '');
+        $db = $this->app->make(Database::class);
+        $service = new EmailVerificationService($db);
+        $result = $service->verifyToken($token);
+
+        if ($result['success']) {
+            $user = $result['user'];
+            if ($result['isEmailChange']) {
+                if (!empty($_SESSION['auth_user_id']) && (int)$_SESSION['auth_user_id'] === (int)$user->id) {
+                    $_SESSION['auth_user_email'] = $user->email;
+                }
+                $_SESSION['flash_success'] = 'Your email address has been successfully updated and verified!';
+                return Response::redirect(!empty($_SESSION['auth_user_id']) ? '/admin/users/profile' : '/admin/login');
+            }
+
+            $_SESSION['login_flash'] = 'Your email has been successfully verified! You may now sign in.';
+            $_SESSION['flash_success'] = 'Your email has been successfully verified! You may now sign in.';
+            return Response::redirect('/admin/login');
+        }
+
+        return $this->showVerificationResult(false, $result['error'] ?? 'Verification link is invalid or expired.');
+    }
+
+    protected function showVerificationResult(bool $success, string $message): Response
+    {
+        $siteName = Setting::get('general', 'site_name', 'Favorite CMS');
+        $sn = htmlspecialchars($siteName, ENT_QUOTES, 'UTF-8');
+        $msgHtml = htmlspecialchars($message, ENT_QUOTES, 'UTF-8');
+        $alertClass = $success ? 'alert-success' : 'alert-error';
+        $title = $success ? 'Email Verified' : 'Verification Failed';
+
+        $html = <<<HTML
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{$title} &lsaquo; {$sn} &mdash; Favorite CMS</title>
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            background: #f0f0f1;
+            color: #3c434a;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
+            font-size: 14px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 1rem;
+        }
+        .box {
+            background: #fff;
+            border: 1px solid #c3c4c7;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+            padding: 28px 24px;
+            width: 100%;
+            max-width: 420px;
+            border-radius: 4px;
+            text-align: center;
+        }
+        .alert { padding: 12px; border-left: 4px solid; margin-bottom: 20px; font-size: 13.5px; text-align: left; }
+        .alert-error { background: #fcf0f1; border-color: #d63638; color: #8a1f11; }
+        .alert-success { background: #f0fdf4; border-color: #16a34a; color: #166534; }
+        .btn { display: inline-block; padding: 10px 18px; border-radius: 4px; font-size: 13.5px; font-weight: 600; text-decoration: none; }
+        .btn-primary { background: #2271b1; color: #fff; border: 1px solid #2271b1; }
+        .btn-secondary { background: #fff; color: #3c434a; border: 1px solid #c3c4c7; margin-left: 8px; }
+    </style>
+</head>
+<body>
+    <div class="box">
+        <h1 style="font-size: 20px; margin-bottom: 16px; color: #1d2327;">{$title}</h1>
+        <div class="alert {$alertClass}">{$msgHtml}</div>
+        <div style="margin-top: 20px;">
+            <a href="/admin/login" class="btn btn-primary">Sign In</a>
+            <a href="/resend-verification" class="btn btn-secondary">Resend Link</a>
+        </div>
+    </div>
+</body>
+</html>
+HTML;
+        return Response::make($html, $success ? 200 : 400);
+    }
+
+    protected function showResendVerification(Request $request, ?string $error = null, ?string $success = null): Response
+    {
+        if (empty($_SESSION['_token'])) {
+            $_SESSION['_token'] = bin2hex(random_bytes(32));
+        }
+        $token = htmlspecialchars($_SESSION['_token'], ENT_QUOTES, 'UTF-8');
+        $siteName = Setting::get('general', 'site_name', 'Favorite CMS');
+        $sn = htmlspecialchars($siteName, ENT_QUOTES, 'UTF-8');
+        $emailParam = htmlspecialchars(trim((string)$request->get('email', '')), ENT_QUOTES, 'UTF-8');
+
+        $statusHtml = '';
+        if ($error) {
+            $statusHtml = '<div class="alert alert-error">' . htmlspecialchars($error, ENT_QUOTES, 'UTF-8') . '</div>';
+        } elseif ($success) {
+            $statusHtml = '<div class="alert alert-success">' . htmlspecialchars($success, ENT_QUOTES, 'UTF-8') . '</div>';
+        }
+
+        $html = <<<HTML
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Resend Email Verification &lsaquo; {$sn} &mdash; Favorite CMS</title>
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            background: #f0f0f1;
+            color: #3c434a;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
+            font-size: 14px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 1rem;
+        }
+        .box {
+            background: #fff;
+            border: 1px solid #c3c4c7;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+            padding: 26px 24px;
+            width: 100%;
+            max-width: 380px;
+            border-radius: 4px;
+        }
+        .header { text-align: center; margin-bottom: 20px; }
+        .header h1 { font-size: 20px; font-weight: 600; color: #1d2327; }
+        .alert { padding: 12px; border-left: 4px solid; margin-bottom: 16px; font-size: 13px; }
+        .alert-error { background: #fcf0f1; border-color: #d63638; color: #8a1f11; }
+        .alert-success { background: #f0fdf4; border-color: #16a34a; color: #166534; }
+        .form-group { margin-bottom: 16px; }
+        label { display: block; margin-bottom: 6px; font-weight: 500; font-size: 13px; }
+        input[type="email"] {
+            width: 100%;
+            padding: 8px 10px;
+            border: 1px solid #8c8f94;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        .btn-submit {
+            width: 100%;
+            padding: 10px;
+            background: #2271b1;
+            border: 1px solid #2271b1;
+            border-radius: 4px;
+            color: #fff;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .back-link { margin-top: 16px; text-align: center; font-size: 13px; }
+        .back-link a { color: #2271b1; text-decoration: none; }
+    </style>
+</head>
+<body>
+    <div class="box">
+        <div class="header">
+            <h1>Resend Verification Email</h1>
+        </div>
+        {$statusHtml}
+        <form method="POST" action="/resend-verification">
+            <input type="hidden" name="_token" value="{$token}">
+            <div class="form-group">
+                <label for="email">Email Address</label>
+                <input type="email" id="email" name="email" value="{$emailParam}" required autofocus autocomplete="email">
+            </div>
+            <button type="submit" class="btn-submit">Send Verification Link</button>
+        </form>
+        <div class="back-link">
+            <a href="/admin/login">&larr; Back to Log In</a>
+        </div>
+    </div>
+</body>
+</html>
+HTML;
+        return Response::make($html, 200);
+    }
+
+    protected function processResendVerification(Request $request): Response
+    {
+        $token  = (string)$request->post('_token', '');
+        $stored = (string)($_SESSION['_token'] ?? '');
+        if ($stored === '' || !hash_equals($stored, $token)) {
+            return $this->showResendVerification($request, 'Invalid security token. Please try again.');
+        }
+
+        $email = trim((string)$request->post('email', ''));
+        if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            return $this->showResendVerification($request, 'Please enter a valid email address.');
+        }
+
+        $db = $this->app->make(Database::class);
+        $service = new EmailVerificationService($db);
+
+        // Enforce rate-limiting cooldown
+        if (!$service->canResend($email)) {
+            $wait = $service->getSecondsUntilResend($email);
+            return $this->showResendVerification($request, "Please wait {$wait} seconds before requesting another verification email.");
+        }
+
+        // Generic anti-enumeration response
+        $genericMsg = 'If an unverified account associated with this email exists, a new verification link has been sent. Please check your inbox.';
+
+        $user = User::findByEmail($email);
+        if ($user && !$user->isEmailVerified() && $user->status !== 'banned') {
+            $newToken = $service->createVerificationToken($user, $email);
+            $service->sendVerificationEmail($user, $email, $newToken, false);
+        }
+
+        return $this->showResendVerification($request, null, $genericMsg);
     }
 
     protected function dispatchPluginAdminPage(Request $request, string $slug): Response

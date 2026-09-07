@@ -215,7 +215,7 @@ class AccountMenu
             return;
         }
 
-        // 1. Profile
+        // 1. Profile (Single account management destination)
         static::registerItem([
             'id'         => 'profile',
             'label'      => 'Profile',
@@ -226,18 +226,7 @@ class AccountMenu
             'plugin'     => 'core',
         ]);
 
-        // 2. Account Settings
-        static::registerItem([
-            'id'         => 'account-settings',
-            'label'      => 'Account Settings',
-            'url'        => '/admin/users/profile',
-            'icon'       => 'settings',
-            'order'      => 20,
-            'capability' => null,
-            'plugin'     => 'core',
-        ]);
-
-        // 3. Administration (Dashboard)
+        // 2. Administration (Dashboard - authorized users only)
         static::registerItem([
             'id'         => 'dashboard',
             'label'      => 'Administration',
@@ -248,7 +237,7 @@ class AccountMenu
             'plugin'     => 'core',
         ]);
 
-        // 4. Logout
+        // 3. Logout
         static::registerItem([
             'id'         => 'logout',
             'label'      => 'Log Out',

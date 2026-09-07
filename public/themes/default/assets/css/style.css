@@ -259,9 +259,11 @@ a:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visib
 
 
 /* User Account Dropdown Menu */
-.nav-account-item {
+.nav-account-item,
+.header-account-wrap {
     display: flex;
     align-items: center;
+    flex-shrink: 0;
 }
 
 .cms-account-menu {
@@ -1566,6 +1568,31 @@ body.layout-none .site-content {
 
     .header-search-input:focus {
         width: 100%;
+    }
+
+    .header-account-wrap {
+        width: 100%;
+        padding-top: 0.75rem;
+        border-top: 1px solid var(--color-border);
+        display: flex;
+    }
+
+    .header-account-wrap .cms-account-menu {
+        width: 100%;
+    }
+
+    .header-account-wrap .cms-account-trigger {
+        width: 100%;
+        justify-content: space-between;
+    }
+
+    .header-account-wrap .cms-account-dropdown {
+        position: static;
+        width: 100%;
+        box-shadow: none;
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-sm);
+        margin-top: 0.5rem;
     }
 
     .form-grid-2 {

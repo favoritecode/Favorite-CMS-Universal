@@ -167,6 +167,13 @@ class MediaController
 
     public function update(Request $request): Response
     {
+        $userId = (int)($_SESSION['auth_user_id'] ?? 1);
+        $user = User::find($userId);
+        if (!$user || !$user->canUploadMedia()) {
+            $_SESSION['flash_error'] = 'Your account is suspended and cannot modify media.';
+            return Response::redirect('/admin/media');
+        }
+
         $id = (int)$request->post('id', 0);
         $media = Media::find($id);
         if ($media) {
@@ -184,6 +191,13 @@ class MediaController
 
     public function delete(Request $request): Response
     {
+        $userId = (int)($_SESSION['auth_user_id'] ?? 1);
+        $user = User::find($userId);
+        if (!$user || !$user->canUploadMedia()) {
+            $_SESSION['flash_error'] = 'Your account is suspended and cannot delete media.';
+            return Response::redirect('/admin/media');
+        }
+
         $id = (int)$request->get('id', 0);
         $media = Media::find($id);
         if ($media) {

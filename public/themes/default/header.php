@@ -102,9 +102,6 @@ $siteLayout  = get_theme_mod('site_layout', 'right');
                                 <a href="/admin/posts/new" style="color: var(--color-primary); font-weight: 600;">+ Create Post</a>
                             </li>
                         <?php endif; ?>
-                        <li class="nav-account-item">
-                            <?php echo function_exists('render_account_menu') ? render_account_menu() : '<a href="/admin">Account</a>'; ?>
-                        </li>
                     <?php else: ?>
                         <li>
                             <a href="/admin/login" style="color: var(--color-muted); font-size: 0.875rem;">Log In</a>
@@ -136,6 +133,13 @@ $siteLayout  = get_theme_mod('site_layout', 'right');
                            value="<?php echo htmlspecialchars($_GET['q'] ?? '', ENT_QUOTES, 'UTF-8'); ?>"
                            aria-label="Search posts">
                 </form>
+            <?php endif; ?>
+
+            <?php if ($currentUser): ?>
+                <!-- Header Account / Profile Menu (Final / Rightmost Element) -->
+                <div class="header-account-wrap">
+                    <?php echo function_exists('render_account_menu') ? render_account_menu() : '<a href="/admin">Account</a>'; ?>
+                </div>
             <?php endif; ?>
         </div>
     </div>
