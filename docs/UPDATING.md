@@ -68,6 +68,8 @@ DONE
 | `resources/` | 🟢 REPLACE — CORE-MANAGED | **NO BLIND DELETE — REPLACE WITH NEW CORE VERSION** | Core-managed admin panel views, layout templates, and core mail templates. Safe to replace completely with the new release. |
 | `storage/` | 🔴 KEEP — NEVER DELETE | **NO — NEVER DELETE DURING NORMAL CORE UPDATE** | Stores critical persistent runtime state: `installed.lock` (proves active installation), `storage/plugins/favorite-digital/` (`files/`, `images/`, `proofs/`), and `storage/backups/`. Deleting `storage/` triggers reinstallation and deletes digital assets. |
 | `themes/` | 🔴 KEEP — NEVER DELETE | **NO — NEVER DELETE DURING NORMAL CORE UPDATE** | Contains installed and custom frontend themes (e.g., `themes/default/`). Core update != Theme update. Preserves your custom site design, templates, and branding. |
+| `themes/default/` | 🟢 UPDATE BUNDLED THEME | **UPDATE/MERGE WITH RELEASE** | The bundled Favorite CMS Default Theme. Part of the distributed Core package. When a Core release includes Default Theme improvements (e.g., frontend account menu integration), update `themes/default/` (and `public/themes/default/`). |
+| `themes/<custom>/` | 🔴 KEEP USER/CUSTOM THEMES | **NO — NEVER OVERWRITE USER THEMES** | User-created or custom themes. Preserves your custom designs, child themes, templates, and branding. Core updates must never overwrite arbitrary custom user themes. |
 | `vendor/` | 🟢 REPLACE — CORE-MANAGED | **NO BLIND DELETE — REPLACE WITH NEW CORE VERSION** | Contains third-party PHP libraries. Bundled pre-packaged with an optimized autoloader inside official Core release ZIPs (`Favorite-CMS-Universal.zip`). Replace with the new `vendor/` folder from the release archive. |
 | `.env` | 🔴 KEEP — NEVER DELETE | **NO — NEVER DELETE DURING NORMAL CORE UPDATE** | Contains active MySQL database credentials (`DB_NAME`, `DB_USER`, `DB_PASS`), `APP_KEY`, and site URL. Blindly deleting or overwriting `.env` disconnects your website from its database. |
 | `.htaccess` (root) | 🟡 INSPECT — NEVER BLINDLY DELETE | **NO — INSPECT FIRST (DO NOT DELETE BLINDLY)** | Protects sensitive directories (`app`, `storage`, `config`, `.env`, `migrate.php`) and forwards requests to `public/`. Safe to update to the new version unless your host added custom SSL, PHP handler, or redirection rules. |
@@ -100,10 +102,14 @@ These directories and files contain existing website data, user files, installed
 - **Why deleting it causes problems**: Core updates do not include plugins. Deleting `plugins/` removes all your extensions and breaks plugin-dependent pages.
 - **Action**: Leave the existing `plugins/` directory completely untouched during a Core update. Core update != Plugin update.
 
-### 🔴 3. DO NOT DELETE `themes/`
-- **What it contains**: Visual frontend presentation themes, including `themes/default/` and any custom or child themes created for your site.
-- **Why deleting it causes problems**: Deleting `themes/` wipes out your website layout, customized CSS, and frontend templates.
-- **Action**: Leave the existing `themes/` directory untouched. Core update != Theme update.
+### 🔴 3. PROTECT USER/CUSTOM THEMES (VS. BUNDLED DEFAULT THEME)
+- **What it contains**: Visual frontend presentation themes:
+  - `themes/default/` (and `public/themes/default/`): The bundled Favorite CMS Universal Default Theme, which is maintained as part of the Core release.
+  - `themes/<custom-theme>/`: Any custom themes, child themes, or community themes created for your site.
+- **Why deleting it causes problems**: Deleting your custom themes wipes out your website layout, customized CSS, and frontend templates.
+- **Action**: 
+  - **Custom / User themes**: Leave untouched. Never overwrite or delete user-created themes during a Core update.
+  - **Bundled Default Theme (`themes/default/`)**: If your site uses the bundled Default Theme, update `themes/default/` and `public/themes/default/` from the new Core release package to receive official Core theme improvements (e.g., the integrated frontend account/profile menu). If you made modifications to `themes/default/`, merge the template changes rather than blindly overwriting.
 
 ### 🔴 4. DO NOT DELETE OR OVERWRITE `.env`
 - **What it contains**: Database hostname, database name, username, password, `APP_KEY`, `APP_URL`, and `ADMIN_PREFIX`.
@@ -135,8 +141,9 @@ When you download `Favorite-CMS-Universal.zip` from GitHub Releases, understand 
 - `app/` (Core PHP classes, controllers, models, services)
 - `config/` (Default configuration templates)
 - `database/migrations/` (Core database schema migrations)
-- `public/` (Contains `index.php`, `assets/`, `.htaccess`, and empty `uploads/.gitkeep`)
+- `public/` (Contains `index.php`, `assets/`, `themes/default/`, `.htaccess`, and empty `uploads/.gitkeep`)
 - `resources/` (Admin views, layouts, mail templates)
+- `themes/default/` (Bundled Default Theme with latest core integrations)
 - `vendor/` (Pre-packaged production third-party libraries with optimized autoloader)
 - `bootstrap.php`, `index.php`, `migrate.php`, `.htaccess`, `LICENSE`, `README.md`
 
@@ -145,6 +152,7 @@ When you download `Favorite-CMS-Universal.zip` from GitHub Releases, understand 
 - **`storage/installed.lock` is NOT included**: Generated only during installation on your server.
 - **`storage/plugins/` is NOT included**: Customer downloads and receipts exist only on your server.
 - **`public/uploads/*` media files are NOT included**: Your media library is unique to your site.
+- **Custom / User themes (`themes/<custom>/`) are NOT included**: Custom themes exist only on your server.
 - **Domain plugins (`favorite-digital`, `favorite-pay`) are NOT included**: Domain plugins are standalone products with their own release cycles.
 - **`dfre/` is NOT included**: It is not part of the CMS.
 
@@ -248,7 +256,7 @@ Follow this exact 26-step procedure to update Favorite CMS Universal safely in H
 7. **Extract into a temporary directory**: Create a temporary folder named `core-update-temp/`. Move `Favorite-CMS-Universal.zip` inside `core-update-temp/` and extract it there.
 8. **DO NOT delete the existing CMS directory**: Never delete `/public_html/cms/` or any other parent folder!
 9. **Compare extracted Core package with the existing installation**: Look at `core-update-temp/` side-by-side with your existing files.
-10. **Preserve every RED directory/file**: Confirm that `.env`, `storage/`, `plugins/`, `themes/`, and `public/uploads/` will remain untouched.
+10. **Preserve every RED directory/file**: Confirm that `.env`, `storage/`, `plugins/`, custom user themes in `themes/`, and `public/uploads/` will remain untouched.
 11. **Do not blindly replace YELLOW directories/files**: Do not replace `.htaccess` or `config/` without checking for custom rules.
 12. **Replace confirmed GREEN Core directories**:
     - Move `core-update-temp/app/` to replace live `app/`.
@@ -260,7 +268,9 @@ Follow this exact 26-step procedure to update Favorite CMS Universal safely in H
     - Do NOT delete existing migration files.
 14. **Preserve existing user uploads**: Leave `public/uploads/` completely untouched.
 15. **Preserve installed plugins**: Leave `plugins/` completely untouched.
-16. **Preserve installed and custom themes**: Leave `themes/` completely untouched.
+16. **Handle themes correctly**:
+    - **User/custom themes**: Leave any custom themes in `themes/<your-theme>/` completely untouched.
+    - **Bundled default theme**: If your site uses the bundled Default Theme, copy `core-update-temp/themes/default/` over live `themes/default/` and `core-update-temp/public/themes/default/` over live `public/themes/default/` to apply Core theme improvements (such as the account/profile menu). If you customized files inside `themes/default/`, merge the template changes instead of blindly overwriting.
 17. **Preserve `.env`**: Never overwrite or delete `.env`.
 18. **Handle `.htaccess` carefully**: If the release notes describe new security rules, update `.htaccess` while preserving any custom SSL or host rules.
 19. **Leave `dfre/` untouched**: Do not modify or delete `dfre/`.
@@ -283,7 +293,9 @@ Follow this exact 26-step procedure to update Favorite CMS Universal safely in H
       php migrate.php
       ```
     *(If you do not have SSH access, see [Section 10](#10-running-database-migrations) for the one-time Cron Job method).*
-24. **Clear temporary cache**: In File Manager, open `storage/cache/` and delete all temporary cache files. **Keep the `storage/cache/` directory itself.**
+24. **Clear temporary cache and flush OPcache**:
+    - In File Manager, open `storage/cache/` and delete all temporary cache files. **Keep the `storage/cache/` directory itself.**
+    - **Flush LiteSpeed / PHP OPcache**: If your hosting server uses LiteSpeed Web Server (`lsphp`, standard on Hostinger) or standard PHP OPcache, PHP bytecode may be cached in memory. Touch/resave your CMS root `.htaccess` in File Manager or restart PHP via Hostinger hPanel (**Advanced** -> **PHP Configuration** -> **Restart PHP**) so updated theme templates and Core scripts load immediately.
 25. **Disable maintenance mode**: Delete `maintenance.html` (if created in Step 5).
 26. **Verify and keep backup**: Perform the [Post-Update Verification Checklist](#12-post-update-verification-checklist). Keep your backup files safe until you are 100% sure everything works.
 
@@ -388,7 +400,7 @@ Avoid these dangerous mistakes that lead to accidental data loss:
 - ❌ **DO NOT run the web installer (`/install`) on an existing site.**
 - ❌ **DO NOT delete `storage/` blindly.**
 - ❌ **DO NOT delete `plugins/` blindly.**
-- ❌ **DO NOT delete `themes/` blindly.**
+- ❌ **DO NOT delete `themes/` blindly.** (Custom user themes must be protected; only update `themes/default/` and `public/themes/default/` if using the bundled default theme).
 - ❌ **DO NOT delete `.env`.**
 - ❌ **DO NOT blindly overwrite `.env`.**
 - ❌ **DO NOT delete `public/uploads/`.**

@@ -43,7 +43,9 @@ $filesToCopy = [
     '.htaccess',
     'index.php',
     'bootstrap.php',
+    'migrate.php',
     'README.txt',
+    'README.md',
     'LICENSE',
 ];
 

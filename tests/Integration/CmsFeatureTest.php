@@ -123,6 +123,7 @@ class CmsFeatureTest extends TestCase
     {
         $now = date('Y-m-d H:i:s');
         $pageId = static::$db->insert('pages', [
+            'author_id'  => static::$adminUserId,
             'title'      => 'Test Feature Page',
             'slug'       => 'test-page-feature',
             'content'    => 'This is a static page content for test.',
