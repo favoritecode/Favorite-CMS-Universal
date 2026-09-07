@@ -890,9 +890,9 @@ HTML;
     {
         unset($_SESSION['auth_user_id'], $_SESSION['auth_user_name'], $_SESSION['auth_user_email']);
         $_SESSION['login_flash'] = 'You have been successfully logged out.';
-        $redirect = $request->query('redirect');
-        if ($redirect && \FavoriteCMS\Core\AccountMenu::isValidUrl($redirect)) {
-            return Response::redirect($redirect);
+        $redirect = $request->get('redirect');
+        if ($redirect && \FavoriteCMS\Core\AccountMenu::isValidUrl((string)$redirect)) {
+            return Response::redirect((string)$redirect);
         }
         return Response::redirect($request->path() === '/logout' ? '/' : '/admin/login');
     }

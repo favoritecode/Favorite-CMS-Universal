@@ -507,4 +507,29 @@ class AccountMenuTest extends TestCase
         $this->assertSame('Guest', get_user_display_name(null));
         $this->assertNull(get_user_avatar_url(null));
     }
+
+    public function testRequestQueryMethod(): void
+    {
+        $req = new \FavoriteCMS\Core\Request(['foo' => 'bar', 'redirect' => '/member/area']);
+        $this->assertSame('bar', $req->get('foo'));
+        $this->assertSame('bar', $req->query('foo'));
+        $this->assertSame('/member/area', $req->query('redirect'));
+        $this->assertSame('default', $req->query('missing', 'default'));
+    }
+
+    public function testLogoutUrlValidationForOpenRedirectPrevention(): void
+    {
+        // Safe URLs allowed
+        $this->assertTrue(AccountMenu::isValidUrl('/'));
+        $this->assertTrue(AccountMenu::isValidUrl('/login'));
+        $this->assertTrue(AccountMenu::isValidUrl('/member/orders'));
+        $this->assertTrue(AccountMenu::isValidUrl('https://example.com/safe'));
+
+        // Dangerous / open-redirect attempts blocked
+        $this->assertFalse(AccountMenu::isValidUrl('//malicious.com'));
+        $this->assertFalse(AccountMenu::isValidUrl('javascript:alert(1)'));
+        $this->assertFalse(AccountMenu::isValidUrl('data:text/html,evil'));
+        $this->assertFalse(AccountMenu::isValidUrl('file:///etc/passwd'));
+        $this->assertFalse(AccountMenu::isValidUrl('https:///invalid-uri'));
+    }
 }
