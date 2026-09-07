@@ -151,6 +151,10 @@ $siteFaviconUrl = function_exists('get_site_favicon_url') ? get_site_favicon_url
             font-weight: 500;
             transition: all 0.15s ease;
         }
+        .wp-menu-item.has-submenu > .wp-menu-link {
+            cursor: pointer;
+            user-select: none;
+        }
         .wp-menu-link:hover {
             background: rgba(255,255,255,0.06);
             color: #fff;
@@ -159,13 +163,28 @@ $siteFaviconUrl = function_exists('get_site_favicon_url') ? get_site_favicon_url
             color: #fff;
             background: var(--wp-blue);
         }
+        .wp-menu-toggle-icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            margin-left: auto;
+            color: #94a3b8;
+            transition: transform 0.2s ease, color 0.15s ease;
+            flex-shrink: 0;
+        }
+        .wp-menu-item.active .wp-menu-toggle-icon {
+            color: rgba(255,255,255,0.85);
+        }
+        .wp-menu-item.has-submenu.is-expanded .wp-menu-toggle-icon {
+            transform: rotate(180deg);
+        }
         .wp-submenu {
             list-style: none;
             background: #0f172a;
             padding: 4px 0;
             display: none;
         }
-        .wp-menu-item.active .wp-submenu, .wp-menu-item:hover .wp-submenu {
+        .wp-menu-item.has-submenu.is-expanded > .wp-submenu {
             display: block;
         }
         .wp-submenu a {
@@ -612,14 +631,20 @@ $siteFaviconUrl = function_exists('get_site_favicon_url') ? get_site_favicon_url
                     $pendingCommentsCount = 0;
                 }
                 ?>
-                <li class="wp-menu-item <?php echo in_array($activeMenu, ['posts', 'posts-new', 'categories', 'tags']) ? 'active' : ''; ?>">
-                    <a href="/admin/posts" class="wp-menu-link">
-                        📝 Posts
+                <?php
+                $isPostsActive = in_array($activeMenu, ['posts', 'posts-new', 'categories', 'tags']);
+                ?>
+                <li class="wp-menu-item has-submenu <?php echo $isPostsActive ? 'active is-expanded' : ''; ?>">
+                    <a href="/admin/posts" class="wp-menu-link" aria-haspopup="true" aria-expanded="<?php echo $isPostsActive ? 'true' : 'false'; ?>" aria-controls="submenu-posts">
+                        <span>📝 Posts</span>
                         <?php if ($canModerate && $pendingCount > 0): ?>
                             <span style="background: #e5a00d; color: #fff; font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 10px; margin-left: 6px;"><?php echo $pendingCount; ?></span>
                         <?php endif; ?>
+                        <span class="wp-menu-toggle-icon" aria-hidden="true">
+                            <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" /></svg>
+                        </span>
                     </a>
-                    <ul class="wp-submenu">
+                    <ul class="wp-submenu" id="submenu-posts">
                         <li><a href="/admin/posts" class="<?php echo $activeMenu === 'posts' ? 'active' : ''; ?>">All Posts</a></li>
                         <li><a href="/admin/posts/new" class="<?php echo $activeMenu === 'posts-new' ? 'active' : ''; ?>">Add New Post</a></li>
                         <?php if ($canModerate): ?>
@@ -633,9 +658,17 @@ $siteFaviconUrl = function_exists('get_site_favicon_url') ? get_site_favicon_url
                         <li><a href="/admin/taxonomies/tags" class="<?php echo $activeMenu === 'tags' ? 'active' : ''; ?>">Tags</a></li>
                     </ul>
                 </li>
-                <li class="wp-menu-item <?php echo in_array($activeMenu, ['pages', 'pages-new']) ? 'active' : ''; ?>">
-                    <a href="/admin/pages" class="wp-menu-link">📄 Pages</a>
-                    <ul class="wp-submenu">
+                <?php
+                $isPagesActive = in_array($activeMenu, ['pages', 'pages-new']);
+                ?>
+                <li class="wp-menu-item has-submenu <?php echo $isPagesActive ? 'active is-expanded' : ''; ?>">
+                    <a href="/admin/pages" class="wp-menu-link" aria-haspopup="true" aria-expanded="<?php echo $isPagesActive ? 'true' : 'false'; ?>" aria-controls="submenu-pages">
+                        <span>📄 Pages</span>
+                        <span class="wp-menu-toggle-icon" aria-hidden="true">
+                            <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" /></svg>
+                        </span>
+                    </a>
+                    <ul class="wp-submenu" id="submenu-pages">
                         <li><a href="/admin/pages" class="<?php echo $activeMenu === 'pages' ? 'active' : ''; ?>">All Pages</a></li>
                         <li><a href="/admin/pages/new" class="<?php echo $activeMenu === 'pages-new' ? 'active' : ''; ?>">Add New Page</a></li>
                     </ul>
@@ -655,9 +688,17 @@ $siteFaviconUrl = function_exists('get_site_favicon_url') ? get_site_favicon_url
                 <?php endif; ?>
 
                 <?php if ($isAdmin): ?>
-                    <li class="wp-menu-item <?php echo in_array($activeMenu, ['themes', 'widgets', 'customize', 'menus']) ? 'active' : ''; ?>">
-                        <a href="/admin/themes" class="wp-menu-link">🎨 Appearance</a>
-                        <ul class="wp-submenu">
+                    <?php
+                    $isThemesActive = in_array($activeMenu, ['themes', 'widgets', 'customize', 'menus']);
+                    ?>
+                    <li class="wp-menu-item has-submenu <?php echo $isThemesActive ? 'active is-expanded' : ''; ?>">
+                        <a href="/admin/themes" class="wp-menu-link" aria-haspopup="true" aria-expanded="<?php echo $isThemesActive ? 'true' : 'false'; ?>" aria-controls="submenu-themes">
+                            <span>🎨 Appearance</span>
+                            <span class="wp-menu-toggle-icon" aria-hidden="true">
+                                <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" /></svg>
+                            </span>
+                        </a>
+                        <ul class="wp-submenu" id="submenu-themes">
                             <li><a href="/admin/themes" class="<?php echo $activeMenu === 'themes' ? 'active' : ''; ?>">Themes</a></li>
                             <li><a href="/admin/customize" class="<?php echo $activeMenu === 'customize' ? 'active' : ''; ?>">Customize</a></li>
                             <li><a href="/admin/widgets" class="<?php echo $activeMenu === 'widgets' ? 'active' : ''; ?>">Widgets</a></li>
@@ -669,9 +710,17 @@ $siteFaviconUrl = function_exists('get_site_favicon_url') ? get_site_favicon_url
                     </li>
                 <?php endif; ?>
 
-                <li class="wp-menu-item <?php echo in_array($activeMenu, ['users', 'users-new', 'profile']) ? 'active' : ''; ?>">
-                    <a href="<?php echo $canManageUsers ? '/admin/users' : '/admin/users/profile'; ?>" class="wp-menu-link">👥 Users</a>
-                    <ul class="wp-submenu">
+                <?php
+                $isUsersActive = in_array($activeMenu, ['users', 'users-new', 'profile']);
+                ?>
+                <li class="wp-menu-item has-submenu <?php echo $isUsersActive ? 'active is-expanded' : ''; ?>">
+                    <a href="<?php echo $canManageUsers ? '/admin/users' : '/admin/users/profile'; ?>" class="wp-menu-link" aria-haspopup="true" aria-expanded="<?php echo $isUsersActive ? 'true' : 'false'; ?>" aria-controls="submenu-users">
+                        <span>👥 Users</span>
+                        <span class="wp-menu-toggle-icon" aria-hidden="true">
+                            <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" /></svg>
+                        </span>
+                    </a>
+                    <ul class="wp-submenu" id="submenu-users">
                         <?php if ($canManageUsers): ?>
                             <li><a href="/admin/users" class="<?php echo $activeMenu === 'users' ? 'active' : ''; ?>">All Users</a></li>
                             <li><a href="/admin/users/new" class="<?php echo $activeMenu === 'users-new' ? 'active' : ''; ?>">Add New</a></li>
@@ -687,9 +736,17 @@ $siteFaviconUrl = function_exists('get_site_favicon_url') ? get_site_favicon_url
                     <li class="wp-menu-item <?php echo $activeMenu === 'seo' ? 'active' : ''; ?>">
                         <a href="/admin/seo" class="wp-menu-link">🔍 SEO</a>
                     </li>
-                    <li class="wp-menu-item <?php echo in_array($activeMenu, ['tools', 'tools-import']) ? 'active' : ''; ?>">
-                        <a href="/admin/tools" class="wp-menu-link">🛠️ Tools</a>
-                        <ul class="wp-submenu">
+                    <?php
+                    $isToolsActive = in_array($activeMenu, ['tools', 'tools-import']);
+                    ?>
+                    <li class="wp-menu-item has-submenu <?php echo $isToolsActive ? 'active is-expanded' : ''; ?>">
+                        <a href="/admin/tools" class="wp-menu-link" aria-haspopup="true" aria-expanded="<?php echo $isToolsActive ? 'true' : 'false'; ?>" aria-controls="submenu-tools">
+                            <span>🛠️ Tools</span>
+                            <span class="wp-menu-toggle-icon" aria-hidden="true">
+                                <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" /></svg>
+                            </span>
+                        </a>
+                        <ul class="wp-submenu" id="submenu-tools">
                             <li><a href="/admin/tools" class="<?php echo $activeMenu === 'tools' ? 'active' : ''; ?>">Backups &amp; Health</a></li>
                             <li><a href="/admin/tools/import" class="<?php echo $activeMenu === 'tools-import' ? 'active' : ''; ?>">Import / Migration</a></li>
                         </ul>
@@ -703,15 +760,23 @@ $siteFaviconUrl = function_exists('get_site_favicon_url') ? get_site_favicon_url
                     if (function_exists('current_user_can') && !current_user_can($dMenu['capability'])) continue;
                     $isDActive = ($activeMenu === $dMenu['slug']);
                     $hasSub = !empty($dMenu['submenus']);
+                    $subSlugs = $hasSub ? array_column($dMenu['submenus'], 'slug') : [];
+                    $isAnySubActive = $isDActive || in_array($activeMenu, $subSlugs);
                     $menuUrl = '/admin/page/' . htmlspecialchars($dMenu['slug'], ENT_QUOTES, 'UTF-8');
+                    $subId = 'submenu-dmenu-' . preg_replace('/[^a-zA-Z0-9_\-]/', '-', $dMenu['slug']);
                 ?>
-                    <li class="wp-menu-item <?php echo $isDActive ? 'active' : ''; ?>">
-                        <a href="<?php echo $menuUrl; ?>" class="wp-menu-link">
+                    <li class="wp-menu-item <?php echo $hasSub ? 'has-submenu ' : ''; ?><?php echo $isAnySubActive ? 'active ' : ''; ?><?php echo ($hasSub && $isAnySubActive) ? 'is-expanded' : ''; ?>">
+                        <a href="<?php echo $menuUrl; ?>" class="wp-menu-link"<?php if ($hasSub): ?> aria-haspopup="true" aria-expanded="<?php echo $isAnySubActive ? 'true' : 'false'; ?>" aria-controls="<?php echo $subId; ?>"<?php endif; ?>>
                             <span><?php echo htmlspecialchars($dMenu['icon'] ?? '🔌', ENT_QUOTES, 'UTF-8'); ?></span>
                             <span><?php echo htmlspecialchars($dMenu['title'], ENT_QUOTES, 'UTF-8'); ?></span>
+                            <?php if ($hasSub): ?>
+                                <span class="wp-menu-toggle-icon" aria-hidden="true">
+                                    <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" /></svg>
+                                </span>
+                            <?php endif; ?>
                         </a>
                         <?php if ($hasSub): ?>
-                            <ul class="wp-submenu">
+                            <ul class="wp-submenu" id="<?php echo $subId; ?>">
                                 <li><a href="<?php echo $menuUrl; ?>" class="<?php echo $activeMenu === $dMenu['slug'] ? 'active' : ''; ?>"><?php echo htmlspecialchars($dMenu['title'], ENT_QUOTES, 'UTF-8'); ?></a></li>
                                 <?php foreach ($dMenu['submenus'] as $sub): ?>
                                     <li><a href="/admin/page/<?php echo htmlspecialchars($sub['slug'], ENT_QUOTES, 'UTF-8'); ?>" class="<?php echo $activeMenu === $sub['slug'] ? 'active' : ''; ?>"><?php echo htmlspecialchars($sub['title'], ENT_QUOTES, 'UTF-8'); ?></a></li>
@@ -865,10 +930,46 @@ $siteFaviconUrl = function_exists('get_site_favicon_url') ? get_site_favicon_url
         updateState();
     };
 
-    // Mobile menu toggle
+    // Admin navigation: click-to-expand / click-to-collapse & mobile menu toggle
     document.addEventListener('DOMContentLoaded', function() {
-        var menuBtn = document.getElementById('mobile-menu-toggle');
         var sidebar = document.querySelector('.wp-sidebar');
+        if (sidebar) {
+            sidebar.addEventListener('click', function(e) {
+                var link = e.target.closest('.wp-menu-item.has-submenu > .wp-menu-link');
+                if (!link) return;
+
+                // Allow modifier clicks (Ctrl/Cmd/Shift or middle-click) to open in new tab
+                if (e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey) {
+                    return;
+                }
+
+                e.preventDefault();
+
+                var item = link.parentElement;
+                var isExpanded = item.classList.contains('is-expanded');
+
+                if (isExpanded) {
+                    item.classList.remove('is-expanded');
+                    link.setAttribute('aria-expanded', 'false');
+                } else {
+                    item.classList.add('is-expanded');
+                    link.setAttribute('aria-expanded', 'true');
+                }
+            });
+
+            // Keyboard accessibility: Space key toggles disclosure
+            sidebar.addEventListener('keydown', function(e) {
+                if (e.key === ' ' || e.key === 'Spacebar') {
+                    var link = e.target.closest('.wp-menu-item.has-submenu > .wp-menu-link');
+                    if (link) {
+                        e.preventDefault();
+                        link.click();
+                    }
+                }
+            });
+        }
+
+        var menuBtn = document.getElementById('mobile-menu-toggle');
         var backdrop = document.getElementById('sidebar-backdrop');
 
         if (menuBtn && sidebar && backdrop) {

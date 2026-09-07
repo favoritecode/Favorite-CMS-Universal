@@ -62,6 +62,11 @@ $excludePatterns = [
     '/sessions\//',
     '/release\//',
     '/plugins\/favorite-pay\b/',
+    '/plugins\/favorite-digital\b/',
+    '/public\/plugins\/favorite-pay\b/',
+    '/public\/plugins\/favorite-digital\b/',
+    '/Favorite-Digital.*\.zip$/i',
+    '/Favorite-Pay.*\.zip$/i',
 ];
 
 // 3. Staging directory setup
