@@ -637,5 +637,109 @@ if (!function_exists('get_site_favicon_url')) {
     }
 }
 
+// -----------------------------------------------------------------------------
+// Frontend Account & Profile Menu APIs
+// -----------------------------------------------------------------------------
 
+if (!function_exists('register_account_menu_item')) {
+    /**
+     * Public API for Core and Plugins to register an account menu item.
+     *
+     * Supported array keys:
+     * - id (string, required): unique item identifier
+     * - label (string, required): display text (HTML-stripped)
+     * - url (string, required): destination URL or root-relative path
+     * - icon (string, optional): icon identifier ('user', 'settings', 'log-out', etc.) or safe SVG
+     * - order (int, optional): sort order (default 50, lower numbers first)
+     * - capability (string, optional): required user permission (null for any logged-in user)
+     * - plugin (string, optional): plugin identifier (default 'core')
+     * - condition (callable|bool|null, optional): dynamic visibility callback fn(?User $user): bool
+     *
+     * @param array $item Item definition
+     * @return bool True if registered, false on validation failure
+     */
+    function register_account_menu_item(array $item): bool
+    {
+        return \FavoriteCMS\Core\AccountMenu::registerItem($item);
+    }
+}
+
+if (!function_exists('unregister_account_menu_item')) {
+    /**
+     * Public API to remove an account menu item by ID.
+     */
+    function unregister_account_menu_item(string $id): bool
+    {
+        return \FavoriteCMS\Core\AccountMenu::removeItem($id);
+    }
+}
+
+if (!function_exists('get_account_menu_items')) {
+    /**
+     * Retrieve all account menu items visible to the authenticated user.
+     * Returns an empty array for guests.
+     *
+     * @param ?object $user Optional user object (defaults to current_user())
+     * @return array<string, array>
+     */
+    function get_account_menu_items(?object $user = null): array
+    {
+        return \FavoriteCMS\Core\AccountMenu::getItems($user);
+    }
+}
+
+if (!function_exists('has_account_menu_items')) {
+    /**
+     * Check if the authenticated user has any visible account menu items.
+     * Returns false for guests.
+     */
+    function has_account_menu_items(?object $user = null): bool
+    {
+        return !empty(\FavoriteCMS\Core\AccountMenu::getItems($user));
+    }
+}
+
+if (!function_exists('render_account_menu')) {
+    /**
+     * Render the theme-agnostic accessible account profile menu dropdown.
+     * Returns empty string for unauthenticated guests.
+     *
+     * @param array $options Rendering options (show_avatar, show_name, show_role, etc.)
+     * @return string Safe HTML
+     */
+    function render_account_menu(array $options = []): string
+    {
+        return \FavoriteCMS\Core\AccountMenu::render($options);
+    }
+}
+
+if (!function_exists('get_user_avatar_url')) {
+    /**
+     * Retrieve the avatar URL of the given user or current logged-in user.
+     * Returns null if no avatar is set or user is unauthenticated.
+     */
+    function get_user_avatar_url(?object $user = null): ?string
+    {
+        $user = $user ?? (function_exists('current_user') ? current_user() : null);
+        if (!$user || empty($user->avatar)) {
+            return null;
+        }
+        $url = (string)$user->avatar;
+        return \FavoriteCMS\Core\AccountMenu::isValidUrl($url) ? $url : null;
+    }
+}
+
+if (!function_exists('get_user_display_name')) {
+    /**
+     * Retrieve the display name of the given user or current logged-in user.
+     */
+    function get_user_display_name(?object $user = null): string
+    {
+        $user = $user ?? (function_exists('current_user') ? current_user() : null);
+        if (!$user) {
+            return 'Guest';
+        }
+        return (string)($user->name ?: ($user->username ?: 'User'));
+    }
+}
 

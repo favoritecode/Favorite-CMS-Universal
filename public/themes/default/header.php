@@ -65,14 +65,24 @@ $currentUri = $_SERVER['REQUEST_URI'] ?? '/';
                         }
                     }
                     ?>
-                    <?php if (!empty($_SESSION['auth_user_id'])): ?>
-                        <li>
-                            <a href="/admin" style="color: var(--color-primary); font-weight: 600;">Dashboard</a>
+                    <?php if ($currentUser = (function_exists('current_user') ? current_user() : null)): ?>
+                        <?php if (function_exists('current_user_can') && current_user_can('publish_posts')): ?>
+                            <li>
+                                <a href="/admin/posts/new" style="color: var(--color-primary); font-weight: 600;">+ Create Post</a>
+                            </li>
+                        <?php endif; ?>
+                        <li class="nav-account-item">
+                            <?php echo function_exists('render_account_menu') ? render_account_menu() : '<a href="/admin">Account</a>'; ?>
                         </li>
                     <?php else: ?>
                         <li>
                             <a href="/admin/login" style="color: var(--color-muted); font-size: 0.875rem;">Log In</a>
                         </li>
+                        <?php if ((int)\FavoriteCMS\Models\Setting::get('general', 'allow_registration', 1)): ?>
+                            <li>
+                                <a href="/register" style="color: var(--color-primary); font-size: 0.875rem; font-weight: 600;">Sign Up</a>
+                            </li>
+                        <?php endif; ?>
                     <?php endif; ?>
                 </ul>
             </nav>

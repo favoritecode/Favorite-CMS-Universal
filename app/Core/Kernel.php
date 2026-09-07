@@ -151,6 +151,10 @@ class Kernel
             return $frontend->home($request);
         }
 
+        if ($path === '/logout') {
+            return $this->processLogout($request);
+        }
+
         if ($path === '/search') {
             return $frontend->search($request);
         }
@@ -886,7 +890,11 @@ HTML;
     {
         unset($_SESSION['auth_user_id'], $_SESSION['auth_user_name'], $_SESSION['auth_user_email']);
         $_SESSION['login_flash'] = 'You have been successfully logged out.';
-        return Response::redirect('/admin/login');
+        $redirect = $request->query('redirect');
+        if ($redirect && \FavoriteCMS\Core\AccountMenu::isValidUrl($redirect)) {
+            return Response::redirect($redirect);
+        }
+        return Response::redirect($request->path() === '/logout' ? '/' : '/admin/login');
     }
 
     protected function dispatchPluginAdminPage(Request $request, string $slug): Response

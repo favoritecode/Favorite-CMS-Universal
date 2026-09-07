@@ -33,4 +33,45 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     });
+
+    // 3. User Account Dropdown Toggle
+    document.querySelectorAll('.cms-account-menu').forEach(function(menu) {
+        const trigger = menu.querySelector('.cms-account-trigger');
+        const dropdown = menu.querySelector('.cms-account-dropdown');
+        if (!trigger || !dropdown) return;
+
+        trigger.addEventListener('click', function(e) {
+            e.stopPropagation();
+            const isOpen = menu.classList.contains('is-open');
+
+            // Close any other open account menus
+            document.querySelectorAll('.cms-account-menu.is-open').forEach(function(other) {
+                if (other !== menu) {
+                    other.classList.remove('is-open');
+                    other.querySelector('.cms-account-trigger')?.setAttribute('aria-expanded', 'false');
+                }
+            });
+
+            menu.classList.toggle('is-open', !isOpen);
+            trigger.setAttribute('aria-expanded', String(!isOpen));
+        });
+
+        // Close when clicking outside
+        document.addEventListener('click', function(e) {
+            if (!menu.contains(e.target) && menu.classList.contains('is-open')) {
+                menu.classList.remove('is-open');
+                trigger.setAttribute('aria-expanded', 'false');
+            }
+        });
+
+        // Close on Escape key
+        menu.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape' && menu.classList.contains('is-open')) {
+                menu.classList.remove('is-open');
+                trigger.setAttribute('aria-expanded', 'false');
+                trigger.focus();
+            }
+        });
+    });
 });
+

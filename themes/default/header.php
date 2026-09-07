@@ -96,12 +96,14 @@ $siteLayout  = get_theme_mod('site_layout', 'right');
                         }
                     }
                     ?>
-                    <?php if (!empty($_SESSION['auth_user_id'])): ?>
-                        <li>
-                            <a href="/admin/posts/new" style="color: var(--color-primary); font-weight: 600;">+ Create Post</a>
-                        </li>
-                        <li>
-                            <a href="/admin" style="font-weight: 600;">Dashboard</a>
+                    <?php if ($currentUser = (function_exists('current_user') ? current_user() : null)): ?>
+                        <?php if (function_exists('current_user_can') && current_user_can('publish_posts')): ?>
+                            <li>
+                                <a href="/admin/posts/new" style="color: var(--color-primary); font-weight: 600;">+ Create Post</a>
+                            </li>
+                        <?php endif; ?>
+                        <li class="nav-account-item">
+                            <?php echo function_exists('render_account_menu') ? render_account_menu() : '<a href="/admin">Account</a>'; ?>
                         </li>
                     <?php else: ?>
                         <li>
