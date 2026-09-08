@@ -11,6 +11,7 @@ use FavoriteCMS\Pay\Contracts\CurrencyServiceInterface;
 use FavoriteCMS\Pay\Contracts\PaymentServiceInterface;
 use FavoriteCMS\Pay\Contracts\RefundServiceInterface;
 use FavoriteCMS\Pay\Contracts\WalletServiceInterface;
+use FavoriteCMS\Pay\Contracts\WithdrawalServiceInterface;
 use FavoriteCMS\Pay\Domain\PaymentMethodType;
 use FavoriteCMS\Pay\Gateways\ManualBangladeshGateway;
 use FavoriteCMS\Pay\Services\CurrencyService;
@@ -18,6 +19,8 @@ use FavoriteCMS\Pay\Services\GatewayRegistry;
 use FavoriteCMS\Pay\Services\PaymentService;
 use FavoriteCMS\Pay\Services\RefundService;
 use FavoriteCMS\Pay\Services\WalletService;
+use FavoriteCMS\Pay\Services\WithdrawalService;
+use FavoriteCMS\Pay\Controllers\WithdrawalAdminController;
 
 final class FavoritePayPlugin
 {
@@ -29,6 +32,7 @@ final class FavoritePayPlugin
         'favorite_pay_refunds',
         'favorite_pay_wallets',
         'favorite_pay_wallet_entries',
+        'favorite_pay_withdrawals',
     ];
 
     private static ?self $instance = null;
@@ -269,6 +273,27 @@ final class FavoritePayPlugin
             );
         });
 
+        // Bind Withdrawal Service
+        $this->app->singleton(WithdrawalServiceInterface::class, function ($app) {
+            $db = $app->has(Database::class) ? $app->make(Database::class) : null;
+            return new WithdrawalService(
+                $app->make(WalletServiceInterface::class),
+                $app->make(CurrencyServiceInterface::class),
+                $db
+            );
+        });
+        $this->app->singleton(WithdrawalService::class, function ($app) {
+            return $app->make(WithdrawalServiceInterface::class);
+        });
+
+        // Bind Withdrawal Admin Controller
+        $this->app->singleton(WithdrawalAdminController::class, function ($app) {
+            return new WithdrawalAdminController(
+                $app,
+                $app->make(WithdrawalServiceInterface::class)
+            );
+        });
+
         // Bind Customer Account Controller
         $this->app->singleton(\FavoriteCMS\Pay\Controllers\CustomerAccountController::class, function ($app) {
             return new \FavoriteCMS\Pay\Controllers\CustomerAccountController(
@@ -276,7 +301,9 @@ final class FavoritePayPlugin
                 $app->make(WalletServiceInterface::class),
                 $app->make(PaymentServiceInterface::class),
                 $app->make(GatewayRegistry::class),
-                $app->make(CurrencyServiceInterface::class)
+                $app->make(CurrencyServiceInterface::class),
+                $app->has(Database::class) ? $app->make(Database::class) : null,
+                $app->make(WithdrawalServiceInterface::class)
             );
         });
     }
@@ -310,6 +337,17 @@ final class FavoritePayPlugin
                     'Payments',
                     $handler,
                     \FavoriteCMS\Pay\Permissions\PaymentPermission::VIEW
+                );
+
+                add_admin_submenu(
+                    'favorite-pay',
+                    'favorite-pay-withdrawals',
+                    'Withdrawals',
+                    function (\FavoriteCMS\Core\Request $request) {
+                        $controller = $this->app->make(\FavoriteCMS\Pay\Controllers\WithdrawalAdminController::class);
+                        return $controller->handle($request);
+                    },
+                    \FavoriteCMS\Pay\Permissions\PaymentPermission::VIEW_WITHDRAWALS
                 );
 
                 add_admin_submenu(
@@ -460,6 +498,7 @@ final class FavoritePayPlugin
                 'favorite_pay_refunds',
                 'favorite_pay_wallets',
                 'favorite_pay_wallet_entries',
+                'favorite_pay_withdrawals',
             ];
 
             foreach ($tables as $table) {
@@ -490,6 +529,13 @@ final class FavoritePayPlugin
         if ($this->app->has(RefundServiceInterface::class)) {
             $refundService = $this->app->make(RefundServiceInterface::class);
             if (method_exists($refundService, 'hasRefunds') && $refundService->hasRefunds()) {
+                return true;
+            }
+        }
+
+        if ($this->app->has(WithdrawalServiceInterface::class)) {
+            $withdrawalService = $this->app->make(WithdrawalServiceInterface::class);
+            if (method_exists($withdrawalService, 'hasWithdrawals') && $withdrawalService->hasWithdrawals()) {
                 return true;
             }
         }
@@ -608,6 +654,24 @@ final class FavoritePayPlugin
             'plugin' => 'favorite-pay',
         ]);
 
+        if ($this->app->has(WithdrawalServiceInterface::class)) {
+            try {
+                $withdrawalService = $this->app->make(WithdrawalServiceInterface::class);
+                if ($withdrawalService->isWithdrawalEnabled()) {
+                    register_account_menu_item([
+                        'id'     => 'pay_withdraw',
+                        'label'  => 'Withdraw',
+                        'url'    => '/account/withdraw',
+                        'icon'   => 'fas fa-money-bill-wave',
+                        'order'  => 18,
+                        'plugin' => 'favorite-pay',
+                    ]);
+                }
+            } catch (\Throwable) {
+                // Ignore failure during menu registration
+            }
+        }
+
         register_account_menu_item([
             'id'     => 'pay_payments',
             'label'  => 'Payment History',
@@ -657,6 +721,18 @@ final class FavoritePayPlugin
         add_route(['POST'], '/account/recharge/manual', function (\FavoriteCMS\Core\Request $request) {
             $controller = $this->app->make(\FavoriteCMS\Pay\Controllers\CustomerAccountController::class);
             return $controller->submitManual($request);
+        });
+
+        // Customer Withdraw Request & History
+        add_route(['GET', 'POST'], '/account/withdraw', function (\FavoriteCMS\Core\Request $request) {
+            $controller = $this->app->make(\FavoriteCMS\Pay\Controllers\CustomerAccountController::class);
+            return $controller->withdraw($request);
+        });
+
+        // Customer Withdrawal Detail & Cancel
+        add_route(['GET', 'POST'], '/account/withdrawals/{id}', function (\FavoriteCMS\Core\Request $request, string $id) {
+            $controller = $this->app->make(\FavoriteCMS\Pay\Controllers\CustomerAccountController::class);
+            return $controller->withdrawalDetail($request, $id);
         });
 
         // Customer Binance Pay QR Checkout Screen

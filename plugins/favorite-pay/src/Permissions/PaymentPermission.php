@@ -74,6 +74,51 @@ final class PaymentPermission
         return $user->hasPermission(self::MANAGE_RATES) || $user->hasPermission('manage_settings');
     }
 
+    public const MANAGE_WITHDRAWALS = 'favorite_pay.withdrawals.manage';
+    public const VIEW_WITHDRAWALS = 'favorite_pay.withdrawals.view';
+
+    /**
+     * Check if a user has permission to manage, approve, reject, or process customer withdrawals.
+     */
+    public static function canManageWithdrawals(?User $user = null): bool
+    {
+        if ($user === null && function_exists('current_user')) {
+            $user = current_user();
+        }
+
+        if (!$user || !$user->isActive()) {
+            return false;
+        }
+
+        if ($user->hasRole('super-admin') || $user->hasRole('admin')) {
+            return true;
+        }
+
+        return $user->hasPermission(self::MANAGE_WITHDRAWALS) || $user->hasPermission('manage_settings');
+    }
+
+    /**
+     * Check if a user has permission to view withdrawal queue and details.
+     */
+    public static function canViewWithdrawals(?User $user = null): bool
+    {
+        if ($user === null && function_exists('current_user')) {
+            $user = current_user();
+        }
+
+        if (!$user || !$user->isActive()) {
+            return false;
+        }
+
+        if ($user->hasRole('super-admin') || $user->hasRole('admin')) {
+            return true;
+        }
+
+        return $user->hasPermission(self::VIEW_WITHDRAWALS) 
+            || $user->hasPermission(self::MANAGE_WITHDRAWALS) 
+            || $user->hasPermission(self::VIEW);
+    }
+
     public const MANAGE_SETTINGS = 'favorite_pay.settings.manage';
 
     /**

@@ -12,6 +12,7 @@ use FavoriteCMS\Models\User;
 use FavoriteCMS\Pay\Contracts\CurrencyServiceInterface;
 use FavoriteCMS\Pay\Contracts\PaymentServiceInterface;
 use FavoriteCMS\Pay\Contracts\WalletServiceInterface;
+use FavoriteCMS\Pay\Contracts\WithdrawalServiceInterface;
 use FavoriteCMS\Pay\Domain\Money;
 use FavoriteCMS\Pay\Domain\PaymentIntent;
 use FavoriteCMS\Pay\Domain\PaymentMethodType;
@@ -31,6 +32,7 @@ class CustomerAccountController
     protected GatewayRegistry $gatewayRegistry;
     protected CurrencyServiceInterface $currencyService;
     protected ?Database $db;
+    protected ?WithdrawalServiceInterface $withdrawalService;
 
     public function __construct(
         Application $app,
@@ -38,7 +40,8 @@ class CustomerAccountController
         PaymentServiceInterface $paymentService,
         GatewayRegistry $gatewayRegistry,
         CurrencyServiceInterface $currencyService,
-        ?Database $db = null
+        ?Database $db = null,
+        ?WithdrawalServiceInterface $withdrawalService = null
     ) {
         $this->app = $app;
         $this->walletService = $walletService;
@@ -46,6 +49,11 @@ class CustomerAccountController
         $this->gatewayRegistry = $gatewayRegistry;
         $this->currencyService = $currencyService;
         $this->db = $db;
+        $this->withdrawalService = $withdrawalService;
+
+        if ($this->withdrawalService === null && method_exists($this->app, 'has') && $this->app->has(WithdrawalServiceInterface::class)) {
+            $this->withdrawalService = $this->app->make(WithdrawalServiceInterface::class);
+        }
     }
 
     /**
@@ -852,6 +860,10 @@ class CustomerAccountController
             return "<div class='alert alert-danger'>View file not found: " . htmlspecialchars($viewName, ENT_QUOTES, 'UTF-8') . "</div>";
         }
 
+        if (!isset($data['withdrawEnabled'])) {
+            $data['withdrawEnabled'] = $this->withdrawalService !== null && $this->withdrawalService->isWithdrawalEnabled();
+        }
+
         $data['contentView'] = $viewFile;
         extract($data, EXTR_SKIP);
 
@@ -869,6 +881,159 @@ class CustomerAccountController
             }
             throw $e;
         }
+    }
+
+    /**
+     * Customer withdrawal request & history area (/account/withdraw).
+     */
+    public function withdraw(Request $request): Response
+    {
+        // 1. Feature flag check
+        if ($this->withdrawalService === null || !$this->withdrawalService->isWithdrawalEnabled()) {
+            return new Response('Withdrawals are currently disabled.', 403, ['Content-Type' => 'text/html; charset=UTF-8']);
+        }
+
+        // 2. Authentication check
+        $auth = $this->requireAuth($request);
+        if ($auth instanceof Response) {
+            return $auth;
+        }
+        $user = $auth;
+        $userId = (int)$user->id;
+
+        // 3. Suspended check
+        $isSuspended = method_exists($user, 'isSuspended') && $user->isSuspended();
+        if ($isSuspended) {
+            return new Response('Access restricted: Your account is suspended. Withdrawals are disabled.', 403, ['Content-Type' => 'text/html; charset=UTF-8']);
+        }
+
+        $status = strtolower((string)($user->status ?? 'active'));
+        if (in_array($status, ['suspended', 'banned', 'inactive'], true)) {
+            return new Response('Access restricted: Your account is inactive or suspended. Withdrawals are disabled.', 403, ['Content-Type' => 'text/html; charset=UTF-8']);
+        }
+
+        // 4. Handle POST (Create withdrawal request)
+        if ($request->isPost()) {
+            if (!$this->validateCsrf($request)) {
+                $_SESSION['flash_error'] = 'Invalid or expired security token. Please try again.';
+                return Response::redirect('/account/withdraw');
+            }
+
+            $amountStr = trim((string)$request->post('amount', ''));
+            $currency = strtoupper(trim((string)$request->post('currency', 'BDT')));
+            $payoutMethod = trim((string)$request->post('payout_method', ''));
+            $destination = trim((string)$request->post('destination', ''));
+            $accountName = trim((string)$request->post('account_name', ''));
+            $userNote = trim((string)$request->post('user_note', ''));
+            $idempotencyKey = trim((string)$request->post('idempotency_key', ''));
+
+            if (!is_numeric($amountStr) || (float)$amountStr <= 0) {
+                $_SESSION['flash_error'] = 'Please enter a valid withdrawal amount greater than zero.';
+                return Response::redirect('/account/withdraw');
+            }
+
+            try {
+                $minorAmount = DecimalFormatter::decimalToMinorUnit($amountStr, 2);
+                $money = new Money($minorAmount, $currency);
+
+                $withdrawal = $this->withdrawalService->createWithdrawal(
+                    userId: $userId,
+                    amount: $money,
+                    payoutMethod: $payoutMethod,
+                    destination: $destination,
+                    accountName: $accountName !== '' ? $accountName : null,
+                    userNote: $userNote !== '' ? $userNote : null,
+                    idempotencyKey: $idempotencyKey !== '' ? $idempotencyKey : null
+                );
+
+                $_SESSION['flash_success'] = 'Withdrawal request submitted successfully.';
+                return Response::redirect('/account/withdrawals/' . $withdrawal->getId());
+            } catch (InvalidArgumentException $e) {
+                $_SESSION['flash_error'] = $e->getMessage();
+                return Response::redirect('/account/withdraw');
+            } catch (\Throwable $e) {
+                $_SESSION['flash_error'] = 'Failed to submit withdrawal: ' . $e->getMessage();
+                return Response::redirect('/account/withdraw');
+            }
+        }
+
+        // 5. Handle GET (Form + History)
+        $primaryCurrency = $this->walletService->getPrimaryCurrency();
+        $wallet = $this->walletService->getOrCreateWallet($userId, $primaryCurrency);
+        $withdrawals = $this->withdrawalService->getCustomerWithdrawals($userId, 20, 0);
+        $methods = $this->withdrawalService->getSupportedPayoutMethods();
+
+        $html = $this->renderView('withdraw', [
+            'pageTitle'       => 'Withdraw Balance',
+            'activeTab'       => 'withdraw',
+            'user'            => $user,
+            'userId'          => $userId,
+            'wallet'          => $wallet,
+            'currency'        => $primaryCurrency,
+            'withdrawEnabled' => true,
+            'csrfToken'       => $this->getCsrfToken(),
+            'methods'         => $methods,
+            'withdrawals'     => $withdrawals,
+        ]);
+
+        return new Response($html, 200, ['Content-Type' => 'text/html; charset=UTF-8']);
+    }
+
+    /**
+     * Customer withdrawal detail screen (/account/withdrawals/{id}).
+     */
+    public function withdrawalDetail(Request $request, string $id): Response
+    {
+        // 1. Authentication check
+        $auth = $this->requireAuth($request);
+        if ($auth instanceof Response) {
+            return $auth;
+        }
+        $user = $auth;
+        $userId = (int)$user->id;
+
+        if ($this->withdrawalService === null) {
+            return new Response('Withdrawal system is unavailable.', 404, ['Content-Type' => 'text/html; charset=UTF-8']);
+        }
+
+        $withdrawal = $this->withdrawalService->getWithdrawal(trim($id));
+        if ($withdrawal === null) {
+            return new Response('Withdrawal not found.', 404, ['Content-Type' => 'text/html; charset=UTF-8']);
+        }
+
+        // IDOR Prevention: Users can only view their own withdrawals
+        if ($withdrawal->getUserId() !== $userId) {
+            return new Response('Access denied: You do not have permission to view this withdrawal.', 403, ['Content-Type' => 'text/html; charset=UTF-8']);
+        }
+
+        // Customer Cancel action
+        if ($request->isPost() && $request->post('action') === 'cancel') {
+            if (!$this->validateCsrf($request)) {
+                $_SESSION['flash_error'] = 'Invalid or expired security token.';
+                return Response::redirect('/account/withdrawals/' . $withdrawal->getId());
+            }
+
+            try {
+                $this->withdrawalService->cancelWithdrawal($withdrawal->getId(), $userId, 'Cancelled by customer');
+                $_SESSION['flash_success'] = 'Withdrawal request has been cancelled and hold funds restored to your wallet.';
+                return Response::redirect('/account/withdrawals/' . $withdrawal->getId());
+            } catch (\Throwable $e) {
+                $_SESSION['flash_error'] = 'Unable to cancel withdrawal: ' . $e->getMessage();
+                return Response::redirect('/account/withdrawals/' . $withdrawal->getId());
+            }
+        }
+
+        $html = $this->renderView('withdrawal_detail', [
+            'pageTitle'       => 'Withdrawal #' . substr($withdrawal->getId(), 0, 8),
+            'activeTab'       => 'withdraw',
+            'user'            => $user,
+            'userId'          => $userId,
+            'withdrawal'      => $withdrawal,
+            'withdrawEnabled' => $this->withdrawalService->isWithdrawalEnabled(),
+            'csrfToken'       => $this->getCsrfToken(),
+        ]);
+
+        return new Response($html, 200, ['Content-Type' => 'text/html; charset=UTF-8']);
     }
 
     /**

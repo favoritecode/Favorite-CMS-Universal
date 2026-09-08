@@ -1,7 +1,7 @@
 {
     "id": "favorite-pay",
     "name": "Favorite Pay",
-    "version": "1.0.5",
+    "version": "1.0.6",
     "description": "Authoritative shared payment orchestration, digital wallet, and exchange-rate management plugin for Favorite CMS.",
     "author": "Favorite CMS Team",
     "requires_php": "8.1.0",
@@ -14,6 +14,7 @@
         "favorite_pay_attempts",
         "favorite_pay_refunds",
         "favorite_pay_wallets",
-        "favorite_pay_wallet_entries"
+        "favorite_pay_wallet_entries",
+        "favorite_pay_withdrawals"
     ]
 }

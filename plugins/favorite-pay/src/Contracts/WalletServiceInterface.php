@@ -11,6 +11,8 @@ interface WalletServiceInterface
 {
     public function getBalance(int $userId): Money;
 
+    public function getAvailableBalance(int $userId): Money;
+
     /**
      * Deposits funds into customer wallet.
      * Foreign-currency deposits are converted to BDT and locked at deposit time.
@@ -39,6 +41,17 @@ interface WalletServiceInterface
         int $userId,
         Money $amount,
         string $referenceId
+    ): WalletLedgerEntry;
+
+    /**
+     * Finalizes an active hold into a permanent debit ledger entry.
+     * Idempotent: repeated calls for the same reference ID do not double-debit.
+     */
+    public function finalizeHold(
+        int $userId,
+        Money $amount,
+        string $referenceId,
+        string $description = 'Withdrawal payout completed'
     ): WalletLedgerEntry;
 
     /**

@@ -110,6 +110,11 @@ class WalletService implements WalletServiceInterface
         return new Money($amount, $currency);
     }
 
+    public function getAvailableBalance(int $userId): Money
+    {
+        return $this->getBalance($userId);
+    }
+
     public function deposit(
         int $userId,
         Money $amount,
@@ -225,6 +230,94 @@ class WalletService implements WalletServiceInterface
             ? $amount
             : $this->currencyService->convert($amount, $walletCurrency);
 
+        // Database-level concurrency and atomic balance check
+        if ($this->db !== null && $this->db->tableExists('favorite_pay_wallets')) {
+            $wallet = $this->db->selectOne("SELECT * FROM favorite_pay_wallets WHERE user_id = ?", [$userId]);
+            if (!$wallet) {
+                $this->db->insert('favorite_pay_wallets', [
+                    'user_id'    => $userId,
+                    'balance'    => 0,
+                    'currency'   => $walletCurrency,
+                    'status'     => 'active',
+                    'created_at' => date('Y-m-d H:i:s'),
+                    'updated_at' => date('Y-m-d H:i:s'),
+                ]);
+                $wallet = $this->db->selectOne("SELECT * FROM favorite_pay_wallets WHERE user_id = ?", [$userId]);
+            }
+
+            if ((int)$wallet->balance < $targetAmount->getAmount()) {
+                throw new RuntimeException("Insufficient balance to place hold for user {$userId}.");
+            }
+
+            // Atomic decrement: guards against race conditions between concurrent tabs or requests
+            $affected = $this->db->update(
+                'favorite_pay_wallets',
+                [
+                    'balance'    => (int)$wallet->balance - $targetAmount->getAmount(),
+                    'updated_at' => date('Y-m-d H:i:s'),
+                ],
+                [
+                    'id'      => $wallet->id,
+                    'balance' => $wallet->balance,
+                ]
+            );
+
+            if ($affected === 0) {
+                // Another concurrent transaction modified the balance in the meantime
+                $recheck = $this->db->selectOne("SELECT balance FROM favorite_pay_wallets WHERE id = ?", [$wallet->id]);
+                if (!$recheck || (int)$recheck->balance < $targetAmount->getAmount()) {
+                    throw new RuntimeException("Insufficient balance to place hold for user {$userId}.");
+                }
+                // Retry once
+                $this->db->update(
+                    'favorite_pay_wallets',
+                    [
+                        'balance'    => (int)$recheck->balance - $targetAmount->getAmount(),
+                        'updated_at' => date('Y-m-d H:i:s'),
+                    ],
+                    ['id' => $wallet->id]
+                );
+            }
+
+            $updatedWallet = $this->db->selectOne("SELECT * FROM favorite_pay_wallets WHERE id = ?", [$wallet->id]);
+            $newBalance = new Money((int)$updatedWallet->balance, $walletCurrency);
+            $this->balances[$userId] = $newBalance->getAmount();
+            $this->walletCurrencies[$userId] = $walletCurrency;
+
+            $entry = new WalletLedgerEntry(
+                'led_' . bin2hex(random_bytes(8)),
+                $userId,
+                'hold',
+                $targetAmount,
+                $newBalance,
+                'hold',
+                $referenceId,
+                "Funds placed on hold"
+            );
+
+            $this->ledgers[$userId][] = $entry;
+
+            if ($this->db->tableExists('favorite_pay_wallet_entries')) {
+                $this->db->insert('favorite_pay_wallet_entries', [
+                    'entry_id'        => $entry->getId(),
+                    'wallet_id'       => $updatedWallet->id,
+                    'user_id'         => $userId,
+                    'type'            => 'hold',
+                    'amount'          => $targetAmount->getAmount(),
+                    'balance_after'   => $newBalance->getAmount(),
+                    'reference_type'  => 'hold',
+                    'reference_id'    => $referenceId,
+                    'idempotency_key' => 'hold:' . $referenceId,
+                    'description'     => $entry->getDescription(),
+                    'metadata'        => json_encode(['currency' => $targetAmount->getCurrency()]),
+                    'created_at'      => $entry->getCreatedAt(),
+                ]);
+            }
+
+            return $entry;
+        }
+
+        // In-memory fallback
         $currentBalance = $this->getBalance($userId);
         if ($currentBalance->lessThan($targetAmount)) {
             throw new RuntimeException("Insufficient balance to place hold for user {$userId}.");
@@ -246,11 +339,6 @@ class WalletService implements WalletServiceInterface
         );
 
         $this->ledgers[$userId][] = $entry;
-
-        if ($this->db !== null && $this->db->tableExists('favorite_pay_wallets') && $this->db->tableExists('favorite_pay_wallet_entries')) {
-            $this->persistEntryAndBalance($entry, $newBalance);
-        }
-
         return $entry;
     }
 
@@ -282,6 +370,91 @@ class WalletService implements WalletServiceInterface
 
         if ($this->db !== null && $this->db->tableExists('favorite_pay_wallets') && $this->db->tableExists('favorite_pay_wallet_entries')) {
             $this->persistEntryAndBalance($entry, $newBalance);
+        }
+
+        return $entry;
+    }
+
+    public function finalizeHold(
+        int $userId,
+        Money $amount,
+        string $referenceId,
+        string $description = 'Withdrawal payout completed'
+    ): WalletLedgerEntry {
+        $walletCurrency = $this->getWalletCurrency($userId);
+
+        $targetAmount = $amount->getCurrency() === $walletCurrency
+            ? $amount
+            : $this->currencyService->convert($amount, $walletCurrency);
+
+        $idempotencyKey = 'withdrawal:' . $referenceId;
+
+        // 1. Fast in-memory idempotency check
+        foreach ($this->ledgers[$userId] ?? [] as $existing) {
+            if ($existing->getReferenceType() === 'withdrawal' && $existing->getReferenceId() === $referenceId) {
+                return $existing;
+            }
+        }
+
+        // 2. Database idempotency check
+        if ($this->db !== null && $this->db->tableExists('favorite_pay_wallet_entries')) {
+            $row = $this->db->selectOne(
+                "SELECT * FROM favorite_pay_wallet_entries 
+                 WHERE (reference_type = 'withdrawal' AND reference_id = ?) 
+                    OR idempotency_key = ? 
+                 LIMIT 1",
+                [$referenceId, $idempotencyKey]
+            );
+            if ($row) {
+                return $this->hydrateLedgerEntry($row);
+            }
+        }
+
+        // The hold already deducted the funds from the available balance, so balance_after is the current available balance
+        $currentBalance = $this->getBalance($userId);
+
+        $entry = new WalletLedgerEntry(
+            'led_' . bin2hex(random_bytes(8)),
+            $userId,
+            'debit',
+            $targetAmount,
+            $currentBalance,
+            'withdrawal',
+            $referenceId,
+            $description
+        );
+
+        $this->ledgers[$userId][] = $entry;
+
+        if ($this->db !== null && $this->db->tableExists('favorite_pay_wallets') && $this->db->tableExists('favorite_pay_wallet_entries')) {
+            $wallet = $this->db->selectOne("SELECT * FROM favorite_pay_wallets WHERE user_id = ?", [$userId]);
+            if ($wallet) {
+                $this->db->insert('favorite_pay_wallet_entries', [
+                    'entry_id'        => $entry->getId(),
+                    'wallet_id'       => $wallet->id,
+                    'user_id'         => $userId,
+                    'type'            => 'debit',
+                    'amount'          => $targetAmount->getAmount(),
+                    'balance_after'   => $currentBalance->getAmount(),
+                    'reference_type'  => 'withdrawal',
+                    'reference_id'    => $referenceId,
+                    'idempotency_key' => $idempotencyKey,
+                    'description'     => $description,
+                    'metadata'        => json_encode(['currency' => $targetAmount->getCurrency()]),
+                    'created_at'      => $entry->getCreatedAt(),
+                ]);
+            }
+        }
+
+        if (function_exists('do_action')) {
+            do_action('favorite.pay.wallet.debited', [
+                'user_id'        => $userId,
+                'amount'         => $targetAmount->getAmount(),
+                'currency'       => $targetAmount->getCurrency(),
+                'balance'        => $currentBalance->getAmount(),
+                'reference_type' => 'withdrawal',
+                'reference_id'   => $referenceId,
+            ]);
         }
 
         return $entry;
