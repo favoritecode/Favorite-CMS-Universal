@@ -555,6 +555,33 @@ class PaymentService implements PaymentServiceInterface
         return null;
     }
 
+    /**
+     * Get all attempts recorded for a given payment intent / transaction ID.
+     *
+     * @return PaymentAttempt[]
+     */
+    public function getAttemptsForTransaction(string $transactionId): array
+    {
+        $results = [];
+        foreach ($this->attempts as $attempt) {
+            if ($attempt->getIntentId() === $transactionId) {
+                $results[] = $attempt;
+            }
+        }
+
+        if (empty($results) && $this->db !== null && $this->db->tableExists('favorite_pay_attempts')) {
+            $rows = $this->db->select("SELECT attempt_id FROM favorite_pay_attempts WHERE transaction_id = ? ORDER BY id DESC", [$transactionId]);
+            foreach ($rows as $row) {
+                $att = $this->getAttempt((string)$row->attempt_id);
+                if ($att) {
+                    $results[] = $att;
+                }
+            }
+        }
+
+        return $results;
+    }
+
     public function recordAttempt(PaymentAttempt $attempt): void
     {
         $this->attempts[$attempt->getId()] = $attempt;

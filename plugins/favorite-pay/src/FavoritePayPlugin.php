@@ -55,6 +55,9 @@ final class FavoritePayPlugin
             \FavoriteCMS\Core\Hook::removeFilter('currency.can_change_primary');
             \FavoriteCMS\Core\Hook::removeFilter('currency.is_primary_locked');
         }
+        if (class_exists(\FavoriteCMS\Core\AccountMenu::class)) {
+            \FavoriteCMS\Core\AccountMenu::removeByPlugin('favorite-pay');
+        }
     }
 
     public static function bootstrap(Application $app): self
@@ -265,6 +268,17 @@ final class FavoritePayPlugin
                 $app->make(CurrencyServiceInterface::class)
             );
         });
+
+        // Bind Customer Account Controller
+        $this->app->singleton(\FavoriteCMS\Pay\Controllers\CustomerAccountController::class, function ($app) {
+            return new \FavoriteCMS\Pay\Controllers\CustomerAccountController(
+                $app,
+                $app->make(WalletServiceInterface::class),
+                $app->make(PaymentServiceInterface::class),
+                $app->make(GatewayRegistry::class),
+                $app->make(CurrencyServiceInterface::class)
+            );
+        });
     }
 
     public function boot(): void
@@ -410,6 +424,19 @@ final class FavoritePayPlugin
             \FavoriteCMS\Pay\Permissions\PaymentPermission::registerDefaultPermissions($this->app->make(Database::class));
         }
 
+        // Register Customer Account Menu Items
+        $this->registerAccountMenuItems();
+
+        // Register Customer-Facing Routes
+        $this->registerCustomerRoutes();
+
+        // Hook account_menu_init to refresh items if the menu is re-initialized
+        if (function_exists('add_action')) {
+            add_action('account_menu_init', function (): void {
+                $this->registerAccountMenuItems();
+            });
+        }
+
         $this->booted = true;
     }
 
@@ -492,6 +519,10 @@ final class FavoritePayPlugin
 
     public function onDeactivate(): void
     {
+        if (class_exists(\FavoriteCMS\Core\AccountMenu::class)) {
+            \FavoriteCMS\Core\AccountMenu::removeByPlugin('favorite-pay');
+        }
+
         if (function_exists('cms_log')) {
             cms_log('Favorite Pay plugin deactivated.', 'info', ['plugin' => 'favorite-pay']);
         }
@@ -540,5 +571,109 @@ final class FavoritePayPlugin
             }
         }
         return $default;
+    }
+
+    /**
+     * Register customer account menu items in Core AccountMenu.
+     * Conceptual order:
+     * - Profile (10, Core)
+     * - Balance (14, Favorite Pay)
+     * - Recharge (16, Favorite Pay)
+     * - Payment History (20, Favorite Pay)
+     * - Transactions (24, Favorite Pay)
+     * - Administration (30, Core)
+     * - Log Out (100, Core)
+     */
+    public function registerAccountMenuItems(): void
+    {
+        if (!function_exists('register_account_menu_item')) {
+            return;
+        }
+
+        register_account_menu_item([
+            'id'     => 'pay_balance',
+            'label'  => 'Balance',
+            'url'    => '/account/wallet',
+            'icon'   => 'fas fa-wallet',
+            'order'  => 14,
+            'plugin' => 'favorite-pay',
+        ]);
+
+        register_account_menu_item([
+            'id'     => 'pay_recharge',
+            'label'  => 'Recharge',
+            'url'    => '/account/recharge',
+            'icon'   => 'fas fa-plus-circle',
+            'order'  => 16,
+            'plugin' => 'favorite-pay',
+        ]);
+
+        register_account_menu_item([
+            'id'     => 'pay_payments',
+            'label'  => 'Payment History',
+            'url'    => '/account/payments',
+            'icon'   => 'fas fa-receipt',
+            'order'  => 20,
+            'plugin' => 'favorite-pay',
+        ]);
+
+        register_account_menu_item([
+            'id'     => 'pay_transactions',
+            'label'  => 'Transactions',
+            'url'    => '/account/transactions',
+            'icon'   => 'fas fa-exchange-alt',
+            'order'  => 24,
+            'plugin' => 'favorite-pay',
+        ]);
+    }
+
+    /**
+     * Register customer-facing wallet, recharge, payments, and transaction routes.
+     */
+    public function registerCustomerRoutes(): void
+    {
+        if (!function_exists('add_route')) {
+            return;
+        }
+
+        // Customer Wallet / Balance
+        add_route(['GET'], '/account/wallet', function (\FavoriteCMS\Core\Request $request) {
+            $controller = $this->app->make(\FavoriteCMS\Pay\Controllers\CustomerAccountController::class);
+            return $controller->wallet($request);
+        });
+
+        // Customer Recharge
+        add_route(['GET', 'POST'], '/account/recharge', function (\FavoriteCMS\Core\Request $request) {
+            $controller = $this->app->make(\FavoriteCMS\Pay\Controllers\CustomerAccountController::class);
+            return $controller->recharge($request);
+        });
+
+        // Customer Recharge Manual Instructions & Submission
+        add_route(['GET'], '/account/recharge/manual', function (\FavoriteCMS\Core\Request $request) {
+            $controller = $this->app->make(\FavoriteCMS\Pay\Controllers\CustomerAccountController::class);
+            return $controller->showManual($request);
+        });
+
+        add_route(['POST'], '/account/recharge/manual', function (\FavoriteCMS\Core\Request $request) {
+            $controller = $this->app->make(\FavoriteCMS\Pay\Controllers\CustomerAccountController::class);
+            return $controller->submitManual($request);
+        });
+
+        // Customer Payment History & Detail
+        add_route(['GET'], '/account/payments', function (\FavoriteCMS\Core\Request $request) {
+            $controller = $this->app->make(\FavoriteCMS\Pay\Controllers\CustomerAccountController::class);
+            return $controller->payments($request);
+        });
+
+        add_route(['GET'], '/account/payments/{id}', function (\FavoriteCMS\Core\Request $request, string $id) {
+            $controller = $this->app->make(\FavoriteCMS\Pay\Controllers\CustomerAccountController::class);
+            return $controller->paymentDetail($request, $id);
+        });
+
+        // Customer Transaction / Ledger View
+        add_route(['GET'], '/account/transactions', function (\FavoriteCMS\Core\Request $request) {
+            $controller = $this->app->make(\FavoriteCMS\Pay\Controllers\CustomerAccountController::class);
+            return $controller->transactions($request);
+        });
     }
 }

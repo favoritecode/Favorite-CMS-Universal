@@ -4,6 +4,7 @@
  * Plugin URI: https://github.com/favoritecode/Favorite-CMS-Universal
  * Description: Authoritative shared payment orchestration, digital wallet, and exchange-rate management plugin for Favorite CMS.
  * Version: 1.0.3
+ * Version: 1.0.4
  * Author: Favorite CMS Team
  */
 

@@ -25,6 +25,7 @@ class PluginManifestTest extends TestCase
         $this->assertSame('favorite-pay', $meta['id']);
         $this->assertSame('Favorite Pay', $meta['name']);
         $this->assertSame('1.0.3', $meta['version']);
+        $this->assertSame('1.0.4', $meta['version']);
         $this->assertSame('Favorite CMS Team', $meta['author']);
         $this->assertSame('plugin.php', $meta['entry_point']);
         $this->assertTrue($meta['valid'], 'Plugin manifest must be valid according to Core PluginManager');
