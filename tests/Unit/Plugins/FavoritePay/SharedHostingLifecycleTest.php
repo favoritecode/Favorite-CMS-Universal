@@ -204,7 +204,7 @@ class SharedHostingLifecycleTest extends TestCase
 
         // 3. Inspect actual MySQL tables via information_schema / SHOW TABLES
         $rawTables = $pdo->query("SHOW TABLES FROM `{$this->mysqlDbName}` LIKE '{$prefix}favorite_pay_%'")->fetchAll(PDO::FETCH_COLUMN);
-        $this->assertCount(7, $rawTables, 'All 7 Pay tables must exist in MySQL with the configured prefix');
+        $this->assertCount(8, $rawTables, 'All 8 Pay tables must exist in MySQL with the configured prefix');
 
         foreach (FavoritePayPlugin::TABLES as $logicalTable) {
             $expectedPrefixed = $prefix . $logicalTable;
