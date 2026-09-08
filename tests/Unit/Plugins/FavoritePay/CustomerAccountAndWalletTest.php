@@ -384,7 +384,6 @@ class CustomerAccountAndWalletTest extends TestCase
         $content = $resp->getContent();
         $this->assertStringContainsString('BDT', $content);
         $this->assertStringContainsString('250.00', $content);
-        $this->assertStringContainsString('Recharge Wallet', $content);
         $this->assertStringContainsString('Recharge Balance', $content);
         $this->assertStringContainsString('Initial Deposit', $content);
     }
@@ -476,7 +475,6 @@ class CustomerAccountAndWalletTest extends TestCase
         $this->assertSame(0, $balanceAfterIntent->getAmount(), 'Wallet must NOT be credited upon recharge intent creation');
 
         // Settle the payment via event hook
-        $this->paymentService->markSuccessful($intentId);
         Hook::doAction('favorite.pay.payment.succeeded', ['transaction_id' => $intentId]);
         // Settle the payment
         $this->paymentService->updateIntentStatus($intentId, PaymentStatus::SUCCEEDED);
@@ -558,7 +556,6 @@ class CustomerAccountAndWalletTest extends TestCase
         $this->assertNotEmpty($attempts);
         $latest = end($attempts);
         $this->assertSame(PaymentStatus::AWAITING_VERIFICATION, $latest->getStatus());
-        $this->assertSame('BKASH998877AA', $latest->getGatewayReference());
         $this->assertSame('BKASH998877AA', $latest->getTransactionReference());
     }
 
@@ -610,10 +607,10 @@ class CustomerAccountAndWalletTest extends TestCase
         $req = new Request([], $postData, ['REQUEST_METHOD' => 'POST', 'REQUEST_URI' => '/account/recharge']);
         $resp = $this->controller->recharge($req);
 
-        // Redirects directly to checkout URL
+        // Redirects to dedicated Binance customer checkout page
         $this->assertSame(302, $resp->getStatusCode());
         $location = $resp->getHeaders()['Location'] ?? '';
-        $this->assertSame('https://pay.binance.com/checkout/order_998811', $location);
+        $this->assertStringStartsWith('/account/recharge/binance/pi_', $location);
     }
 
     // =========================================================================

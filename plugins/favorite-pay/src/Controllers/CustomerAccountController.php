@@ -18,6 +18,7 @@ use FavoriteCMS\Pay\Domain\PaymentMethodType;
 use FavoriteCMS\Pay\Domain\PaymentStatus;
 use FavoriteCMS\Pay\Gateways\ManualBangladeshGateway;
 use FavoriteCMS\Pay\Services\GatewayRegistry;
+use FavoriteCMS\Pay\Support\DecimalFormatter;
 use InvalidArgumentException;
 use RuntimeException;
 use Throwable;
@@ -123,16 +124,10 @@ class CustomerAccountController
     {
         $user = $this->resolveCurrentUser();
         if (!$user) {
-            $redirectUrl = $request->getUri();
-            $_SESSION['flash_error'] = 'Please log in to access your account.';
-            return Response::redirect('/admin/login?redirect=' . urlencode($redirectUrl));
             return Response::redirect('/login');
         }
 
         if (method_exists($user, 'isBanned') && $user->isBanned()) {
-            $_SESSION = [];
-            $_SESSION['flash_error'] = 'Your account has been permanently banned.';
-            return Response::redirect('/admin/login');
             return new Response('Access denied: Your account is suspended or banned.', 403);
         }
 
@@ -200,18 +195,11 @@ class CustomerAccountController
 
         $isSuspended = method_exists($user, 'isSuspended') && $user->isSuspended();
 
-        if ($request->isMethod('POST')) {
+        if ($request->method() === 'POST') {
             // Security: Suspended accounts cannot perform financial recharge actions
             if ($isSuspended) {
-                $_SESSION['flash_error'] = 'Your account is suspended. Protected financial and recharge actions are restricted.';
-                return Response::redirect('/account/wallet');
+                return new Response('Access restricted: Your account is suspended. Wallet and payment history are accessible in read-only mode, but new recharge and payment attempts are blocked.', 403);
             }
-        // Security: Suspended accounts cannot perform financial recharge actions
-        if ($isSuspended) {
-            return new Response('Access restricted: Your account is suspended. Wallet and payment history are accessible in read-only mode, but new recharge and payment attempts are blocked.', 403);
-        }
-
-        if ($request->method() === 'POST') {
 
             // Security: CSRF Validation
             if (!$this->validateCsrf($request)) {
@@ -220,6 +208,11 @@ class CustomerAccountController
             }
 
             return $this->handleRechargeSubmit($request, $user);
+        }
+
+        // Security: Suspended accounts cannot view recharge form
+        if ($isSuspended) {
+            return new Response('Access restricted: Your account is suspended. Wallet and payment history are accessible in read-only mode, but new recharge and payment attempts are blocked.', 403);
         }
 
         // GET: Discover active, configured gateways
@@ -319,17 +312,24 @@ class CustomerAccountController
         // 4. Branch by gateway type
         // Manual Gateways
         if ($gateway instanceof ManualBangladeshGateway || str_starts_with($gatewayId, 'manual_')) {
-            return Response::redirect('/account/recharge/manual?intent_id=' . urlencode($intentId));
             return Response::redirect('/account/recharge/manual?intent=' . urlencode($intentId));
         }
 
         // Automatic Gateways (Binance Pay, bKash Merchant, etc.)
         try {
+            $isBinance = in_array($gatewayId, ['binance', 'binance_pay'], true)
+                || $gateway instanceof \FavoriteCMS\Pay\Gateways\Binance\BinancePayGateway;
+
             $attempt = $this->paymentService->initiatePayment($intentId, $gatewayId, [
                 'terminal_type' => 'WEB',
-                'return_url'    => $this->appUrl('/account/payments/' . urlencode($intentId)),
+                'return_url'    => $this->appUrl('/account/recharge/binance/' . urlencode($intentId)),
                 'cancel_url'    => $this->appUrl('/account/recharge'),
             ]);
+
+            // For Binance Pay, direct to dedicated customer QR checkout screen
+            if ($isBinance) {
+                return Response::redirect('/account/recharge/binance/' . urlencode($intentId));
+            }
 
             $metadata = $attempt->getMetadata();
             $checkoutUrl = $metadata['checkout_url'] ?? null;
@@ -616,7 +616,6 @@ class CustomerAccountController
             $available[$id] = [
                 'id'          => $gateway->getId(),
                 'title'       => $gateway->getTitle(),
-                'type'        => $gateway->getMethodType()->value,
                 'type'        => $gateway->getType()->value,
                 'description' => $this->getGatewayDescription($gateway),
                 'is_manual'   => $gateway instanceof ManualBangladeshGateway || str_starts_with($gateway->getId(), 'manual_'),
@@ -775,7 +774,6 @@ class CustomerAccountController
 
         // In-memory fallback for isolated tests
         $intent = $this->paymentService->getIntent($transactionId);
-        if ($intent && $intent->getUserId() === $userId) {
         if ($intent && (int)$intent->getUserId() === $userId) {
             $metadata = $intent->getMetadata();
             $gwId = $metadata['gateway_id'] ?? '';
@@ -831,11 +829,9 @@ class CustomerAccountController
                 'charge_currency'     => $intent->getChargeAmount()->getCurrency(),
                 'status'              => $intent->getStatus()->value,
                 'payment_method_type' => $intent->getMethodType()?->value,
-                'gateway_title'       => 'Online Payment',
                 'gateway_id'          => $gwId,
                 'gateway_title'       => $gwTitle,
                 'created_at'          => date('Y-m-d H:i:s'),
-                'attempts'            => [],
                 'attempts'            => $formattedAttempts,
                 'wallet_settled'      => $intent->getStatus() === PaymentStatus::SUCCEEDED,
             ];
@@ -860,10 +856,6 @@ class CustomerAccountController
         extract($data, EXTR_SKIP);
 
         ob_start();
-        if (file_exists($layoutFile)) {
-            include $layoutFile;
-        } else {
-            include $viewFile;
         try {
             if (file_exists($layoutFile)) {
                 include $layoutFile;
@@ -877,7 +869,241 @@ class CustomerAccountController
             }
             throw $e;
         }
-        return (string)ob_get_clean();
+    }
+
+    /**
+     * Dedicated customer Binance Pay QR checkout screen (/account/recharge/binance/{intent_id}).
+     */
+    public function binanceCheckout(Request $request, ?string $intentId = null): Response
+    {
+        $auth = $this->requireAuth($request);
+        if ($auth instanceof Response) {
+            return $auth;
+        }
+        $user = $auth;
+        $userId = (int)$user->id;
+
+        if (method_exists($user, 'isBanned') && $user->isBanned()) {
+            return new Response('Access restricted: Your account has been banned.', 403);
+        }
+        $isSuspended = method_exists($user, 'isSuspended') && $user->isSuspended();
+
+        if ($intentId === null || trim($intentId) === '') {
+            $intentId = trim((string)($request->get('intent') ?: $request->get('intent_id', '')));
+        }
+
+        if ($intentId === '') {
+            return Response::redirect('/account/recharge');
+        }
+
+        $intent = $this->paymentService->getIntent($intentId);
+        if (!$intent) {
+            return new Response('Payment intent not found.', 404);
+        }
+
+        // Strict Anti-IDOR: verify payment ownership
+        if ((int)$intent->getUserId() !== $userId) {
+            return new Response('Access denied: You do not have permission to view this payment.', 403);
+        }
+
+        // Suspended accounts: can view status of their own existing payment in read-only mode
+        $attempts = [];
+        if (method_exists($this->paymentService, 'getAttemptsForTransaction')) {
+            $attempts = $this->paymentService->getAttemptsForTransaction($intentId);
+        }
+
+        $binanceAttempt = null;
+        foreach ($attempts as $att) {
+            if (in_array($att->getGatewayId(), ['binance', 'binance_pay'], true)) {
+                $binanceAttempt = $att;
+                break;
+            }
+        }
+
+        if (!$binanceAttempt && $this->db !== null && $this->db->tableExists('favorite_pay_attempts')) {
+            $row = $this->db->selectOne(
+                "SELECT * FROM favorite_pay_attempts WHERE transaction_id = ? AND gateway_id IN ('binance', 'binance_pay') ORDER BY id DESC LIMIT 1",
+                [$intentId]
+            );
+            if ($row) {
+                $binanceAttempt = $this->paymentService->getAttempt((string)$row->attempt_id);
+            }
+        }
+
+        // If still pending and no attempt exists, initiate one if gateway is registered and user not suspended
+        if (!$binanceAttempt && $intent->getStatus() === PaymentStatus::PENDING) {
+            if ($isSuspended) {
+                return new Response('Access restricted: Your account is suspended. New payment attempts are blocked.', 403);
+            }
+            $gwId = $this->gatewayRegistry->has('binance_pay') ? 'binance_pay' : ($this->gatewayRegistry->has('binance') ? 'binance' : null);
+            if ($gwId !== null) {
+                try {
+                    $binanceAttempt = $this->paymentService->initiatePayment($intentId, $gwId, [
+                        'terminal_type' => 'WEB',
+                        'return_url'    => $this->appUrl('/account/recharge/binance/' . urlencode($intentId)),
+                        'cancel_url'    => $this->appUrl('/account/recharge'),
+                    ]);
+                } catch (\Throwable) {
+                    // Gateway initiation failure caught cleanly
+                }
+            }
+        }
+
+        $meta = $binanceAttempt ? $binanceAttempt->getMetadata() : ($intent->getMetadata() ?? []);
+        $checkoutUrl = $meta['checkout_url'] ?? null;
+        $qrcodeLink = $meta['qrcode_link'] ?? null;
+        $qrContent = $meta['qr_content'] ?? null;
+
+        // Strict URL validation: ensure checkout URL belongs to Binance
+        $validatedCheckoutUrl = null;
+        if (!empty($checkoutUrl) && filter_var($checkoutUrl, FILTER_VALIDATE_URL)) {
+            $parsedHost = strtolower((string)(parse_url($checkoutUrl, PHP_URL_HOST) ?? ''));
+            if (
+                $parsedHost === 'binance.com' 
+                || str_ends_with($parsedHost, '.binance.com') 
+                || $parsedHost === 'binanceapi.com' 
+                || str_ends_with($parsedHost, '.binanceapi.com')
+            ) {
+                $validatedCheckoutUrl = $checkoutUrl;
+            }
+        }
+
+        // Check wallet settlement status
+        $walletSettled = false;
+        if ($intent->getStatus() === PaymentStatus::SUCCEEDED) {
+            if ($this->db !== null && $this->db->tableExists('favorite_pay_wallet_entries')) {
+                $entry = $this->db->selectOne(
+                    "SELECT 1 FROM favorite_pay_wallet_entries WHERE reference_type = 'payment' AND reference_id = ? LIMIT 1",
+                    [$intentId]
+                );
+                $walletSettled = ($entry !== null);
+            } else {
+                $walletSettled = true;
+            }
+        }
+
+        $html = $this->renderView('binance_checkout', [
+            'pageTitle'            => 'Binance Pay Checkout',
+            'activeTab'            => 'recharge',
+            'user'                 => $user,
+            'userId'               => $userId,
+            'intent'               => $intent,
+            'binanceAttempt'       => $binanceAttempt,
+            'qrcodeLink'           => $qrcodeLink,
+            'qrContent'            => $qrContent,
+            'checkoutUrl'          => $validatedCheckoutUrl,
+            'status'               => $intent->getStatus()->value,
+            'walletSettled'        => $walletSettled,
+            'isSuspended'          => $isSuspended,
+        ]);
+
+        return Response::make($html, 200);
+    }
+
+    /**
+     * Minimal authenticated customer-facing status endpoint (/account/payments/{intent_id}/status).
+     */
+    public function paymentStatus(Request $request, string $intentId): Response
+    {
+        $auth = $this->requireAuth($request);
+        if ($auth instanceof Response) {
+            if ($auth->getStatusCode() === 403) {
+                return Response::json(['error' => 'Account access restricted.'], 403);
+            }
+            return Response::json(['error' => 'Authentication required.'], 401);
+        }
+        $user = $auth;
+        $userId = (int)$user->id;
+
+        if (method_exists($user, 'isBanned') && $user->isBanned()) {
+            return Response::json(['error' => 'Account access restricted.'], 403);
+        }
+
+        $trimmedId = trim($intentId);
+        $intent = $this->paymentService->getIntent($trimmedId);
+        if (!$intent) {
+            return Response::json(['error' => 'Payment intent not found.'], 404);
+        }
+
+        // Strict Anti-IDOR: verify payment ownership
+        if ((int)$intent->getUserId() !== $userId) {
+            return Response::json(['error' => 'Access denied.'], 403);
+        }
+
+        // Check if gateway is Binance and still pending, attempt safe status query synchronization
+        if ($intent->getStatus() === PaymentStatus::PENDING) {
+            $metadata = $intent->getMetadata();
+            $gwId = $metadata['gateway_id'] ?? 'binance_pay';
+            if (($gwId === 'binance_pay' || $gwId === 'binance') && $this->gatewayRegistry->has($gwId)) {
+                $gateway = $this->gatewayRegistry->get($gwId);
+                if (
+                    $gateway instanceof \FavoriteCMS\Pay\Contracts\StatusQueryableGatewayInterface
+                    && method_exists($gateway, 'isConfigured')
+                    && $gateway->isConfigured()
+                ) {
+                    $attempts = method_exists($this->paymentService, 'getAttemptsForTransaction')
+                        ? $this->paymentService->getAttemptsForTransaction($trimmedId)
+                        : [];
+                    $binanceAttempt = !empty($attempts) ? end($attempts) : null;
+                    if ($binanceAttempt instanceof \FavoriteCMS\Pay\Domain\PaymentAttempt) {
+                        try {
+                            $queriedStatus = $gateway->queryStatus($binanceAttempt);
+                            if ($queriedStatus === PaymentStatus::SUCCEEDED) {
+                                $this->paymentService->updateIntentStatus($trimmedId, PaymentStatus::SUCCEEDED);
+                                $intent = $this->paymentService->getIntent($trimmedId) ?? $intent;
+                            } elseif ($queriedStatus === PaymentStatus::FAILED || $queriedStatus === PaymentStatus::CANCELLED) {
+                                $this->paymentService->updateIntentStatus($trimmedId, $queriedStatus);
+                                $intent = $this->paymentService->getIntent($trimmedId) ?? $intent;
+                            }
+                        } catch (\Throwable) {
+                            // Query failure is caught cleanly without failing the endpoint
+                        }
+                    }
+                }
+            }
+        }
+
+        // Check wallet settlement state
+        $walletSettled = false;
+        if ($intent->getStatus() === PaymentStatus::SUCCEEDED) {
+            if ($this->db !== null && $this->db->tableExists('favorite_pay_wallet_entries')) {
+                $settleRow = $this->db->selectOne(
+                    "SELECT 1 FROM favorite_pay_wallet_entries WHERE reference_type = 'payment' AND reference_id = ? LIMIT 1",
+                    [$trimmedId]
+                );
+                $walletSettled = ($settleRow !== null);
+            } else {
+                $walletSettled = true;
+            }
+        }
+
+        $baseAmount = $intent->getBaseAmount();
+        $chargeAmount = $intent->getChargeAmount();
+        $status = $intent->getStatus();
+
+        $statusLabel = match ($status) {
+            PaymentStatus::SUCCEEDED => 'Payment Successful',
+            PaymentStatus::FAILED => 'Payment Failed',
+            PaymentStatus::CANCELLED => 'Payment Cancelled',
+            PaymentStatus::REFUNDED => 'Payment Refunded',
+            PaymentStatus::PARTIALLY_REFUNDED => 'Partially Refunded',
+            PaymentStatus::AWAITING_VERIFICATION => 'Awaiting Verification',
+            default => 'Waiting for payment...',
+        };
+
+        return Response::json([
+            'success'          => true,
+            'payment_id'       => $intent->getId(),
+            'status'           => $status->value,
+            'status_label'     => $statusLabel,
+            'is_final'         => $status->isFinal(),
+            'is_success'       => ($status === PaymentStatus::SUCCEEDED),
+            'amount'           => DecimalFormatter::minorUnitToDecimal($baseAmount->getAmount(), 2),
+            'currency'         => $baseAmount->getCurrency(),
+            'binance_amount'   => DecimalFormatter::minorUnitToDecimal($chargeAmount->getAmount(), 2),
+            'binance_currency' => $chargeAmount->getCurrency(),
+            'wallet_settled'   => $walletSettled,
+        ]);
     }
 
     protected function validateCsrf(Request $request): bool
@@ -907,11 +1133,13 @@ class CustomerAccountController
 
     protected function appUrl(string $path = ''): string
     {
-        $base = rtrim((string)(\FavoriteCMS\Models\Setting::get('general', 'site_url', 'http://localhost')), '/');
         $base = 'http://localhost';
         if (class_exists(\FavoriteCMS\Models\Setting::class)) {
             try {
-                $base = rtrim((string)(\FavoriteCMS\Models\Setting::get('general', 'site_url', 'http://localhost')), '/');
+                $siteUrl = \FavoriteCMS\Models\Setting::get('general', 'site_url');
+                if (!empty($siteUrl)) {
+                    $base = rtrim((string)$siteUrl, '/');
+                }
             } catch (\Throwable) {
                 $base = 'http://localhost';
             }

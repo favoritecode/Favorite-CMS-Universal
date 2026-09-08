@@ -659,6 +659,23 @@ final class FavoritePayPlugin
             return $controller->submitManual($request);
         });
 
+        // Customer Binance Pay QR Checkout Screen
+        add_route(['GET'], '/account/recharge/binance/{id}', function (\FavoriteCMS\Core\Request $request, string $id) {
+            $controller = $this->app->make(\FavoriteCMS\Pay\Controllers\CustomerAccountController::class);
+            return $controller->binanceCheckout($request, $id);
+        });
+
+        add_route(['GET'], '/account/recharge/binance', function (\FavoriteCMS\Core\Request $request) {
+            $controller = $this->app->make(\FavoriteCMS\Pay\Controllers\CustomerAccountController::class);
+            return $controller->binanceCheckout($request);
+        });
+
+        // Customer Payment Status Polling Endpoint
+        add_route(['GET'], '/account/payments/{id}/status', function (\FavoriteCMS\Core\Request $request, string $id) {
+            $controller = $this->app->make(\FavoriteCMS\Pay\Controllers\CustomerAccountController::class);
+            return $controller->paymentStatus($request, $id);
+        });
+
         // Customer Payment History & Detail
         add_route(['GET'], '/account/payments', function (\FavoriteCMS\Core\Request $request) {
             $controller = $this->app->make(\FavoriteCMS\Pay\Controllers\CustomerAccountController::class);
