@@ -27,6 +27,22 @@ class Request
         return new static($_GET, $_POST, $_SERVER, $_FILES, $_COOKIE);
     }
 
+    public static function create(string $method = 'GET', string $uri = '/', array $params = []): self
+    {
+        $parsed = parse_url($uri);
+        $query = [];
+        if (!empty($parsed['query'])) {
+            parse_str($parsed['query'], $query);
+        }
+        $get = (strtoupper($method) === 'GET') ? array_merge($query, $params) : $query;
+        $post = (strtoupper($method) === 'POST') ? $params : [];
+        $server = [
+            'REQUEST_METHOD' => strtoupper($method),
+            'REQUEST_URI'    => $uri,
+        ];
+        return new static($get, $post, $server);
+    }
+
     public function method(): string
     {
         $method = $this->server['REQUEST_METHOD'] ?? 'GET';

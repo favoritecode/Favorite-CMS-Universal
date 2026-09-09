@@ -617,6 +617,13 @@ $siteFaviconUrl = function_exists('get_site_favicon_url') ? get_site_favicon_url
                 </li>
                 <?php
                 $isAdmin = $user && ($user->hasRole('admin') || $user->hasRole('super-admin'));
+                ?>
+                <?php if ($isAdmin): ?>
+                    <li class="wp-menu-item <?php echo $activeMenu === 'updates' ? 'active' : ''; ?>">
+                        <a href="/admin/updates" class="wp-menu-link">🔄 Updates</a>
+                    </li>
+                <?php endif; ?>
+                <?php
                 $canModerate = $user && $user->canModeratePosts();
                 $canModerateComments = $user && $user->canModerateComments();
                 $canManageUsers = $user && $user->canManageUsers();
@@ -738,6 +745,7 @@ $siteFaviconUrl = function_exists('get_site_favicon_url') ? get_site_favicon_url
                     </li>
                     <?php
                     $isToolsActive = in_array($activeMenu, ['tools', 'tools-import']);
+                    $isToolsActive = in_array($activeMenu, ['tools', 'tools-import', 'updates']);
                     ?>
                     <li class="wp-menu-item has-submenu <?php echo $isToolsActive ? 'active is-expanded' : ''; ?>">
                         <a href="/admin/tools" class="wp-menu-link" aria-haspopup="true" aria-expanded="<?php echo $isToolsActive ? 'true' : 'false'; ?>" aria-controls="submenu-tools">
@@ -749,6 +757,7 @@ $siteFaviconUrl = function_exists('get_site_favicon_url') ? get_site_favicon_url
                         <ul class="wp-submenu" id="submenu-tools">
                             <li><a href="/admin/tools" class="<?php echo $activeMenu === 'tools' ? 'active' : ''; ?>">Backups &amp; Health</a></li>
                             <li><a href="/admin/tools/import" class="<?php echo $activeMenu === 'tools-import' ? 'active' : ''; ?>">Import / Migration</a></li>
+                            <li><a href="/admin/updates" class="<?php echo $activeMenu === 'updates' ? 'active' : ''; ?>">Core Updates</a></li>
                         </ul>
                     </li>
                 <?php endif; ?>

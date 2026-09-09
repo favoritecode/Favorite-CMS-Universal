@@ -69,6 +69,8 @@ $excludePatterns = [
     '/public\/plugins\/favorite-digital\b/',
     '/Favorite-Digital.*\.zip$/i',
     '/Favorite-Pay.*\.zip$/i',
+    '/node_modules\b/',
+    '/dfre\b/',
 ];
 
 // 3. Staging directory setup
@@ -135,6 +137,24 @@ foreach ($filesToCopy as $file) {
         copy($src, $dst);
     }
 }
+
+// 8b. Add authoritative release metadata manifest
+$appVersion = '1.0.10';
+$bootstrapPath = $sourceDir . '/bootstrap.php';
+if (file_exists($bootstrapPath) && preg_match("/define\(\s*['\"]APP_VERSION['\"]\s*,\s*['\"]([^'\"]+)['\"]\s*\)/", (string)file_get_contents($bootstrapPath), $m)) {
+    $appVersion = $m[1];
+}
+
+$releaseMetadata = [
+    'product'          => 'Favorite CMS Universal',
+    'product_id'       => 'favorite-cms-universal',
+    'version'          => $appVersion,
+    'min_core_version' => '1.0.0',
+    'min_php'          => '8.1.0',
+    'created_at'       => date('c'),
+];
+file_put_contents($stageDir . '/release.json', json_encode($releaseMetadata, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+echo "Staged release metadata: release.json (v{$appVersion})...\n";
 
 // 9. Build ZIP archive using PHP native ZipArchive with Unix attributes
 echo "Generating ZIP archive with POSIX / Unix permissions...\n";

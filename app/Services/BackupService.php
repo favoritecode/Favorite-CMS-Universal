@@ -13,10 +13,12 @@ use ZipArchive;
 class BackupService
 {
     protected string $backupDir;
+    protected string $appRoot;
 
-    public function __construct(?string $backupDir = null)
+    public function __construct(?string $backupDir = null, ?string $appRoot = null)
     {
-        $this->backupDir = $backupDir ?: (defined('APP_ROOT') ? APP_ROOT . '/storage/backups' : dirname(__DIR__, 2) . '/storage/backups');
+        $this->appRoot = $appRoot ?: (defined('APP_ROOT') ? APP_ROOT : dirname(__DIR__, 2));
+        $this->backupDir = $backupDir ?: $this->appRoot . '/storage/backups';
         $this->ensureBackupDirectory();
     }
 
@@ -77,6 +79,7 @@ class BackupService
             // 4. Collect file inventory and checksums
             $fileInventory = [];
             $appRoot = defined('APP_ROOT') ? APP_ROOT : dirname(__DIR__, 2);
+            $appRoot = $this->appRoot;
 
             if ($includeMedia && is_dir($appRoot . '/public/uploads')) {
                 $this->addDirectoryToZip($zip, $appRoot . '/public/uploads', 'public/uploads', $fileInventory);

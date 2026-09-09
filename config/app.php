@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 return [
     'name' => env('APP_NAME', 'Favorite CMS'),
-    'version' => '1.0.5-beta',
+    'version' => defined('APP_VERSION') ? APP_VERSION : '1.0.10',
     'env' => env('APP_ENV', 'production'),
     'debug' => env('APP_DEBUG', false),
     'url' => env('APP_URL', 'http://localhost'),

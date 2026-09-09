@@ -221,9 +221,121 @@ A properly executed Core update leaves all existing website data completely inta
 ---
 
 ## 8. Pre-Update Requirements: Backups First
+## 8. Built-in Admin Dashboard Update System (Recommended)
+
+Favorite CMS Universal includes a built-in, production-grade Core Update engine accessible directly from your CMS administration panel under **Dashboard -> Updates** (or `/admin/updates`).
+
+### Key Safety Guarantees
+1. **Zero Data Loss Guarantee**: Automatically preserves all database records, `public/uploads/` media, active/installed plugins in `plugins/`, custom themes in `themes/`, and `.env` credentials.
+2. **Automatic Pre-Update Snapshot**: Automatically creates a full database backup (`.sql`) and Core files snapshot before replacing any files.
+3. **Automated Rollback on Failure**: If any file replacement, migration, or post-update health check fails, the system automatically restores previous Core files and reports the exact failure reason.
+4. **Maintenance Mode Locking**: Automatically enables atomic maintenance mode (`storage/maintenance.lock`) during the update with `503 Service Unavailable` and `Retry-After: 300` headers for public visitors, while allowing the executing administrator session to monitor progress.
+5. **Concurrency Protection**: An atomic process lock (`storage/update.lock`) prevents multiple administrators or cron jobs from triggering simultaneous updates.
+
+---
+
+### Workflow A: 1-Click Update (GitHub Releases)
+
+When your hosting server has outbound internet connectivity (default on most hosting platforms):
+
+1. **Navigate to Admin Updates**:
+   - Go to `/admin/updates` (or click **Updates** in the left sidebar under Dashboard).
+2. **Check for Available Releases**:
+   - Click **Check for Updates**. The CMS queries the official Favorite CMS Universal release API.
+   - If a new version is available, release notes, published date, and target version are displayed.
+3. **Review System Readiness**:
+   - Review the **System Readiness Check** card on the right side. Ensure PHP version (>= 8.1), required extensions (`zip`, `pdo_mysql`, `curl`, `json`, `mbstring`), disk space, and directory permissions are marked with green checkmarks.
+4. **Click "Download & Update Automatically"**:
+   - Confirm the prompt.
+   - The CMS automatically:
+     - Activates maintenance mode.
+     - Creates a full database backup in `storage/backups/`.
+     - Downloads and streams the official release archive directly from GitHub into `storage/temp/`.
+     - Validates package integrity, SHA-256 checksum, and structure.
+     - Backs up existing Core files to `storage/backups/core_rollback_*.zip`.
+     - Replaces Core files cleanly (`app/`, `resources/`, `vendor/`, `public/assets/`, `bootstrap.php`, `index.php`, `migrate.php`, and new `database/migrations/`).
+     - Applies pending additive database migrations.
+     - Flushes OPcache and clears runtime cache (`storage/cache/`).
+     - Performs post-update health checks.
+     - Disables maintenance mode and releases concurrency locks.
+5. **Review Success**:
+   - The page reloads with a success notification and the updated version number.
+
+---
+
+### Workflow B: Manual Package Upload (Shared Hosting & Offline Environments)
+
+If your server has outgoing network restrictions, cURL firewall blocks, or you are running in an isolated intranet:
+
+1. **Download Official Core Release**:
+   - Download the official `Favorite-CMS-Universal.zip` release archive from [Favorite CMS Universal Releases](https://github.com/favoritecode/Favorite-CMS-Universal/releases).
+2. **Open Admin Updates**:
+   - Navigate to `/admin/updates`.
+3. **Upload Package**:
+   - Under **Manual Package Upload**, click **Choose File**, select `Favorite-CMS-Universal.zip`, and click **Upload & Validate Package**.
+4. **Package Inspection**:
+   - The CMS stages the package in `storage/temp/` and performs strict pre-installation validation:
+     - Verifies package structure (single-root or flat format).
+     - Confirms `release.json` product identity matches `Favorite CMS Universal`.
+     - Verifies target version is compatible and newer than current version.
+     - Verifies total absence of forbidden files (`.env`, `installed.lock`, `favorite-pay`).
+     - Confirms anti-traversal security (ZipSlip protection).
+5. **Click "Install Update Now"**:
+   - Click **Install Update Now**. The updater executes the full automated lifecycle (pre-update backup, file replacement, migrations, health check, cache flush) identical to Workflow A.
+
+---
+
+### Shared Hosting Requirements & File Permissions
+
+For the automated update engine to operate without file permission errors on Linux/Apache/LiteSpeed shared hosts:
+- **Web Server User**: PHP processes running under `www-data`, `nobody`, or the cPanel user must have write permissions to:
+  - `storage/` (recursive: `775` or `755`)
+  - `app/` (recursive: `755`)
+  - `resources/` (recursive: `755`)
+  - `vendor/` (recursive: `755`)
+  - `public/assets/` (recursive: `755`)
+  - `database/migrations/` (recursive: `755`)
+  - Root directory files: `bootstrap.php`, `index.php`, `migrate.php` (`644`)
+- **PHP Configuration**:
+  - `max_execution_time`: Recommended >= 120 seconds (updates typically complete in 3–8 seconds).
+  - `memory_limit`: Recommended >= 128 MB (256 MB preferred).
+  - `upload_max_filesize` & `post_max_size`: Recommended >= 64 MB for manual ZIP upload.
+
+---
+
+### Troubleshooting Failed Updates & Recovery Steps
+
+If an update fails due to a server timeout, power outage, or filesystem permission restriction:
+
+1. **Inspect Update Activity Log**:
+   - Read `storage/logs/update.log` to determine the exact step where the update encountered an issue.
+2. **Automatic Rollback**:
+   - If a failure occurred during file replacement or migration, the updater automatically restored Core files from `storage/backups/core_rollback_*.zip`.
+3. **Stuck in Maintenance Mode**:
+   - If a process was terminated mid-flight and visitors see "Site Maintenance", simply delete the lockfile:
+     ```bash
+     rm storage/maintenance.lock
+     ```
+   - You can also bypass maintenance mode by logging into `/admin` or by adding `?bypass_token=<TOKEN>` using the token stored in `storage/maintenance.lock`.
+4. **Stuck Concurrency Lock**:
+   - If the update screen says "An update is already in progress", verify no update is running and remove:
+     ```bash
+     rm storage/update.lock
+     ```
+5. **Manual Disaster Recovery from Pre-Update Backup**:
+   - Every update creates a full backup in `storage/backups/backup_*.zip`.
+   - To manually restore:
+     - Unzip `backup_*.zip` in a temporary folder.
+     - Import the included `.sql` file using phpMyAdmin or CLI MySQL.
+     - Restore `app/`, `resources/`, and `vendor/` to return to the exact pre-update state.
+
+---
+
+## 9. Pre-Update Requirements: Backups First
 
 > [!CAUTION]
 > **DO NOT START THE UPDATE UNTIL BOTH BACKUPS EXIST.**  
+> **DO NOT START A MANUAL UPDATE UNTIL BOTH BACKUPS EXIST.**  
 > A file backup alone is NOT enough if database migrations are applied. Take both backups before touching any files.
 
 ### A. Full File Backup (Hostinger File Manager / cPanel)
@@ -244,6 +356,7 @@ A properly executed Core update leaves all existing website data completely inta
 ---
 
 ## 9. Updating from Hostinger File Manager: Exact Step-by-Step Procedure
+## 10. Updating from Hostinger File Manager: Exact Step-by-Step Procedure
 
 Follow this exact 26-step procedure to update Favorite CMS Universal safely in Hostinger File Manager (e.g. under `/public_html/cms/`):
 
@@ -293,15 +406,18 @@ Follow this exact 26-step procedure to update Favorite CMS Universal safely in H
       php migrate.php
       ```
     *(If you do not have SSH access, see [Section 10](#10-running-database-migrations) for the one-time Cron Job method).*
+    *(If you do not have SSH access, see [Section 11](#11-running-database-migrations) for the one-time Cron Job method).*
 24. **Clear temporary cache and flush OPcache**:
     - In File Manager, open `storage/cache/` and delete all temporary cache files. **Keep the `storage/cache/` directory itself.**
     - **Flush LiteSpeed / PHP OPcache**: If your hosting server uses LiteSpeed Web Server (`lsphp`, standard on Hostinger) or standard PHP OPcache, PHP bytecode may be cached in memory. Touch/resave your CMS root `.htaccess` in File Manager or restart PHP via Hostinger hPanel (**Advanced** -> **PHP Configuration** -> **Restart PHP**) so updated theme templates and Core scripts load immediately.
 25. **Disable maintenance mode**: Delete `maintenance.html` (if created in Step 5).
 26. **Verify and keep backup**: Perform the [Post-Update Verification Checklist](#12-post-update-verification-checklist). Keep your backup files safe until you are 100% sure everything works.
+26. **Verify and keep backup**: Perform the [Post-Update Verification Checklist](#13-post-update-verification-checklist). Keep your backup files safe until you are 100% sure everything works.
 
 ---
 
 ## 10. Running Database Migrations
+## 11. Running Database Migrations
 
 ### How Favorite CMS Universal Migrations Work
 - Core migrations reside in `database/migrations/*.php`.
@@ -336,8 +452,10 @@ If your shared hosting plan does not include SSH / Terminal:
 ---
 
 ## 11. Safe Rollback Procedure
+## 12. Safe Rollback Procedure (Manual Fallback)
 
 If you encounter an issue during or immediately after an update, follow this safe rollback process:
+If you encounter an issue during or immediately after a manual update, follow this safe rollback process:
 
 1. **Keep Maintenance Mode Enabled**: Keep the site in maintenance mode while rolling back.
 2. **Do Not Delete Your Backups**: Your pre-update backups are your safety net.
@@ -362,6 +480,7 @@ If you encounter an issue during or immediately after an update, follow this saf
 ---
 
 ## 12. Post-Update Verification Checklist
+## 13. Post-Update Verification Checklist
 
 After completing the update, check off each item to ensure your site is running perfectly:
 
@@ -380,6 +499,7 @@ After completing the update, check off each item to ensure your site is running 
 - [ ] **Plugins Page**: Access `/admin/plugins` — all installed plugins remain listed and active.
 - [ ] **No PHP Fatal Errors**: Check `storage/logs/` for unexpected exceptions.
 - [ ] **Maintenance Mode Disabled**: Ensure `maintenance.html` is removed.
+- [ ] **Maintenance Mode Disabled**: Ensure `maintenance.html` (or `storage/maintenance.lock`) is removed.
 
 ### If Favorite Digital and Favorite Pay are Installed:
 - [ ] **Digital Products**: All existing digital products remain listed with correct prices.
@@ -391,6 +511,7 @@ After completing the update, check off each item to ensure your site is running 
 ---
 
 ## 13. Common Dangerous Mistakes (DO NOT DO THIS)
+## 14. Common Dangerous Mistakes (DO NOT DO THIS)
 
 Avoid these dangerous mistakes that lead to accidental data loss:
 

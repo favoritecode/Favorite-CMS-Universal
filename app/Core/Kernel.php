@@ -24,10 +24,12 @@ use FavoriteCMS\Http\Controllers\Admin\PluginController;
 use FavoriteCMS\Http\Controllers\Admin\SettingController;
 use FavoriteCMS\Http\Controllers\Admin\SeoController;
 use FavoriteCMS\Http\Controllers\Admin\ToolController;
+use FavoriteCMS\Http\Controllers\Admin\UpdateController;
 use FavoriteCMS\Models\Setting;
 use FavoriteCMS\Models\User;
 use FavoriteCMS\Rendering\Engine;
 use FavoriteCMS\Services\EmailVerificationService;
+use FavoriteCMS\Services\Update\MaintenanceMode;
 
 class Kernel
 {
@@ -57,6 +59,12 @@ class Kernel
             // If already installed and visiting /install, redirect to /
             if ($path === '/install') {
                 return Response::redirect('/');
+            }
+
+            // Maintenance mode check
+            $maintenance = new MaintenanceMode();
+            if ($maintenance->isActive() && !$maintenance->isBypassed($request)) {
+                return $maintenance->renderResponse($request);
             }
 
             // Boot active plugins safely
@@ -541,6 +549,23 @@ class Kernel
                 '/admin/tools/import/blogger/preview' => $ctrl->bloggerImportPreview($request),
                 '/admin/tools/import/blogger'         => $ctrl->bloggerImportProcess($request),
                 default                               => Response::redirect('/admin/tools'),
+            };
+        }
+
+        // Module 14: Core Updates
+        if (str_starts_with($path, '/admin/updates')) {
+            if (!$isAdmin) {
+                return Response::make('<h1>403 Access Denied</h1><p>You do not have permission to access Core Updates.</p>', 403);
+            }
+            $ctrl = new UpdateController($this->app);
+            return match ($path) {
+                '/admin/updates'               => $ctrl->index($request),
+                '/admin/updates/check'         => $ctrl->check($request),
+                '/admin/updates/upload'        => $ctrl->upload($request),
+                '/admin/updates/apply'         => $ctrl->apply($request),
+                '/admin/updates/cancel-upload' => $ctrl->cancelUpload($request),
+                '/admin/updates/status'        => $ctrl->status($request),
+                default                        => Response::redirect('/admin/updates'),
             };
         }
 
