@@ -247,8 +247,6 @@ class CoreUpdateLifecycleTest extends TestCase
         $zip->addFromString($prefix . 'release.json', json_encode([
             'product'          => 'Favorite CMS Universal',
             'product_id'       => 'favorite-cms-universal',
-            'version'          => '1.0.10-beta',
-            'min_core_version' => '1.0.0-beta',
             'version'          => '1.0.10',
             'min_core_version' => '1.0.0',
             'min_php'          => '8.1.0',
@@ -256,12 +254,10 @@ class CoreUpdateLifecycleTest extends TestCase
         ]));
 
         // Core runtime files
-        $zip->addFromString($prefix . 'bootstrap.php', "<?php define('APP_VERSION', '1.0.10-beta');\n");
         $zip->addFromString($prefix . 'bootstrap.php', "<?php define('APP_VERSION', '1.0.10');\n");
         $zip->addFromString($prefix . 'index.php', "<?php // updated root index\n");
         $zip->addFromString($prefix . 'migrate.php', "<?php // updated migrate\n");
         $zip->addFromString($prefix . 'public/index.php', "<?php // updated public index\n");
-        $zip->addFromString($prefix . 'app/Core/Application.php', "<?php namespace FavoriteCMS\Core; class Application { public function version() { return '1.0.10-beta'; } }\n");
         $zip->addFromString($prefix . 'app/Core/Application.php', "<?php namespace FavoriteCMS\Core; class Application { public function version() { return '1.0.10'; } }\n");
         $zip->addFromString($prefix . 'resources/views/test.php', "<?php // new view template\n");
 
@@ -275,15 +271,6 @@ class AddBrokenMigration {
 }");
         } else {
             $zip->addFromString($prefix . 'database/migrations/015_add_verified_table.php', "<?php
-class AddVerifiedTable {
-    protected \$db;
-    public function __construct(\$db) { \$this->db = \$db; }
-    public function up() {
-        \$p = \$this->db->prefix();
-        \$this->db->execute(\"CREATE TABLE `{\$p}cms_update_verified` (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            note VARCHAR(100) NOT NULL
-        )\");
 if (!class_exists('AddVerifiedTable')) {
     class AddVerifiedTable {
         protected \$db;
@@ -321,7 +308,6 @@ if (!class_exists('AddVerifiedTable')) {
 
         // 1. Verify update result status
         $this->assertTrue($result['success']);
-        $this->assertEquals('1.0.10-beta', $result['updated_version']);
         $this->assertEquals('1.0.10', $result['updated_version']);
         $this->assertNotEmpty($result['backup_file']);
         $this->assertFileExists($this->testAppRoot . '/storage/backups/' . $result['backup_file']);
@@ -333,7 +319,6 @@ if (!class_exists('AddVerifiedTable')) {
 
         // 3. Verify Core files were upgraded
         $bootstrapContent = file_get_contents($this->testAppRoot . '/bootstrap.php');
-        $this->assertStringContainsString('1.0.10-beta', $bootstrapContent);
         $this->assertStringContainsString('1.0.10', $bootstrapContent);
         $this->assertFileExists($this->testAppRoot . '/resources/views/test.php');
 
@@ -460,7 +445,6 @@ if (!class_exists('AddVerifiedTable')) {
             new MaintenanceMode($this->testAppRoot)
         );
 
-        $locked = $updateManager->acquireLock('existing_session', '1.0.10-beta');
         $locked = $updateManager->acquireLock('existing_session', '1.0.10');
         $this->assertTrue($locked);
         $this->assertTrue($updateManager->isUpdateInProgress());
