@@ -113,9 +113,12 @@ class CustomerWalletRechargeIntegrationTest extends TestCase
         $migrator = new Migrator($this->sqliteDb);
         $migrator->migrate(APP_ROOT . '/plugins/favorite-digital/database/migrations');
 
-        // Run Favorite Pay tables migration
-        if (file_exists(APP_ROOT . '/plugins/favorite-pay/database/migrations/001_create_favorite_pay_tables.php')) {
-            require_once APP_ROOT . '/plugins/favorite-pay/database/migrations/001_create_favorite_pay_tables.php';
+        // Run Favorite Pay tables migration if available
+        $payMigrationFile = file_exists(APP_ROOT . '/plugins/favorite-pay/database/migrations/001_create_favorite_pay_tables.php')
+            ? APP_ROOT . '/plugins/favorite-pay/database/migrations/001_create_favorite_pay_tables.php'
+            : dirname(APP_ROOT) . '/Favorite-CMS-Assets/plugins/favorite-pay/database/migrations/001_create_favorite_pay_tables.php';
+        if (file_exists($payMigrationFile)) {
+            require_once $payMigrationFile;
             $payMigration = new \CreateFavoritePayTables($this->sqliteDb);
             $payMigration->up();
         }

@@ -11,12 +11,17 @@ $_SERVER['REQUEST_URI']    = '/';
 $_SERVER['HTTP_HOST']      = 'favorite-cms.local';
 
 require APP_ROOT . '/vendor/autoload.php';
-require APP_ROOT . '/app/Core/helpers.php';
-if (file_exists(APP_ROOT . '/plugins/favorite-pay/autoload.php')) {
-    require_once APP_ROOT . '/plugins/favorite-pay/autoload.php';
-}
-if (file_exists(APP_ROOT . '/plugins/favorite-digital/autoload.php')) {
-    require_once APP_ROOT . '/plugins/favorite-digital/autoload.php';
+// Dynamic plugin autoloading for testing
+$pluginScanPaths = [
+    APP_ROOT . '/plugins',
+    dirname(APP_ROOT) . '/Favorite-CMS-Assets/plugins',
+];
+foreach ($pluginScanPaths as $pScanPath) {
+    if (is_dir($pScanPath)) {
+        foreach (glob($pScanPath . '/*/autoload.php') as $pAutoload) {
+            require_once $pAutoload;
+        }
+    }
 }
 
 // Load .env

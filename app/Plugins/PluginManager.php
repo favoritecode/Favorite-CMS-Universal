@@ -170,10 +170,15 @@ class PluginManager
                 require_once $entryFile;
                 $this->loadedPlugins[$pluginId] = true;
 
+                $pascalPlugin = str_replace(' ', '', ucwords(str_replace(['-', '_'], ' ', $pluginId)));
                 $candidateClasses = [
-                    'FavoriteCMS\\Pay\\FavoritePayPlugin',
-                    'FavoriteCMS\\Plugins\\' . str_replace(' ', '', ucwords(str_replace(['-', '_'], ' ', $pluginId))) . 'Plugin',
+                    'FavoriteCMS\\Plugins\\' . $pascalPlugin . 'Plugin',
                 ];
+                $parts = explode('-', $pluginId);
+                if (count($parts) > 1 && $parts[0] === 'favorite') {
+                    $domain = ucfirst($parts[1]);
+                    $candidateClasses[] = 'FavoriteCMS\\' . $domain . '\\' . $pascalPlugin . 'Plugin';
+                }
                 foreach ($candidateClasses as $class) {
                     if (class_exists($class) && method_exists($class, 'bootstrap')) {
                         $class::bootstrap($this->app);

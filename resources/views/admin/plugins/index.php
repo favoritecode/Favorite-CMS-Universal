@@ -105,8 +105,8 @@
                                 </div>
                                 <div class="row-actions" style="font-size: 12px;">
                                     <?php if (!empty($plugin['active'])): ?>
-                                        <?php if ($id === 'favorite-pay'): ?>
-                                            <a href="/admin/page/favorite-pay" style="color: var(--wp-blue); font-weight: 600;">Settings</a>
+                                        <?php if (!empty($plugin['settings_url'])): ?>
+                                            <a href="<?php echo htmlspecialchars($plugin['settings_url'], ENT_QUOTES, 'UTF-8'); ?>" style="color: var(--wp-blue); font-weight: 600;">Settings</a>
                                             <span style="color: #cbd5e1;"> | </span>
                                         <?php endif; ?>
                                         <a href="/admin/plugins/deactivate?id=<?php echo urlencode($id); ?>" style="color: #b45309; font-weight: 500;">Deactivate</a>
