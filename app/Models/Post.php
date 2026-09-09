@@ -237,4 +237,14 @@ class Post extends BaseModel
         );
         return $row ? new static((array)$row) : null;
     }
+
+    public function url(): string
+    {
+        return '/post/' . $this->slug;
+    }
+
+    public function permalink(): string
+    {
+        return $this->url();
+    }
 }

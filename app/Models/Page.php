@@ -122,4 +122,14 @@ class Page extends BaseModel
         }
         return $slug;
     }
+
+    public function url(): string
+    {
+        return '/page/' . $this->slug;
+    }
+
+    public function permalink(): string
+    {
+        return $this->url();
+    }
 }

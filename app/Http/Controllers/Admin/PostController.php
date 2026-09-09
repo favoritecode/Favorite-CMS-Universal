@@ -180,6 +180,8 @@ class PostController
             'meta_description' => trim((string)$request->post('meta_description', '')),
             'og_title'         => trim((string)$request->post('og_title', '')),
             'og_description'   => trim((string)$request->post('og_description', '')),
+            'canonical_url'    => trim((string)$request->post('canonical_url', '')),
+            'robots'           => trim((string)$request->post('robots', 'index,follow')),
         ]);
 
         if ($status === 'pending') {
@@ -315,6 +317,8 @@ class PostController
             'meta_description' => trim((string)$request->post('meta_description', '')),
             'og_title'         => trim((string)$request->post('og_title', '')),
             'og_description'   => trim((string)$request->post('og_description', '')),
+            'canonical_url'    => trim((string)$request->post('canonical_url', '')),
+            'robots'           => trim((string)$request->post('robots', 'index,follow')),
         ]);
 
         if ($status === 'pending') {

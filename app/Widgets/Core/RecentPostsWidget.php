@@ -82,7 +82,7 @@ class RecentPostsWidget extends AbstractWidget
         foreach ($posts as $post) {
             $url   = '/post/' . htmlspecialchars($post->slug, ENT_QUOTES, 'UTF-8');
             $title = htmlspecialchars($post->title, ENT_QUOTES, 'UTF-8');
-            $date  = date('M j, Y', strtotime($post->published_at ?? $post->created_at));
+            $date  = format_date($post->published_at ?? $post->created_at, 'M j, Y');
 
             $html .= '<li style="display: flex; gap: 10px; align-items: center; margin-bottom: 10px;">';
 

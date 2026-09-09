@@ -36,8 +36,8 @@ $nextPost  = $post->getNext();
                     <span><?php echo htmlspecialchars($author?->name ?? $author?->username ?? 'Admin', ENT_QUOTES, 'UTF-8'); ?></span>
                 </span>
                 <span class="meta-dot">&bull;</span>
-                <time datetime="<?php echo date('c', strtotime($postDate)); ?>">
-                    <?php echo date('F j, Y', strtotime($postDate)); ?>
+                <time datetime="<?php echo format_date($postDate, 'c'); ?>">
+                    <?php echo format_date($postDate, 'F j, Y'); ?>
                 </time>
                 <span class="meta-dot">&bull;</span>
                 <span><?php echo $readTime; ?> min read</span>
@@ -111,6 +111,16 @@ $nextPost  = $post->getNext();
             <div class="alert-box alert-success" role="status">
                 &#10003; <?php echo htmlspecialchars($_SESSION['flash_comment_success'], ENT_QUOTES, 'UTF-8'); unset($_SESSION['flash_comment_success']); ?>
             </div>
+        <?php elseif (!empty($commentNotice)): ?>
+            <div class="alert-box alert-success" role="status">
+                &#10003; <?php echo htmlspecialchars($commentNotice, ENT_QUOTES, 'UTF-8'); ?>
+            </div>
+        <?php endif; ?>
+
+        <?php if (!empty($_SESSION['comment_error'])): ?>
+            <div class="alert-box alert-danger" role="alert" style="background: #fee2e2; border: 1px solid #ef4444; color: #b91c1c; padding: 12px 16px; border-radius: 6px; margin-bottom: 20px;">
+                &#9888; <?php echo htmlspecialchars($_SESSION['comment_error'], ENT_QUOTES, 'UTF-8'); unset($_SESSION['comment_error']); ?>
+            </div>
         <?php endif; ?>
 
         <?php if (!empty($comments)): ?>
@@ -123,8 +133,8 @@ $nextPost  = $post->getNext();
                         <div class="comment-main">
                             <div class="comment-meta">
                                 <span class="comment-author-name"><?php echo htmlspecialchars($comment->author_name ?? 'Anonymous', ENT_QUOTES, 'UTF-8'); ?></span>
-                                <time class="comment-timestamp" datetime="<?php echo date('c', strtotime($comment->created_at)); ?>">
-                                    <?php echo date('M j, Y \a\t g:i a', strtotime($comment->created_at)); ?>
+                                <time class="comment-timestamp" datetime="<?php echo format_date($comment->created_at, 'c'); ?>">
+                                    <?php echo format_date($comment->created_at, 'M j, Y \a\t g:i a'); ?>
                                 </time>
                             </div>
                             <div class="comment-text">
@@ -141,8 +151,10 @@ $nextPost  = $post->getNext();
             <h3 class="form-heading">Leave a Reply</h3>
             <p class="form-subtext">Your email address will not be published. Required fields are marked <span class="req">*</span></p>
 
-            <form action="/post/<?php echo htmlspecialchars($post->slug, ENT_QUOTES, 'UTF-8'); ?>/comment" method="POST">
-                <input type="hidden" name="_token" value="<?php echo htmlspecialchars($_SESSION['_token'] ?? '', ENT_QUOTES, 'UTF-8'); ?>">
+            <form action="<?php echo htmlspecialchars(($GLOBALS['favorite_cms_base_path'] ?? '') . '/post/' . $post->slug . '/comment', ENT_QUOTES, 'UTF-8'); ?>" method="POST">
+                <input type="hidden" name="_token" value="<?php echo htmlspecialchars(function_exists('csrf_token') ? csrf_token() : ($_SESSION['_token'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
+                <input type="hidden" name="post_id" value="<?php echo (int)$post->id; ?>">
+                <input type="hidden" name="post_slug" value="<?php echo htmlspecialchars($post->slug, ENT_QUOTES, 'UTF-8'); ?>">
 
                 <div class="form-grid-2">
                     <div class="form-group">

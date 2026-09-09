@@ -234,6 +234,22 @@ $postId = (int)($post->id ?? 0);
                         <input type="text" id="og_description" name="og_description" class="form-control" value="<?php echo htmlspecialchars($seo->og_description ?? '', ENT_QUOTES, 'UTF-8'); ?>">
                     </div>
                 </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="canonical_url">Canonical URL Override</label>
+                        <input type="url" id="canonical_url" name="canonical_url" class="form-control" value="<?php echo htmlspecialchars($seo->canonical_url ?? '', ENT_QUOTES, 'UTF-8'); ?>" placeholder="Leave blank to use default post URL">
+                    </div>
+                    <div class="form-group">
+                        <label for="robots">Robots Meta Directive</label>
+                        <select id="robots" name="robots" class="form-control">
+                            <?php $currentRobots = $seo->robots ?? 'index,follow'; ?>
+                            <option value="index,follow" <?php echo ($currentRobots === 'index,follow') ? 'selected' : ''; ?>>Index, Follow (Default)</option>
+                            <option value="noindex,follow" <?php echo ($currentRobots === 'noindex,follow') ? 'selected' : ''; ?>>Noindex, Follow</option>
+                            <option value="noindex,nofollow" <?php echo ($currentRobots === 'noindex,nofollow') ? 'selected' : ''; ?>>Noindex, Nofollow</option>
+                            <option value="index,nofollow" <?php echo ($currentRobots === 'index,nofollow') ? 'selected' : ''; ?>>Index, Nofollow</option>
+                        </select>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -275,7 +291,7 @@ $postId = (int)($post->id ?? 0);
 
                 <div style="font-size: 12px; color: var(--wp-text-muted); margin-bottom: 14px;">
                     <?php if ($isEdit && $post->published_at): ?>
-                        <span>Published on: <strong><?php echo date('M j, Y \a\t g:i a', strtotime($post->published_at)); ?></strong></span>
+                        <span>Published on: <strong><?php echo format_date($post->published_at, 'M j, Y \a\t g:i a'); ?></strong></span>
                     <?php elseif ($currentUser && $currentUser->canDirectPublish()): ?>
                         <span>Publish immediately upon saving.</span>
                     <?php else: ?>

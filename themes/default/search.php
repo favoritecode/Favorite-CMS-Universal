@@ -60,8 +60,8 @@ require __DIR__ . '/header.php';
                                 <?php endforeach; ?>
                                 <span class="meta-dot">&bull;</span>
                             <?php endif; ?>
-                            <time class="post-card-date" datetime="<?php echo date('c', strtotime($postDate)); ?>">
-                                <?php echo date('M j, Y', strtotime($postDate)); ?>
+                            <time class="post-card-date" datetime="<?php echo format_date($postDate, 'c'); ?>">
+                                <?php echo format_date($postDate, 'M j, Y'); ?>
                             </time>
                             <span class="meta-dot">&bull;</span>
                             <span class="post-card-date"><?php echo $readTime; ?> min read</span>

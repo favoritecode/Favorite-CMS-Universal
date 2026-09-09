@@ -223,7 +223,7 @@ $h = static fn ($val): string => htmlspecialchars((string)$val, ENT_QUOTES, 'UTF
             📁 Upload Content Backup / Export File
         </h2>
         <p style="color: #64748b; font-size: 13px; margin: 0 0 18px; line-height: 1.5;">
-            Upload your official export file (<code>.xml</code>, <code>.atom</code>, or <code>.json</code>). Our system automatically identifies the origin platform, analyzes contents, and presents an interactive preview before executing changes.
+            Upload your official export file or archive (<code>.zip</code>, <code>.xml</code>, <code>.atom</code>, or <code>.json</code>). Supports Google Takeout Blogger backups, direct Blogger <code>feed.atom</code>, WordPress WXR, and Universal JSON.
         </p>
 
         <form method="POST" action="/admin/tools/import/preview" enctype="multipart/form-data">
@@ -231,10 +231,10 @@ $h = static fn ($val): string => htmlspecialchars((string)$val, ENT_QUOTES, 'UTF
 
             <div style="margin-bottom: 14px;">
                 <label style="display: block; font-size: 12px; font-weight: 600; color: #334155; margin-bottom: 5px;">
-                    Select Export File
+                    Select Export File or ZIP Archive
                 </label>
-                <input type="file" name="import_file" accept=".xml,.atom,.json,.rss,text/xml,application/json" required style="width: 100%; font-size: 13px; padding: 6px 0;">
-                <span style="font-size: 11px; color: #64748b;">Supports Blogger Atom, WordPress WXR, Generic RSS/Atom, and Universal JSON exports.</span>
+                <input type="file" name="import_file" accept=".zip,.xml,.atom,.json,.rss,text/xml,application/json,application/zip" required style="width: 100%; font-size: 13px; padding: 6px 0;">
+                <span style="font-size: 11px; color: #64748b;">Supports Google Takeout ZIP (containing feed.atom), Blogger XML/Atom, WordPress WXR, and Universal JSON exports.</span>
             </div>
 
             <div style="margin-bottom: 16px;">

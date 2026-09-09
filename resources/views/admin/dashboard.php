@@ -62,7 +62,7 @@
                 <?php foreach ($recentPosts as $p): ?>
                     <li style="padding: 6px 0; border-bottom: 1px solid #f0f0f1; display: flex; justify-content: space-between;">
                         <a href="/admin/posts/edit?id=<?php echo (int)$p->id; ?>"><?php echo htmlspecialchars($p->title, ENT_QUOTES, 'UTF-8'); ?></a>
-                        <span style="color: var(--wp-text-muted); font-size: 12px;"><?php echo date('M j, Y', strtotime($p->published_at ?? $p->created_at)); ?></span>
+                        <span style="color: var(--wp-text-muted); font-size: 12px;"><?php echo format_date($p->published_at ?? $p->created_at, 'M j, Y'); ?></span>
                     </li>
                 <?php endforeach; ?>
             </ul>

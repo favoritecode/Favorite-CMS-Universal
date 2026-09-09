@@ -98,7 +98,7 @@
                                 <?php endif; ?>
                             </td>
                             <td>
-                                <?php echo date('Y/m/d \a\t g:i a', strtotime($comment->created_at)); ?>
+                                <?php echo format_date($comment->created_at, 'Y/m/d \a\t g:i a'); ?>
                             </td>
                         </tr>
                     <?php endforeach; ?>

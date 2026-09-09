@@ -23,6 +23,7 @@ When an HTTP request enters `Kernel::dispatch($request)`, it is evaluated in the
            └─► 4. Frontend Controller Routes:
                   ├── '/'                   ──► FrontendController::home()
                   ├── '/post/{slug}'        ──► FrontendController::post()
+                  ├── '/post/{slug}/comment'──► FrontendController::submitComment()
                   ├── '/category/{slug}'    ──► FrontendController::category()
                   ├── '/tag/{slug}'         ──► FrontendController::tag()
                   ├── '/search'             ──► FrontendController::search()

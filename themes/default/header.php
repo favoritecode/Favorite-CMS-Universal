@@ -42,8 +42,20 @@ $siteLayout  = get_theme_mod('site_layout', 'right');
             }
         </style>
     <?php endif; ?>
+    <?php
+    // Inject centralized Frontend SEO, Social Meta, Schema, and Verification / Tracking tags
+    if (class_exists(\FavoriteCMS\Services\FrontendSeoService::class)) {
+        echo \FavoriteCMS\Services\FrontendSeoService::renderHeadTags(get_defined_vars());
+    }
+    ?>
 </head>
 <body class="layout-<?php echo htmlspecialchars($siteLayout); ?>">
+<?php
+// Inject GTM noscript iframe or body tags immediately after <body> opening
+if (class_exists(\FavoriteCMS\Services\FrontendSeoService::class)) {
+    echo \FavoriteCMS\Services\FrontendSeoService::renderBodyTags();
+}
+?>
 
 <header class="site-header" role="banner">
     <div class="header-container">

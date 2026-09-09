@@ -44,7 +44,7 @@ if ($siteLayout === 'none') {
                                 <?php echo htmlspecialchars($rp->title, ENT_QUOTES, 'UTF-8'); ?>
                             </a>
                             <div class="recent-post-meta">
-                                <?php echo date('M j, Y', strtotime($rp->published_at ?? $rp->created_at)); ?>
+                                <?php echo format_date($rp->published_at ?? $rp->created_at, 'M j, Y'); ?>
                             </div>
                         </li>
                     <?php endforeach; ?>

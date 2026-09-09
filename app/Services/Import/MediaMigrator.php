@@ -33,6 +33,12 @@ class MediaMigrator
         'image/svg+xml' => 'svg',
     ];
 
+    /**
+     * Cache of processed media items during the current migration run.
+     * @var array<string, NormalizedMedia>
+     */
+    protected array $downloadCache = [];
+
     public function __construct(?Application $app = null)
     {
         $this->app = $app ?? Application::getInstance();
@@ -75,6 +81,10 @@ class MediaMigrator
      */
     public function downloadMedia(string $sourceUrl, ?int $uploaderId = null): NormalizedMedia
     {
+        if (isset($this->downloadCache[$sourceUrl])) {
+            return $this->downloadCache[$sourceUrl];
+        }
+
         $media = new NormalizedMedia([
             'sourceUrl' => $sourceUrl,
             'status'    => 'pending',
@@ -86,69 +96,127 @@ class MediaMigrator
         } catch (Throwable $e) {
             $media->status = 'failed';
             $media->failureReason = 'Security restriction: ' . $e->getMessage();
-            return $media;
+            return $this->cacheAndReturn($sourceUrl, $media);
         }
 
-        // 2. Stream download with size limit and timeout
+        // 2. Download with size limit and strict timeouts
         $tempFile = @tempnam(sys_get_temp_dir(), 'fcms_import_');
         if (!$tempFile) {
             $media->status = 'failed';
             $media->failureReason = 'Unable to create local temporary file.';
-            return $media;
+            return $this->cacheAndReturn($sourceUrl, $media);
         }
 
         try {
-            $context = stream_context_create([
-                'http' => [
-                    'method'          => 'GET',
-                    'follow_location' => 1,
-                    'max_redirects'   => 3,
-                    'timeout'         => 8.0,
-                    'user_agent'      => 'FavoriteCMS-Importer/1.0',
-                    'header'          => "Accept: image/*\r\n",
-                ],
-                'ssl' => [
-                    'verify_peer'      => true,
-                    'verify_peer_name' => true,
-                ],
-            ]);
+            $bytesWritten = 0;
+            $downloadSuccess = false;
 
-            $srcHandle = @fopen($sourceUrl, 'rb', false, $context);
-            if (!$srcHandle) {
-                $media->status = 'failed';
-                $media->failureReason = 'Failed to connect to remote media host or resource returned HTTP error.';
-                @unlink($tempFile);
-                return $media;
+            // Preferred: cURL with strict connect (5s) and overall transfer (15s) timeout
+            if (function_exists('curl_init')) {
+                $fp = @fopen($tempFile, 'wb');
+                if ($fp) {
+                    $ch = curl_init($sourceUrl);
+                    curl_setopt_array($ch, [
+                        CURLOPT_FILE           => $fp,
+                        CURLOPT_FOLLOWLOCATION => true,
+                        CURLOPT_MAXREDIRS      => 3,
+                        CURLOPT_CONNECTTIMEOUT => 5,
+                        CURLOPT_TIMEOUT        => 15,
+                        CURLOPT_USERAGENT      => 'FavoriteCMS-Importer/1.0',
+                        CURLOPT_HTTPHEADER     => [
+                            'Accept: image/*',
+                            'Connection: close',
+                        ],
+                        CURLOPT_SSL_VERIFYPEER => true,
+                        CURLOPT_SSL_VERIFYHOST => 2,
+                    ]);
+
+                    $execOk = curl_exec($ch);
+                    $httpCode = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                    $curlErr = curl_error($ch);
+                    curl_close($ch);
+                    fclose($fp);
+
+                    if ($execOk && $httpCode >= 200 && $httpCode < 300) {
+                        $bytesWritten = (int)@filesize($tempFile);
+                        if ($bytesWritten > $this->maxFileSizeBytes) {
+                            @unlink($tempFile);
+                            $media->status = 'failed';
+                            $media->failureReason = "Remote file exceeds maximum allowed import size ({$this->maxFileSizeBytes} bytes).";
+                            return $this->cacheAndReturn($sourceUrl, $media);
+                        }
+                        if ($bytesWritten > 0) {
+                            $downloadSuccess = true;
+                        }
+                    } else {
+                        $media->failureReason = $curlErr ? "cURL error: {$curlErr}" : "HTTP error {$httpCode}";
+                    }
+                }
             }
 
-            $destHandle = fopen($tempFile, 'wb');
-            $bytesWritten = 0;
+            // Fallback: Stream wrapper with strict default_socket_timeout
+            if (!$downloadSuccess) {
+                $origSocketTimeout = ini_get('default_socket_timeout');
+                @ini_set('default_socket_timeout', '5');
 
-            while (!feof($srcHandle)) {
-                $chunk = fread($srcHandle, 32768); // 32 KB chunk
-                if ($chunk === false) {
-                    break;
+                $context = stream_context_create([
+                    'http' => [
+                        'method'          => 'GET',
+                        'follow_location' => 1,
+                        'max_redirects'   => 3,
+                        'timeout'         => 15.0,
+                        'user_agent'      => 'FavoriteCMS-Importer/1.0',
+                        'header'          => "Accept: image/*\r\nConnection: close\r\n",
+                    ],
+                    'ssl' => [
+                        'verify_peer'      => true,
+                        'verify_peer_name' => true,
+                    ],
+                ]);
+
+                $srcHandle = @fopen($sourceUrl, 'rb', false, $context);
+                if ($origSocketTimeout !== false) {
+                    @ini_set('default_socket_timeout', $origSocketTimeout);
                 }
-                $bytesWritten += strlen($chunk);
-                if ($bytesWritten > $this->maxFileSizeBytes) {
-                    fclose($srcHandle);
-                    fclose($destHandle);
+
+                if (!$srcHandle) {
+                    if (!$media->failureReason) {
+                        $media->failureReason = 'Failed to connect to remote media host or resource returned HTTP error.';
+                    }
                     @unlink($tempFile);
                     $media->status = 'failed';
-                    $media->failureReason = "Remote file exceeds maximum allowed import size ({$this->maxFileSizeBytes} bytes).";
-                    return $media;
+                    return $this->cacheAndReturn($sourceUrl, $media);
                 }
-                fwrite($destHandle, $chunk);
-            }
 
-            fclose($srcHandle);
-            fclose($destHandle);
+                $destHandle = fopen($tempFile, 'wb');
+                $bytesWritten = 0;
 
-            if ($bytesWritten === 0) {
-                @unlink($tempFile);
-                $media->status = 'failed';
-                $media->failureReason = 'Remote media file was empty.';
-                return $media;
+                while (!feof($srcHandle)) {
+                    $chunk = fread($srcHandle, 32768); // 32 KB chunk
+                    if ($chunk === false) {
+                        break;
+                    }
+                    $bytesWritten += strlen($chunk);
+                    if ($bytesWritten > $this->maxFileSizeBytes) {
+                        fclose($srcHandle);
+                        fclose($destHandle);
+                        @unlink($tempFile);
+                        $media->status = 'failed';
+                        $media->failureReason = "Remote file exceeds maximum allowed import size ({$this->maxFileSizeBytes} bytes).";
+                        return $this->cacheAndReturn($sourceUrl, $media);
+                    }
+                    fwrite($destHandle, $chunk);
+                }
+
+                fclose($srcHandle);
+                fclose($destHandle);
+
+                if ($bytesWritten === 0) {
+                    @unlink($tempFile);
+                    $media->status = 'failed';
+                    $media->failureReason = 'Remote media file was empty.';
+                    return $this->cacheAndReturn($sourceUrl, $media);
+                }
             }
 
             // 3. MIME Verification
@@ -160,7 +228,7 @@ class MediaMigrator
                 @unlink($tempFile);
                 $media->status = 'failed';
                 $media->failureReason = "Disallowed or invalid image MIME type: '{$mime}'.";
-                return $media;
+                return $this->cacheAndReturn($sourceUrl, $media);
             }
 
             $ext = $this->allowedMimeTypes[$mime];
@@ -188,7 +256,7 @@ class MediaMigrator
                     @unlink($tempFile);
                     $media->status = 'failed';
                     $media->failureReason = 'Could not write downloaded media to destination storage directory.';
-                    return $media;
+                    return $this->cacheAndReturn($sourceUrl, $media);
                 }
                 @unlink($tempFile);
             }
@@ -237,7 +305,7 @@ class MediaMigrator
             $media->mediaId = $mediaId > 0 ? $mediaId : null;
             $media->status = 'downloaded';
 
-            return $media;
+            return $this->cacheAndReturn($sourceUrl, $media);
 
         } catch (Throwable $e) {
             if (file_exists($tempFile)) {
@@ -245,8 +313,14 @@ class MediaMigrator
             }
             $media->status = 'failed';
             $media->failureReason = 'Exception during media download: ' . $e->getMessage();
-            return $media;
+            return $this->cacheAndReturn($sourceUrl, $media);
         }
+    }
+
+    protected function cacheAndReturn(string $sourceUrl, NormalizedMedia $media): NormalizedMedia
+    {
+        $this->downloadCache[$sourceUrl] = $media;
+        return $media;
     }
 
     /**

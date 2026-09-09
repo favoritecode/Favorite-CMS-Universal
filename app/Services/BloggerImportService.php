@@ -29,10 +29,94 @@ class BloggerImportService
     }
 
     /**
+     * Extract XML from ZIP if content is a ZIP archive (Google Takeout).
+     */
+    public function extractZipContent(string $rawContent): string
+    {
+        if (!str_starts_with($rawContent, "PK\x03\x04")) {
+            return $rawContent;
+        }
+
+        if (!class_exists('ZipArchive')) {
+            throw new InvalidArgumentException('PHP ZipArchive extension is required to extract ZIP backup archives.');
+        }
+
+        $tempFile = tempnam(sys_get_temp_dir(), 'fcms_blogger_zip_');
+        if ($tempFile === false) {
+            throw new \RuntimeException('Failed to allocate temporary storage for ZIP extraction.');
+        }
+
+        file_put_contents($tempFile, $rawContent);
+
+        $zip = new \ZipArchive();
+        if ($zip->open($tempFile) !== true) {
+            @unlink($tempFile);
+            throw new InvalidArgumentException('Unable to open ZIP archive.');
+        }
+
+        $extracted = null;
+        $highestScore = -1;
+
+        for ($i = 0; $i < $zip->numFiles; $i++) {
+            $stat = $zip->statIndex($i);
+            if (!$stat || empty($stat['name'])) {
+                continue;
+            }
+
+            $name = $stat['name'];
+            if (str_contains($name, '..') || str_starts_with($name, '/') || str_starts_with($name, '\\')) {
+                continue;
+            }
+
+            $base = strtolower(basename($name));
+            $ext = strtolower(pathinfo($base, PATHINFO_EXTENSION));
+
+            if (str_contains($base, 'theme-layout') || str_contains($base, 'theme-classic') ||
+                in_array($ext, ['csv', 'ico', 'php', 'png', 'jpg', 'jpeg', 'webp', 'css', 'js', 'txt'], true)) {
+                continue;
+            }
+
+            $score = 0;
+            if ($base === 'feed.atom') {
+                $score = 100;
+            } elseif ($base === 'feed.xml') {
+                $score = 95;
+            } elseif (str_starts_with($base, 'blog-') && $ext === 'xml') {
+                $score = 90;
+            } elseif ($ext === 'atom') {
+                $score = 80;
+            } elseif ($ext === 'xml') {
+                $score = 50;
+            }
+
+            if ($score > $highestScore) {
+                $content = $zip->getFromIndex($i);
+                if ($content !== false && trim($content) !== '') {
+                    $highestScore = $score;
+                    $extracted = $content;
+                }
+            }
+        }
+
+        $zip->close();
+        @unlink($tempFile);
+
+        if ($extracted === null) {
+            throw new InvalidArgumentException('No valid Blogger export feed (feed.atom or XML) found inside the uploaded ZIP archive.');
+        }
+
+        return $extracted;
+    }
+
+    /**
      * Safely load and parse Atom XML content, mitigating XXE vulnerabilities.
      */
     public function loadXml(string $xmlContent): DOMDocument
     {
+        if (str_starts_with($xmlContent, "PK\x03\x04")) {
+            $xmlContent = $this->extractZipContent($xmlContent);
+        }
+
         $trimmed = trim($xmlContent);
         if ($trimmed === '') {
             throw new InvalidArgumentException('XML content is empty.');
@@ -388,6 +472,16 @@ class BloggerImportService
             }
         }
 
+        // Google Takeout created timestamp
+        $createdAt = $publishedAt;
+        $createdNodes = $entry->getElementsByTagNameNS('http://schemas.google.com/blogger/2018', 'created');
+        if ($createdNodes->length > 0 && !empty($createdNodes->item(0)->textContent)) {
+            $time = strtotime($createdNodes->item(0)->textContent);
+            if ($time !== false) {
+                $createdAt = date('Y-m-d H:i:s', $time);
+            }
+        }
+
         // Author
         $authorNode = $entry->getElementsByTagName('author')->item(0);
         if ($authorNode) {
@@ -399,14 +493,24 @@ class BloggerImportService
             if ($emailNode) {
                 $authorEmail = trim($emailNode->textContent);
             }
+            if ($authorName === '' && !empty($authorNode->textContent)) {
+                $lines = array_filter(array_map('trim', explode("\n", $authorNode->textContent)));
+                if (!empty($lines)) {
+                    $authorName = reset($lines);
+                }
+            }
         }
 
-        // Draft check via <app:control><app:draft>yes</app:draft></app:control>
-        $draftNodes = $entry->getElementsByTagName('draft');
-        foreach ($draftNodes as $dn) {
-            if (strtolower(trim($dn->textContent)) === 'yes') {
-                $isDraft = true;
-                break;
+        // Google Takeout filename extraction (/2026/04/advance-qr-code-generator.html or /p/contact-us.html)
+        $filenameNodes = $entry->getElementsByTagNameNS('http://schemas.google.com/blogger/2018', 'filename');
+        if ($filenameNodes->length > 0) {
+            $bloggerFilename = trim($filenameNodes->item(0)->textContent);
+            if ($bloggerFilename !== '') {
+                $path = trim($bloggerFilename, '/');
+                $base = basename($path, '.html');
+                if (!empty($base)) {
+                    $slug = $base;
+                }
             }
         }
 
@@ -416,7 +520,7 @@ class BloggerImportService
             $rel = $link->getAttribute('rel');
             $href = $link->getAttribute('href');
 
-            if ($rel === 'alternate' && !empty($href)) {
+            if (($rel === 'alternate' || $rel === '') && !empty($href) && empty($slug)) {
                 $slug = $this->extractSlugFromUrl($href);
             }
         }
@@ -431,16 +535,48 @@ class BloggerImportService
         $categories = $entry->getElementsByTagName('category');
         foreach ($categories as $cat) {
             $scheme = $cat->getAttribute('scheme');
-            $term = $cat->getAttribute('term');
+            $term = trim($cat->getAttribute('term'));
 
-            // Blogger user tags have scheme "http://www.blogger.com/atom/ns#"
-            if ($scheme === 'http://www.blogger.com/atom/ns#' && !empty($term)) {
-                $tags[] = trim($term);
+            if ($term !== '' && $scheme !== 'http://schemas.google.com/g/2005#kind' && !str_contains($term, 'schemas.google.com')) {
+                $tags[] = $term;
             }
         }
 
         if (empty($slug)) {
             $slug = !empty($title) ? str_slug($title) : 'imported-' . bin2hex(random_bytes(3));
+        }
+
+        // Status
+        $status = 'published';
+        $statusNodes = $entry->getElementsByTagNameNS('http://schemas.google.com/blogger/2018', 'status');
+        if ($statusNodes->length > 0) {
+            $rawStatus = strtoupper(trim($statusNodes->item(0)->textContent));
+            if ($rawStatus === 'LIVE') {
+                $status = 'published';
+            } elseif ($rawStatus === 'SOFT_TRASHED' || $rawStatus === 'TRASHED') {
+                $status = 'trash';
+            } elseif ($rawStatus === 'DRAFT') {
+                $status = 'draft';
+            }
+        }
+
+        // Draft check via <draft>yes</draft> or <app:control><app:draft>yes</app:draft></app:control>
+        $draftNodes = $entry->getElementsByTagName('draft');
+        foreach ($draftNodes as $dn) {
+            if (strtolower(trim($dn->textContent)) === 'yes') {
+                $status = 'draft';
+                break;
+            }
+        }
+
+        // Meta Description / Excerpt
+        $excerpt = '';
+        $metaDescNodes = $entry->getElementsByTagNameNS('http://schemas.google.com/blogger/2018', 'metaDescription');
+        if ($metaDescNodes->length > 0) {
+            $excerpt = trim($metaDescNodes->item(0)->textContent);
+        }
+        if ($excerpt === '' && $content !== '') {
+            $excerpt = mb_substr(trim((string)preg_replace('/\s+/', ' ', strip_tags($content))), 0, 200, 'UTF-8');
         }
 
         return [
@@ -449,14 +585,14 @@ class BloggerImportService
             'title'           => $title,
             'slug'            => $slug,
             'content'         => $content,
-            'excerpt'         => substr(strip_tags($content), 0, 200),
-            'status'          => $isDraft ? 'draft' : 'published',
+            'excerpt'         => $excerpt,
+            'status'          => $status,
             'published_at'    => $publishedAt,
-            'created_at'      => $publishedAt,
+            'created_at'      => $createdAt,
             'updated_at'      => $updatedAt,
             'author_name'     => $authorName,
             'author_email'    => $authorEmail,
-            'tags'            => array_unique($tags),
+            'tags'            => array_values(array_unique($tags)),
             'in_reply_to_ref' => $inReplyToRef,
         ];
     }
@@ -466,6 +602,24 @@ class BloggerImportService
      */
     protected function determineKind(DOMElement $entry): string
     {
+        // 1. Google Takeout Blogger Type Check (<blogger:type>POST</blogger:type>)
+        $bloggerTypes = $entry->getElementsByTagNameNS('http://schemas.google.com/blogger/2018', 'type');
+        if ($bloggerTypes->length > 0) {
+            $t = strtoupper(trim($bloggerTypes->item(0)->textContent));
+            if ($t === 'POST') return 'post';
+            if ($t === 'PAGE') return 'page';
+            if ($t === 'COMMENT') return 'comment';
+        }
+
+        foreach ($entry->childNodes as $child) {
+            if ($child instanceof DOMElement && (strcasecmp($child->localName ?? '', 'type') === 0 || str_ends_with($child->nodeName, ':type'))) {
+                $t = strtoupper(trim($child->textContent));
+                if ($t === 'POST') return 'post';
+                if ($t === 'PAGE') return 'page';
+                if ($t === 'COMMENT') return 'comment';
+            }
+        }
+
         $categories = $entry->getElementsByTagName('category');
         foreach ($categories as $cat) {
             $scheme = $cat->getAttribute('scheme');

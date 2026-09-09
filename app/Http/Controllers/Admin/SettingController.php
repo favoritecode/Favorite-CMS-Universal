@@ -64,6 +64,7 @@ class SettingController
             'activeMenu'                => 'settings',
             'settings'                  => $settings,
             'supportedCurrencies'       => Currency::getSupportedCurrencies(),
+            'timezones'                 => \FavoriteCMS\Core\DateTime::listTimezones(),
             'primaryCurrencyLocked'     => $primaryCurrencyLocked,
             'primaryCurrencyLockReason' => $lockReason,
             'serverLimits'              => $serverLimits,
@@ -85,10 +86,6 @@ class SettingController
             $_SESSION['flash_error'] = 'Security verification failed (invalid CSRF token).';
             return Response::redirect('/admin/settings');
         }
-
-        Setting::set('general', 'site_name', trim((string)$request->post('site_name', 'Favorite CMS')));
-        Setting::set('general', 'site_description', trim((string)$request->post('site_description', '')));
-        Setting::set('general', 'site_url', trim((string)$request->post('site_url', 'http://favorite-cms.local')));
 
         $userId = isset($_SESSION['auth_user_id']) ? (int)$_SESSION['auth_user_id'] : null;
         $user = null;
@@ -174,7 +171,15 @@ class SettingController
             Setting::set('general', 'site_favicon_url', '');
         }
         Setting::set('general', 'admin_email', trim((string)$request->post('admin_email', 'admin@example.com')));
-        Setting::set('general', 'timezone', trim((string)$request->post('timezone', 'UTC')));
+
+        // Validate and save site timezone
+        $submittedTimezone = trim((string)$request->post('timezone', 'UTC'));
+        if (!\FavoriteCMS\Core\DateTime::isValidTimezone($submittedTimezone)) {
+            $_SESSION['flash_error'] = "Invalid Timezone '{$submittedTimezone}'. Please select a valid IANA timezone identifier.";
+            return Response::redirect('/admin/settings');
+        }
+        Setting::set('general', 'timezone', $submittedTimezone);
+
         Setting::set('general', 'allow_registration', $request->post('allow_registration') ? 1 : 0, 'bool');
 
         // Primary Accounting Currency

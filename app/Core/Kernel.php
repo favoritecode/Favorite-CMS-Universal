@@ -186,7 +186,12 @@ class Kernel
             return $frontend->search($request);
         }
 
-        if ($path === '/comment/submit' && $method === 'POST') {
+        // Comment submission endpoints
+        if (preg_match('#^/post/([a-zA-Z0-9_\-]+)/comment/?$#', $path, $m) && $method === 'POST') {
+            return $frontend->submitComment($request, $m[1]);
+        }
+
+        if (($path === '/comment/submit' || $path === '/comments/submit') && $method === 'POST') {
             return $frontend->submitComment($request);
         }
 
@@ -199,7 +204,10 @@ class Kernel
         }
 
         // /post/{slug}
-        if (preg_match('#^/post/([a-zA-Z0-9_\-]+)$#', $path, $m)) {
+        if (preg_match('#^/post/([a-zA-Z0-9_\-]+)/?$#', $path, $m)) {
+            if ($method === 'POST') {
+                return $frontend->submitComment($request, $m[1]);
+            }
             return $frontend->post($request, $m[1]);
         }
 

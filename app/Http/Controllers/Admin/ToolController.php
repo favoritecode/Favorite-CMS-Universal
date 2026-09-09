@@ -226,6 +226,10 @@ class ToolController
 
         try {
             $service = new BloggerImportService($this->app);
+            if (str_starts_with($xmlContent, "PK\x03\x04")) {
+                $xmlContent = $service->extractZipContent($xmlContent);
+            }
+
             $preview = $service->preview($xmlContent);
 
             if (!$preview['success']) {
@@ -361,6 +365,10 @@ class ToolController
             $engine = new ImportEngine($this->app);
             $selectedAdapter = (string)$request->post('source_adapter', '');
             $adapterId = $selectedAdapter !== '' ? $selectedAdapter : null;
+
+            if (str_starts_with($content, "PK\x03\x04") || ($filename !== null && str_ends_with(strtolower($filename), '.zip'))) {
+                $content = $engine->extractArchiveContent($content, $filename);
+            }
 
             $preview = $engine->preview($content, $adapterId, $filename);
 

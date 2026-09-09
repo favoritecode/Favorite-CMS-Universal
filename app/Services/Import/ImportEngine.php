@@ -36,10 +36,10 @@ class ImportEngine
     protected array $platformRegistry = [
         'blogger' => [
             'name'        => 'Google Blogger (Blogspot)',
-            'format'      => 'Atom XML (feed.atom / blog-*.xml)',
+            'format'      => 'Atom XML / Google Takeout ZIP (feed.atom / blog-*.xml)',
             'status'      => 'READY',
-            'features'    => ['posts', 'pages', 'comments', 'tags', 'media', 'dates'],
-            'description' => 'Fully supported via Blogger official backup export files.',
+            'features'    => ['posts', 'pages', 'comments', 'tags', 'media', 'dates', 'takeout_zip'],
+            'description' => 'Fully supported via Blogger official backup XML export or Google Takeout ZIP archive.',
         ],
         'wordpress' => [
             'name'        => 'WordPress',
@@ -133,10 +133,103 @@ class ImportEngine
     }
 
     /**
+     * Safely extract primary export content from a ZIP archive (such as a Google Takeout backup).
+     */
+    public function extractArchiveContent(string $rawContent, ?string $filename = null): string
+    {
+        $isZip = str_starts_with($rawContent, "PK\x03\x04") || ($filename !== null && str_ends_with(strtolower($filename), '.zip'));
+        if (!$isZip) {
+            return $rawContent;
+        }
+
+        if (!class_exists('ZipArchive')) {
+            throw new InvalidArgumentException('PHP ZipArchive extension is required to process ZIP backup archives.');
+        }
+
+        $tempFile = tempnam(sys_get_temp_dir(), 'fcms_zip_');
+        if ($tempFile === false) {
+            throw new \RuntimeException('Failed to allocate temporary storage for ZIP extraction.');
+        }
+
+        file_put_contents($tempFile, $rawContent);
+
+        $zip = new \ZipArchive();
+        $openResult = $zip->open($tempFile);
+        if ($openResult !== true) {
+            @unlink($tempFile);
+            throw new InvalidArgumentException('Unable to open ZIP archive. File may be corrupted or invalid.');
+        }
+
+        $extracted = null;
+        $highestScore = -1;
+
+        for ($i = 0; $i < $zip->numFiles; $i++) {
+            $stat = $zip->statIndex($i);
+            if (!$stat || empty($stat['name'])) {
+                continue;
+            }
+
+            $name = $stat['name'];
+
+            // ZipSlip path traversal defense
+            if (str_contains($name, '..') || str_starts_with($name, '/') || str_starts_with($name, '\\')) {
+                continue;
+            }
+
+            $base = strtolower(basename($name));
+            $ext = strtolower(pathinfo($base, PATHINFO_EXTENSION));
+
+            // Ignore theme templates, layouts, CSVs, binaries, and scripts
+            if (str_contains($base, 'theme-layout') || str_contains($base, 'theme-classic') ||
+                in_array($ext, ['csv', 'ico', 'php', 'png', 'jpg', 'jpeg', 'webp', 'css', 'js', 'txt'], true)) {
+                continue;
+            }
+
+            $score = 0;
+            if ($base === 'feed.atom') {
+                $score = 100;
+            } elseif ($base === 'feed.xml') {
+                $score = 95;
+            } elseif (str_starts_with($base, 'blog-') && $ext === 'xml') {
+                $score = 90;
+            } elseif ($ext === 'atom') {
+                $score = 80;
+            } elseif ($ext === 'xml') {
+                $score = 50;
+            } elseif ($ext === 'json') {
+                $score = 40;
+            }
+
+            if ($score > $highestScore) {
+                $content = $zip->getFromIndex($i);
+                if ($content !== false && trim($content) !== '') {
+                    $highestScore = $score;
+                    $extracted = $content;
+                }
+            }
+        }
+
+        $zip->close();
+        @unlink($tempFile);
+
+        if ($extracted === null) {
+            throw new InvalidArgumentException('No valid Blogger/WordPress export feed (feed.atom or XML) found inside the uploaded ZIP archive.');
+        }
+
+        return $extracted;
+    }
+
+    /**
      * Detect matching importer adapter from file content, name, and MIME.
      */
     public function detectAdapter(string $content, ?string $filename = null, ?string $mimeType = null): ?ImporterInterface
     {
+        try {
+            $content = $this->extractArchiveContent($content, $filename);
+        } catch (Throwable) {
+            // Fall through to standard detection
+        }
+
         // Try specific adapters first (Blogger and WordPress before generic RSS)
         $priorityOrder = ['blogger', 'wordpress', 'json', 'rss_atom'];
 
@@ -168,6 +261,15 @@ class ImportEngine
      */
     public function preview(string $content, ?string $adapterId = null, ?string $filename = null): array
     {
+        try {
+            $content = $this->extractArchiveContent($content, $filename);
+        } catch (Throwable $e) {
+            return [
+                'success' => false,
+                'error'   => 'Archive extraction error: ' . $e->getMessage(),
+            ];
+        }
+
         $adapter = $adapterId ? $this->getAdapter($adapterId) : $this->detectAdapter($content, $filename);
 
         if (!$adapter) {
@@ -220,6 +322,8 @@ class ImportEngine
      */
     public function import(string $content, array $options = [], ?string $adapterId = null): array
     {
+        $content = $this->extractArchiveContent($content);
+
         $adapter = $adapterId ? $this->getAdapter($adapterId) : $this->detectAdapter($content);
         if (!$adapter) {
             throw new InvalidArgumentException('No matching import adapter found for supplied content.');
@@ -601,12 +705,12 @@ class ImportEngine
 
     protected function findExistingPost(?string $slug, string $title, ?string $publishedAt): ?Post
     {
-        if ($slug !== '') {
+        if ($slug !== null && $slug !== '') {
             $found = Post::findBySlug($slug);
             if ($found) return $found;
         }
 
-        if ($this->db && $title !== '' && $publishedAt) {
+        if (empty($slug) && $this->db && $title !== '' && $publishedAt) {
             $dateOnly = substr($publishedAt, 0, 10);
             $row = $this->db->selectOne(
                 "SELECT * FROM posts WHERE title = ? AND DATE(published_at) = ? LIMIT 1",
@@ -622,12 +726,12 @@ class ImportEngine
 
     protected function findExistingPage(?string $slug, string $title): ?Page
     {
-        if ($slug !== '') {
+        if ($slug !== null && $slug !== '') {
             $found = Page::findBySlug($slug);
             if ($found) return $found;
         }
 
-        if ($this->db && $title !== '') {
+        if (empty($slug) && $this->db && $title !== '') {
             $row = $this->db->selectOne("SELECT * FROM pages WHERE title = ? LIMIT 1", [$title]);
             if ($row) {
                 return new Page((array)$row);

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 if (!defined('APP_VERSION')) {
     define('APP_VERSION', '1.0.0-beta');
+    define('APP_VERSION', '1.0.9-beta');
 }
 if (!defined('CMS_NAME')) {
     define('CMS_NAME', 'Favorite CMS');

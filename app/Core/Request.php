@@ -45,7 +45,10 @@ class Request
     {
         $uri = $this->uri();
         if (($pos = strpos($uri, '?')) !== false) {
-            return substr($uri, 0, $pos);
+            $uri = substr($uri, 0, $pos);
+        }
+        if (($hashPos = strpos($uri, '#')) !== false) {
+            $uri = substr($uri, 0, $hashPos);
         }
         $path = $uri;
         if ($this->basePath !== '' && ($path === $this->basePath || str_starts_with($path . '/', $this->basePath . '/'))) {

@@ -29,8 +29,8 @@ class SafeXmlParser
             throw new InvalidArgumentException('Security violation: XML contains disallowed DOCTYPE or ENTITY definitions.');
         }
 
-        // XXE Mitigation 2: Reject parameter entities or DTD inclusions
-        if (preg_match('/%[a-zA-Z0-9_-]+;/i', $trimmed)) {
+        // XXE Mitigation 2: Reject parameter entities or DTD inclusions inside DOCTYPE declarations
+        if (preg_match('/<!DOCTYPE[^>]*\[[^\]]*%[a-zA-Z0-9_-]+;/is', $trimmed)) {
             throw new InvalidArgumentException('Security violation: XML contains disallowed parameter entity references.');
         }
 

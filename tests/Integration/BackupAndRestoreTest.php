@@ -24,9 +24,11 @@ class BackupAndRestoreTest extends TestCase
     protected string $dbName;
     protected string $prefix = 'fvcms_btest_';
     protected Database $db;
+    protected ?Database $originalDb = null;
 
     protected function setUp(): void
     {
+        $this->originalDb = app()->has(Database::class) ? app()->make(Database::class) : null;
         $this->testDir = sys_get_temp_dir() . '/fcms_backup_test_' . bin2hex(random_bytes(4));
         $this->testBackupsDir = $this->testDir . '/backups';
         @mkdir($this->testBackupsDir, 0775, true);
@@ -106,6 +108,10 @@ class BackupAndRestoreTest extends TestCase
 
     protected function tearDown(): void
     {
+        if ($this->originalDb !== null) {
+            app()->instance(Database::class, $this->originalDb);
+        }
+
         if ($this->pdo) {
             $this->pdo->exec("DROP DATABASE IF EXISTS `{$this->dbName}`");
         }

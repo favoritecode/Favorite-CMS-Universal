@@ -166,10 +166,10 @@
                         </td>
                         <td>
                             <div style="font-size: 13px;">
-                                <?php echo date('Y/m/d', strtotime($post->published_at ?? $post->created_at)); ?>
+                                <?php echo format_date($post->published_at ?? $post->created_at, 'Y/m/d'); ?>
                             </div>
                             <div style="font-size: 11px; color: var(--wp-text-muted);">
-                                <?php echo date('g:i a', strtotime($post->published_at ?? $post->created_at)); ?>
+                                <?php echo format_date($post->published_at ?? $post->created_at, 'g:i a'); ?>
                             </div>
                         </td>
                     </tr>

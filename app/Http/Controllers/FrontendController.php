@@ -175,45 +175,75 @@ class FrontendController
         return Response::make($html, 200);
     }
 
-    public function submitComment(Request $request): Response
+    public function submitComment(Request $request, ?string $slug = null): Response
     {
-        $postId = (int)$request->post('post_id', 0);
-        $name   = trim((string)$request->post('author_name', ''));
-        $email  = trim((string)$request->post('author_email', ''));
-        $text   = trim((string)$request->post('content', ''));
+        // 1. Resolve target Post
+        $post = null;
+        if ($slug !== null && trim($slug) !== '') {
+            $post = Post::findBySlug(trim($slug));
+        }
 
-        $post = Post::find($postId);
+        if (!$post) {
+            $postId = (int)$request->post('post_id', 0);
+            if ($postId > 0) {
+                $post = Post::find($postId);
+            }
+        }
+
+        if (!$post) {
+            $postSlug = trim((string)$request->post('post_slug', ''));
+            if ($postSlug !== '') {
+                $post = Post::findBySlug($postSlug);
+            }
+        }
+
         if (!$post || $post->status !== 'published') {
             return Response::redirect('/');
         }
 
-        if ($name === '' || $email === '' || $text === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
-            $_SESSION['comment_error'] = 'Please provide your name, valid email, and comment.';
-            return Response::redirect('/post/' . $post->slug . '#comments');
+        $canonicalUrl = method_exists($post, 'url') ? $post->url() : ('/post/' . $post->slug);
+
+        // 2. Validate CSRF Token
+        $sessionToken = (string)($_SESSION['_token'] ?? '');
+        $token = (string)$request->post('_token', '');
+        if ($sessionToken !== '' && ($token === '' || !hash_equals($sessionToken, $token))) {
+            $_SESSION['comment_error'] = 'Security verification failed. Please refresh the page and try again.';
+            return Response::redirect($canonicalUrl . '#comments');
         }
 
-        // Check if current authenticated user or commenter email is suspended or banned
+        // 3. Validate Input Data
+        $name  = trim((string)$request->post('author_name', ''));
+        $email = trim((string)$request->post('author_email', ''));
+        $text  = trim((string)$request->post('content', ''));
+
+        if ($name === '' || $email === '' || $text === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $_SESSION['comment_error'] = 'Please provide your name, a valid email address, and comment.';
+            return Response::redirect($canonicalUrl . '#comments');
+        }
+
+        // 4. Check Suspended / Banned Status
         $currentUserId = (int)($_SESSION['auth_user_id'] ?? 0);
         if ($currentUserId > 0) {
             $currentUser = User::find($currentUserId);
             if ($currentUser && !$currentUser->canSubmitComments()) {
                 $_SESSION['comment_error'] = 'Your account is suspended and cannot submit comments.';
-                return Response::redirect('/post/' . $post->slug . '#comments');
+                return Response::redirect($canonicalUrl . '#comments');
             }
         }
 
         $userByEmail = User::findByEmail($email);
         if ($userByEmail && !$userByEmail->canSubmitComments()) {
             $_SESSION['comment_error'] = 'This account is suspended and cannot submit comments.';
-            return Response::redirect('/post/' . $post->slug . '#comments');
+            return Response::redirect($canonicalUrl . '#comments');
         }
 
+        // 5. Insert Comment
         $db = $this->app->make(Database::class);
         $now = date('Y-m-d H:i:s');
         $ip = $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1';
 
         $db->insert('comments', [
-            'post_id'      => $postId,
+            'post_id'      => (int)$post->id,
             'author_name'  => $name,
             'author_email' => $email,
             'author_ip'    => $ip,
@@ -223,12 +253,28 @@ class FrontendController
             'updated_at'   => $now,
         ]);
 
-        return Response::redirect('/post/' . $post->slug . '?comment=submitted#comments');
+        $_SESSION['flash_comment_success'] = 'Thank you! Your comment has been submitted.';
+        $_SESSION['comment_success']       = 'Thank you! Your comment has been submitted.';
+
+        return Response::redirect($canonicalUrl . '?comment=submitted#comments');
     }
 
     public function sitemap(Request $request): Response
     {
-        $baseUrl = rtrim(config('app.url', 'http://favorite-cms.local'), '/');
+        $siteUrlSetting = (string)Setting::get('general', 'site_url', '');
+        if ($siteUrlSetting !== '' && !str_contains($siteUrlSetting, 'favorite-cms.local') && !str_contains($siteUrlSetting, 'localhost')) {
+            $baseUrl = rtrim($siteUrlSetting, '/');
+        } else {
+            $basePath = $request->basePath();
+            $server = $request->server();
+            $scheme = (!empty($server['HTTPS']) && strtolower((string)$server['HTTPS']) !== 'off') || (($server['SERVER_PORT'] ?? null) === '443') ? 'https' : 'http';
+            $host = (string)($server['HTTP_HOST'] ?? $server['SERVER_NAME'] ?? 'localhost');
+            $baseUrl = rtrim($scheme . '://' . $host . $basePath, '/');
+            if ($baseUrl === '' || $baseUrl === 'http://localhost') {
+                $baseUrl = rtrim((string)config('app.url', 'http://favorite-cms.local'), '/');
+            }
+        }
+
         $posts = Post::published(500);
         $pages = Page::published();
         $categories = Taxonomy::getByTaxonomy('category');
@@ -241,13 +287,13 @@ class FrontendController
 
         // Posts
         foreach ($posts as $p) {
-            $lastmod = date('c', strtotime($p->updated_at ?? $p->created_at));
+            $lastmod = format_date($p->updated_at ?? $p->created_at, 'c');
             $xml .= "  <url>\n    <loc>{$baseUrl}/post/" . htmlspecialchars($p->slug, ENT_QUOTES, 'UTF-8') . "</loc>\n    <lastmod>{$lastmod}</lastmod>\n    <changefreq>weekly</changefreq>\n    <priority>0.8</priority>\n  </url>\n";
         }
 
         // Pages
         foreach ($pages as $p) {
-            $lastmod = date('c', strtotime($p->updated_at ?? $p->created_at));
+            $lastmod = format_date($p->updated_at ?? $p->created_at, 'c');
             $xml .= "  <url>\n    <loc>{$baseUrl}/page/" . htmlspecialchars($p->slug, ENT_QUOTES, 'UTF-8') . "</loc>\n    <lastmod>{$lastmod}</lastmod>\n    <changefreq>monthly</changefreq>\n    <priority>0.6</priority>\n  </url>\n";
         }
 
@@ -265,10 +311,36 @@ class FrontendController
 
     public function robots(Request $request): Response
     {
-        $default = "User-agent: *\nAllow: /\nDisallow: /admin/\nSitemap: " . config('app.url', 'http://favorite-cms.local') . "/sitemap.xml\n";
-        $content = Setting::get('seo', 'robots_txt', $default);
+        $siteUrlSetting = (string)Setting::get('general', 'site_url', '');
+        $basePath = $request->basePath();
+        if ($siteUrlSetting !== '' && !str_contains($siteUrlSetting, 'favorite-cms.local') && !str_contains($siteUrlSetting, 'localhost')) {
+            $baseUrl = rtrim($siteUrlSetting, '/');
+            $parsedPath = parse_url($siteUrlSetting, PHP_URL_PATH) ?: '';
+            if ($basePath === '' && $parsedPath !== '' && $parsedPath !== '/') {
+                $basePath = rtrim($parsedPath, '/');
+            }
+        } else {
+            $server = $request->server();
+            $scheme = (!empty($server['HTTPS']) && strtolower((string)$server['HTTPS']) !== 'off') || (($server['SERVER_PORT'] ?? null) === '443') ? 'https' : 'http';
+            $host = (string)($server['HTTP_HOST'] ?? $server['SERVER_NAME'] ?? 'localhost');
+            $baseUrl = rtrim($scheme . '://' . $host . $basePath, '/');
+            if ($baseUrl === '' || $baseUrl === 'http://localhost') {
+                $baseUrl = rtrim((string)config('app.url', 'http://favorite-cms.local'), '/');
+            }
+        }
 
-        $res = Response::make((string)$content, 200);
+        $adminPath = $basePath !== '' ? rtrim($basePath, '/') . '/admin/' : '/admin/';
+        $default = "User-agent: *\nAllow: /\nDisallow: {$adminPath}\nSitemap: {$baseUrl}/sitemap.xml\n";
+        $content = Setting::get('seo', 'robots_txt', $default);
+        $content = trim((string)$content);
+        if ($content === '') {
+            $content = trim($default);
+        } elseif (!str_contains($content, 'Sitemap:')) {
+            $content .= "\nSitemap: {$baseUrl}/sitemap.xml";
+        }
+        $content .= "\n";
+
+        $res = Response::make($content, 200);
         $res->header('Content-Type', 'text/plain; charset=utf-8');
         return $res;
     }

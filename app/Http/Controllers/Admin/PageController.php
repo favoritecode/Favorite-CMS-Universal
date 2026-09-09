@@ -75,6 +75,7 @@ class PageController
             'page'        => null,
             'allPages'    => $allPages,
             'mediaItems'  => $mediaItems,
+            'seo'         => null,
             'contentView' => APP_ROOT . '/resources/views/admin/pages/edit.php',
         ];
 
@@ -100,10 +101,9 @@ class PageController
         }
 
         $pageModel = new Page();
-        $finalSlug = $slug !== '' ? str_slug($slug) : $pageModel->generateSlug($title);
+        $finalSlug = $pageModel->generateSlug($slug !== '' ? $slug : $title);
         $authorId = (int)($_SESSION['auth_user_id'] ?? 1);
         $content  = ContentSanitizer::clean($content, $authorId);
-        $now = date('Y-m-d H:i:s');
 
         $db = $this->app->make(Database::class);
         $pageId = $db->insert('pages', [
@@ -112,11 +112,11 @@ class PageController
             'content'           => $content,
             'status'            => $status,
             'parent_id'         => $parentId > 0 ? $parentId : null,
-            'author_id'         => $authorId,
             'featured_image_id' => $featImg > 0 ? $featImg : null,
+            'author_id'         => $authorId,
             'menu_order'        => $order,
-            'created_at'        => $now,
-            'updated_at'        => $now,
+            'created_at'        => date('Y-m-d H:i:s'),
+            'updated_at'        => date('Y-m-d H:i:s'),
         ]);
 
         $page = Page::find($pageId);
@@ -125,6 +125,8 @@ class PageController
             'meta_description' => trim((string)$request->post('meta_description', '')),
             'og_title'         => trim((string)$request->post('og_title', '')),
             'og_description'   => trim((string)$request->post('og_description', '')),
+            'canonical_url'    => trim((string)$request->post('canonical_url', '')),
+            'robots'           => trim((string)$request->post('robots', 'index,follow')),
         ]);
 
         $_SESSION['flash_success'] = 'Page created successfully.';
@@ -202,6 +204,8 @@ class PageController
             'meta_description' => trim((string)$request->post('meta_description', '')),
             'og_title'         => trim((string)$request->post('og_title', '')),
             'og_description'   => trim((string)$request->post('og_description', '')),
+            'canonical_url'    => trim((string)$request->post('canonical_url', '')),
+            'robots'           => trim((string)$request->post('robots', 'index,follow')),
         ]);
 
         $_SESSION['flash_success'] = 'Page updated successfully.';

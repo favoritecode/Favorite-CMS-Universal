@@ -272,4 +272,20 @@ XML;
         static::$db->execute("DELETE FROM posts WHERE id IN (?, ?)", [(int)$postRow->id, (int)$draftRow->id]);
         static::$db->execute("DELETE FROM pages WHERE id = ?", [(int)$pageRow->id]);
     }
+
+    public function testPreviewAndImportTakeoutFixtureIfAvailable(): void
+    {
+        $fixturePath = 'D:/Downloads/Compressed/takeout-20260904T211210Z-1-001_2.zip';
+        if (!file_exists($fixturePath)) {
+            $this->markTestSkipped('Real Google Takeout ZIP fixture not found at ' . $fixturePath);
+        }
+
+        $rawZip = file_get_contents($fixturePath);
+        $preview = $this->service->preview($rawZip);
+
+        $this->assertTrue($preview['success']);
+        $this->assertSame(25, $preview['counts']['posts']);
+        $this->assertSame(7, $preview['counts']['pages']);
+        $this->assertGreaterThanOrEqual(10, $preview['counts']['tags']);
+    }
 }

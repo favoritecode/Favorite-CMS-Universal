@@ -756,3 +756,27 @@ if (!function_exists('get_user_display_name')) {
     }
 }
 
+// -----------------------------------------------------------------------------
+// Site Date & Timezone APIs
+// -----------------------------------------------------------------------------
+
+if (!function_exists('site_timezone')) {
+    /**
+     * Retrieve the active site IANA timezone identifier (e.g. 'UTC', 'Asia/Dhaka').
+     */
+    function site_timezone(): string
+    {
+        return \FavoriteCMS\Core\DateTime::getTimezone();
+    }
+}
+
+if (!function_exists('format_date')) {
+    /**
+     * Format a stored UTC timestamp, Unix epoch integer, or DateTimeInterface into site timezone.
+     */
+    function format_date(mixed $datetime, string $format = 'M j, Y \a\t g:i a', ?string $timezone = null): string
+    {
+        return \FavoriteCMS\Core\DateTime::format($datetime, $format, $timezone);
+    }
+}
+

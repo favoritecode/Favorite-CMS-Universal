@@ -150,6 +150,7 @@ $fileAttr = (0100644 << 16);       // -rw-r--r--
 // First add root directory
 $zip->addEmptyDir($rootPrefix);
 $zip->setExternalAttributesName($rootPrefix, ZipArchive::OPSYS_UNIX, $dirAttr);
+$zip->setExternalAttributesIndex($zip->numFiles - 1, ZipArchive::OPSYS_UNIX, $dirAttr);
 
 // Add directories and files recursively
 $iterator = new RecursiveIteratorIterator(
@@ -166,9 +167,11 @@ foreach ($iterator as $item) {
     if ($item->isDir()) {
         $zip->addEmptyDir($entryName);
         $zip->setExternalAttributesName($entryName, ZipArchive::OPSYS_UNIX, $dirAttr);
+        $zip->setExternalAttributesIndex($zip->numFiles - 1, ZipArchive::OPSYS_UNIX, $dirAttr);
     } else {
         $zip->addFile($realPath, $entryName);
         $zip->setExternalAttributesName($entryName, ZipArchive::OPSYS_UNIX, $fileAttr);
+        $zip->setExternalAttributesIndex($zip->numFiles - 1, ZipArchive::OPSYS_UNIX, $fileAttr);
     }
 }
 

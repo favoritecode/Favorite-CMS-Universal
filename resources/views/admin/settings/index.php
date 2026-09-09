@@ -145,9 +145,25 @@
         </div>
 
         <div class="form-group">
-            <label for="timezone">Timezone</label>
-            <input type="text" id="timezone" name="timezone" class="form-control" value="<?php echo htmlspecialchars($settings['timezone'], ENT_QUOTES, 'UTF-8'); ?>">
-            <span class="description">Choose a city in the same timezone as you (e.g. UTC, America/New_York).</span>
+            <label for="timezone">Site Time Zone</label>
+            <select id="timezone" name="timezone" class="form-control" style="max-width: 420px;">
+                <?php 
+                $currentTimezone = $settings['timezone'] ?? 'UTC';
+                if (!empty($timezones) && is_array($timezones)): 
+                    foreach ($timezones as $region => $regionZones): ?>
+                        <optgroup label="<?php echo htmlspecialchars($region, ENT_QUOTES, 'UTF-8'); ?>">
+                            <?php foreach ($regionZones as $tzIdentifier => $tzLabel): ?>
+                                <option value="<?php echo htmlspecialchars($tzIdentifier, ENT_QUOTES, 'UTF-8'); ?>" <?php echo ($currentTimezone === $tzIdentifier) ? 'selected' : ''; ?>>
+                                    <?php echo htmlspecialchars($tzLabel, ENT_QUOTES, 'UTF-8'); ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </optgroup>
+                    <?php endforeach; 
+                else: ?>
+                    <option value="UTC" <?php echo ($currentTimezone === 'UTC') ? 'selected' : ''; ?>>UTC</option>
+                <?php endif; ?>
+            </select>
+            <span class="description">Select the standard IANA timezone for this site (e.g. UTC, Asia/Dhaka, America/New_York). Content timestamps and admin activities will display in this timezone.</span>
         </div>
 
         <div class="form-group">

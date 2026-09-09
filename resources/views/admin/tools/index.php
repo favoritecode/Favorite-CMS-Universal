@@ -89,7 +89,7 @@ $h = static fn ($val): string => htmlspecialchars((string)$val, ENT_QUOTES, 'UTF
     </div>
 
     <p style="color: #64748b; font-size: 13px; margin: 0 0 18px; line-height: 1.5;">
-        Seamlessly migrate your blog from Google Blogger (Blogspot) into Favorite CMS. Export your content from Blogger via <strong>Settings &rarr; Manage blog &rarr; Back up content</strong> (generates a <code>feed.xml</code> or <code>blog-*.xml</code> file), then upload it below.
+        Seamlessly migrate your blog from Google Blogger (Blogspot) into Favorite CMS. Supports Google Takeout backup ZIP archives (containing <code>feed.atom</code>), direct <code>feed.atom</code> uploads, or classic export XML (<code>blog-*.xml</code>).
     </p>
 
     <?php if (!empty($bloggerPreview)): ?>
@@ -177,9 +177,9 @@ $h = static fn ($val): string => htmlspecialchars((string)$val, ENT_QUOTES, 'UTF
 
         <div style="margin-bottom: 14px;">
             <label style="display: block; font-size: 12px; font-weight: 600; color: #334155; margin-bottom: 6px;">
-                Select Blogger Export XML (<code>feed.xml</code> or <code>blog-*.xml</code>)
+                Select Blogger Export (Google Takeout <code>.zip</code>, <code>feed.atom</code>, or <code>blog-*.xml</code>)
             </label>
-            <input type="file" name="blogger_file" accept=".xml,text/xml" required style="font-size: 13px; padding: 6px 0;">
+            <input type="file" name="blogger_file" accept=".zip,.xml,.atom,text/xml,application/zip" required style="font-size: 13px; padding: 6px 0;">
         </div>
 
         <button type="submit" class="btn btn-primary" style="padding: 8px 16px; font-weight: 600; font-size: 13px;">

@@ -84,7 +84,7 @@
                                 </span>
                             </td>
                             <td><?php echo (int)($page->menu_order ?? 0); ?></td>
-                            <td><?php echo date('Y/m/d \a\t g:i a', strtotime($page->created_at)); ?></td>
+                            <td><?php echo format_date($page->created_at, 'Y/m/d \a\t g:i a'); ?></td>
                         </tr>
                     <?php endforeach; ?>
                 <?php endif; ?>
