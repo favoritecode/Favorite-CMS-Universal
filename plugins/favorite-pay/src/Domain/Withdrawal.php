@@ -23,6 +23,7 @@ final class Withdrawal
     private ?string $idempotencyKey;
     private ?int $adminUserId;
     private ?string $operatorNotes;
+    private array $auditTrail;
     private string $createdAt;
     private ?string $updatedAt;
     private ?string $processedAt;
@@ -45,7 +46,8 @@ final class Withdrawal
         ?string $operatorNotes = null,
         ?string $createdAt = null,
         ?string $updatedAt = null,
-        ?string $processedAt = null
+        ?string $processedAt = null,
+        ?array $auditTrail = null
     ) {
         $trimmedId = trim($id);
         if ($trimmedId === '') {
@@ -74,6 +76,7 @@ final class Withdrawal
         $this->idempotencyKey = $idempotencyKey;
         $this->adminUserId = $adminUserId;
         $this->operatorNotes = $operatorNotes;
+        $this->auditTrail = $auditTrail ?? [];
         $this->createdAt = $createdAt ?? date('Y-m-d H:i:s');
         $this->updatedAt = $updatedAt;
         $this->processedAt = $processedAt;
@@ -118,12 +121,25 @@ final class Withdrawal
     public function getIdempotencyKey(): ?string { return $this->idempotencyKey; }
     public function getAdminUserId(): ?int { return $this->adminUserId; }
     public function getOperatorNotes(): ?string { return $this->operatorNotes; }
+    public function getAuditTrail(): array { return $this->auditTrail; }
     public function getCreatedAt(): string { return $this->createdAt; }
     public function getUpdatedAt(): ?string { return $this->updatedAt; }
     public function getProcessedAt(): ?string { return $this->processedAt; }
 
-    public function withStatus(WithdrawalStatus $newStatus, ?int $adminId = null, ?string $notes = null, ?string $txRef = null): self
+    public function withAuditEntry(array $entry): self
     {
+        $clone = clone $this;
+        $clone->auditTrail[] = $entry;
+        return $clone;
+    }
+
+    public function withStatus(
+        WithdrawalStatus $newStatus,
+        ?int $adminId = null,
+        ?string $notes = null,
+        ?string $txRef = null,
+        ?array $auditEntry = null
+    ): self {
         $clone = clone $this;
         $clone->status = $newStatus;
         $clone->updatedAt = date('Y-m-d H:i:s');
@@ -138,6 +154,37 @@ final class Withdrawal
         }
         if ($newStatus->isFinal()) {
             $clone->processedAt = date('Y-m-d H:i:s');
+        }
+        if ($auditEntry !== null) {
+            $clone->auditTrail[] = $auditEntry;
+        }
+        return $clone;
+    }
+
+    public function withNotes(string $notes, ?int $adminId = null, ?array $auditEntry = null): self
+    {
+        $clone = clone $this;
+        $clone->operatorNotes = $notes;
+        $clone->updatedAt = date('Y-m-d H:i:s');
+        if ($adminId !== null) {
+            $clone->adminUserId = $adminId;
+        }
+        if ($auditEntry !== null) {
+            $clone->auditTrail[] = $auditEntry;
+        }
+        return $clone;
+    }
+
+    public function withTransactionReference(string $txRef, ?int $adminId = null, ?array $auditEntry = null): self
+    {
+        $clone = clone $this;
+        $clone->transactionReference = $txRef;
+        $clone->updatedAt = date('Y-m-d H:i:s');
+        if ($adminId !== null) {
+            $clone->adminUserId = $adminId;
+        }
+        if ($auditEntry !== null) {
+            $clone->auditTrail[] = $auditEntry;
         }
         return $clone;
     }
@@ -162,6 +209,7 @@ final class Withdrawal
             'idempotency_key'       => $this->idempotencyKey,
             'admin_user_id'         => $this->adminUserId,
             'operator_notes'        => $this->operatorNotes,
+            'audit_trail'           => $this->auditTrail,
             'created_at'            => $this->createdAt,
             'updated_at'            => $this->updatedAt,
             'processed_at'          => $this->processedAt,

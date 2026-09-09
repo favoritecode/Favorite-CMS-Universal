@@ -33,6 +33,8 @@ final class FavoritePayPlugin
         'favorite_pay_wallets',
         'favorite_pay_wallet_entries',
         'favorite_pay_withdrawals',
+        'favorite_pay_notifications',
+        'favorite_pay_audit_logs',
     ];
 
     private static ?self $instance = null;
@@ -273,13 +275,24 @@ final class FavoritePayPlugin
             );
         });
 
+        // Bind Notification Service
+        $this->app->singleton(\FavoriteCMS\Pay\Contracts\NotificationServiceInterface::class, function ($app) {
+            $db = $app->has(Database::class) ? $app->make(Database::class) : null;
+            return new \FavoriteCMS\Pay\Services\NotificationService($db);
+        });
+        $this->app->singleton(\FavoriteCMS\Pay\Services\NotificationService::class, function ($app) {
+            return $app->make(\FavoriteCMS\Pay\Contracts\NotificationServiceInterface::class);
+        });
+
         // Bind Withdrawal Service
         $this->app->singleton(WithdrawalServiceInterface::class, function ($app) {
             $db = $app->has(Database::class) ? $app->make(Database::class) : null;
             return new WithdrawalService(
                 $app->make(WalletServiceInterface::class),
                 $app->make(CurrencyServiceInterface::class),
-                $db
+                $db,
+                $app->make(\FavoriteCMS\Pay\Contracts\NotificationServiceInterface::class),
+                $app->has(\FavoriteCMS\Pay\Contracts\AuditLogServiceInterface::class) ? $app->make(\FavoriteCMS\Pay\Contracts\AuditLogServiceInterface::class) : null
             );
         });
         $this->app->singleton(WithdrawalService::class, function ($app) {
@@ -290,7 +303,9 @@ final class FavoritePayPlugin
         $this->app->singleton(WithdrawalAdminController::class, function ($app) {
             return new WithdrawalAdminController(
                 $app,
-                $app->make(WithdrawalServiceInterface::class)
+                $app->make(WithdrawalServiceInterface::class),
+                $app->has(WalletServiceInterface::class) ? $app->make(WalletServiceInterface::class) : null,
+                $app->has(\FavoriteCMS\Pay\Contracts\AuditLogServiceInterface::class) ? $app->make(\FavoriteCMS\Pay\Contracts\AuditLogServiceInterface::class) : null
             );
         });
 
@@ -303,7 +318,39 @@ final class FavoritePayPlugin
                 $app->make(GatewayRegistry::class),
                 $app->make(CurrencyServiceInterface::class),
                 $app->has(Database::class) ? $app->make(Database::class) : null,
-                $app->make(WithdrawalServiceInterface::class)
+                $app->make(WithdrawalServiceInterface::class),
+                $app->make(\FavoriteCMS\Pay\Contracts\NotificationServiceInterface::class),
+                $app->has(\FavoriteCMS\Pay\Contracts\AuditLogServiceInterface::class) ? $app->make(\FavoriteCMS\Pay\Contracts\AuditLogServiceInterface::class) : null
+            );
+        });
+
+        // Bind Financial Dashboard Admin Controller
+        $this->app->singleton(\FavoriteCMS\Pay\Controllers\FinancialDashboardAdminController::class, function ($app) {
+            return new \FavoriteCMS\Pay\Controllers\FinancialDashboardAdminController(
+                $app,
+                $app->make(WalletServiceInterface::class),
+                $app->make(WithdrawalServiceInterface::class),
+                $app->make(PaymentServiceInterface::class),
+                $app->make(CurrencyServiceInterface::class),
+                $app->has(Database::class) ? $app->make(Database::class) : null
+            );
+        });
+
+        // Bind Audit Log Service
+        $this->app->singleton(\FavoriteCMS\Pay\Contracts\AuditLogServiceInterface::class, function ($app) {
+            $db = $app->has(Database::class) ? $app->make(Database::class) : null;
+            return new \FavoriteCMS\Pay\Services\AuditLogService($db);
+        });
+        $this->app->singleton(\FavoriteCMS\Pay\Services\AuditLogService::class, function ($app) {
+            return $app->make(\FavoriteCMS\Pay\Contracts\AuditLogServiceInterface::class);
+        });
+
+        // Bind Audit Log Admin Controller
+        $this->app->singleton(\FavoriteCMS\Pay\Controllers\AuditLogAdminController::class, function ($app) {
+            return new \FavoriteCMS\Pay\Controllers\AuditLogAdminController(
+                $app,
+                $app->make(\FavoriteCMS\Pay\Contracts\AuditLogServiceInterface::class),
+                $app->has(Database::class) ? $app->make(Database::class) : null
             );
         });
     }
@@ -331,6 +378,17 @@ final class FavoritePayPlugin
             );
 
             if (function_exists('add_admin_submenu')) {
+                add_admin_submenu(
+                    'favorite-pay',
+                    'favorite-pay-dashboard',
+                    'Dashboard',
+                    function (\FavoriteCMS\Core\Request $request) {
+                        $controller = $this->app->make(\FavoriteCMS\Pay\Controllers\FinancialDashboardAdminController::class);
+                        return $controller->handle($request);
+                    },
+                    \FavoriteCMS\Pay\Permissions\PaymentPermission::VIEW
+                );
+
                 add_admin_submenu(
                     'favorite-pay',
                     'favorite-pay-payments',
@@ -382,11 +440,37 @@ final class FavoritePayPlugin
                     },
                     'manage_settings'
                 );
+
+                add_admin_submenu(
+                    'favorite-pay',
+                    'favorite-pay-audit',
+                    'Audit Log',
+                    function (\FavoriteCMS\Core\Request $request) {
+                        $controller = $this->app->make(\FavoriteCMS\Pay\Controllers\AuditLogAdminController::class);
+                        return $controller->handle($request);
+                    },
+                    \FavoriteCMS\Pay\Permissions\PaymentPermission::VIEW_AUDIT
+                );
             }
         }
 
-        // Register Webhook Endpoint Route
+        // Register Webhook and Admin Dashboard Routes
         if (function_exists('add_route')) {
+            add_route(['GET'], '/admin/favorite-pay', function (\FavoriteCMS\Core\Request $request) {
+                $controller = $this->app->make(\FavoriteCMS\Pay\Controllers\FinancialDashboardAdminController::class);
+                return $controller->handle($request);
+            });
+
+            add_route(['GET'], '/admin/page/favorite-pay-dashboard', function (\FavoriteCMS\Core\Request $request) {
+                $controller = $this->app->make(\FavoriteCMS\Pay\Controllers\FinancialDashboardAdminController::class);
+                return $controller->handle($request);
+            });
+
+            add_route(['GET'], '/admin/page/favorite-pay-audit', function (\FavoriteCMS\Core\Request $request) {
+                $controller = $this->app->make(\FavoriteCMS\Pay\Controllers\AuditLogAdminController::class);
+                return $controller->handle($request);
+            });
+
             add_route(['POST'], '/api/favorite-pay/webhook/{gateway}', function (\FavoriteCMS\Core\Request $request, string $gateway) {
                 $controller = $this->app->make(\FavoriteCMS\Pay\Controllers\PaymentWebhookController::class);
                 return $controller->handle($request, $gateway);
@@ -402,6 +486,12 @@ final class FavoritePayPlugin
             });
 
             add_action('plugin.deactivated', function (string $pluginId): void {
+                if ($pluginId === 'favorite-pay') {
+                    $this->onDeactivate();
+                }
+            });
+
+            add_action('plugin.uninstalled', function (string $pluginId): void {
                 if ($pluginId === 'favorite-pay') {
                     $this->onDeactivate();
                 }
@@ -574,6 +664,49 @@ final class FavoritePayPlugin
         }
     }
 
+    /**
+     * Uninstall Favorite Pay.
+     * Deactivates the plugin and, only when explicitly requested, drops all plugin tables
+     * in reverse dependency order.
+     */
+    public function uninstall(bool $dropTables = false): void
+    {
+        $this->onDeactivate();
+
+        if ($dropTables && $this->app->has(Database::class)) {
+            $this->dropAllTables();
+        }
+
+        if (function_exists('cms_log')) {
+            cms_log('Favorite Pay plugin uninstalled.', 'info', ['plugin' => 'favorite-pay']);
+        }
+    }
+
+    /**
+     * Drop all Favorite Pay tables in reverse dependency order.
+     * Respects database table prefixing.
+     */
+    public function dropAllTables(): void
+    {
+        if (!$this->app->has(Database::class)) {
+            return;
+        }
+
+        $db = $this->app->make(Database::class);
+        if (method_exists($db, 'registerPrefixableTables')) {
+            $db->registerPrefixableTables(self::TABLES);
+        }
+
+        // Reverse dependency order to avoid foreign key / dependency conflicts
+        $tablesInReverse = array_reverse(self::TABLES);
+        foreach ($tablesInReverse as $table) {
+            try {
+                $db->execute("DROP TABLE IF EXISTS `{$table}`");
+            } catch (\Throwable) {
+            }
+        }
+    }
+
     public function runMigrations(): array
     {
         if (!$this->app->has(Database::class)) {
@@ -682,6 +815,15 @@ final class FavoritePayPlugin
         ]);
 
         register_account_menu_item([
+            'id'     => 'pay_notifications',
+            'label'  => 'Notifications',
+            'url'    => '/account/notifications',
+            'icon'   => 'fas fa-bell',
+            'order'  => 22,
+            'plugin' => 'favorite-pay',
+        ]);
+
+        register_account_menu_item([
             'id'     => 'pay_transactions',
             'label'  => 'Transactions',
             'url'    => '/account/transactions',
@@ -767,6 +909,18 @@ final class FavoritePayPlugin
         add_route(['GET'], '/account/transactions', function (\FavoriteCMS\Core\Request $request) {
             $controller = $this->app->make(\FavoriteCMS\Pay\Controllers\CustomerAccountController::class);
             return $controller->transactions($request);
+        });
+
+        // Customer Transaction Detail
+        add_route(['GET'], '/account/transactions/{id}', function (\FavoriteCMS\Core\Request $request, string $id) {
+            $controller = $this->app->make(\FavoriteCMS\Pay\Controllers\CustomerAccountController::class);
+            return $controller->transactionDetail($request, $id);
+        });
+
+        // Customer Notifications
+        add_route(['GET', 'POST'], '/account/notifications', function (\FavoriteCMS\Core\Request $request) {
+            $controller = $this->app->make(\FavoriteCMS\Pay\Controllers\CustomerAccountController::class);
+            return $controller->notifications($request);
         });
     }
 }

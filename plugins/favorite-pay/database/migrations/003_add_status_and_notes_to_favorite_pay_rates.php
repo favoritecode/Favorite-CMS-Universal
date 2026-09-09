@@ -26,14 +26,21 @@ class AddStatusAndNotesToFavoritePayRates
         $isSqlite = $this->isSqlite();
 
         if ($isSqlite) {
-            $cols = $this->db->select("PRAGMA table_info('favorite_pay_rates')");
+            $tableName = method_exists($this->db, 'table') ? $this->db->table('favorite_pay_rates') : 'favorite_pay_rates';
+            $cols = $this->db->select("PRAGMA table_info('{$tableName}')");
             $existing = array_map(fn($c) => strtolower(((array)$c)['name'] ?? ''), $cols);
 
             if (!in_array('status', $existing, true)) {
-                $this->db->execute("ALTER TABLE `favorite_pay_rates` ADD COLUMN `status` VARCHAR(20) NOT NULL DEFAULT 'active'");
+                try {
+                    $this->db->execute("ALTER TABLE `favorite_pay_rates` ADD COLUMN `status` VARCHAR(20) NOT NULL DEFAULT 'active'");
+                } catch (\Throwable) {
+                }
             }
             if (!in_array('notes', $existing, true)) {
-                $this->db->execute("ALTER TABLE `favorite_pay_rates` ADD COLUMN `notes` VARCHAR(255) NULL");
+                try {
+                    $this->db->execute("ALTER TABLE `favorite_pay_rates` ADD COLUMN `notes` VARCHAR(255) NULL");
+                } catch (\Throwable) {
+                }
             }
             try {
                 $this->db->execute("CREATE INDEX IF NOT EXISTS `idx_fpay_rates_status` ON `favorite_pay_rates` (`status`)");

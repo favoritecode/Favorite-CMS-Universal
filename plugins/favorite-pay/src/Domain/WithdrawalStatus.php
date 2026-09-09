@@ -40,6 +40,7 @@ enum WithdrawalStatus: string
             self::APPROVED => in_array($target, [
                 self::PROCESSING,
                 self::REJECTED,
+                self::CANCELLED,
             ], true),
 
             self::PROCESSING => in_array($target, [

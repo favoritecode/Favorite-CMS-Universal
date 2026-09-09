@@ -115,8 +115,7 @@ final class PaymentPermission
         }
 
         return $user->hasPermission(self::VIEW_WITHDRAWALS) 
-            || $user->hasPermission(self::MANAGE_WITHDRAWALS) 
-            || $user->hasPermission(self::VIEW);
+            || $user->hasPermission(self::MANAGE_WITHDRAWALS);
     }
 
     public const MANAGE_SETTINGS = 'favorite_pay.settings.manage';
@@ -139,6 +138,28 @@ final class PaymentPermission
         }
 
         return $user->hasPermission('manage_settings') || $user->hasPermission(self::MANAGE_SETTINGS);
+    }
+
+    public const VIEW_AUDIT = 'favorite_pay.audit.view';
+
+    /**
+     * Check if a user has permission to view administrative audit logs.
+     */
+    public static function canViewAudit(?User $user = null): bool
+    {
+        if ($user === null && function_exists('current_user')) {
+            $user = current_user();
+        }
+
+        if (!$user || !$user->isActive()) {
+            return false;
+        }
+
+        if ($user->hasRole('super-admin') || $user->hasRole('admin')) {
+            return true;
+        }
+
+        return $user->hasPermission(self::VIEW_AUDIT);
     }
 
     /**
@@ -173,6 +194,12 @@ final class PaymentPermission
                 'name'        => 'Manage Favorite Pay Settings',
                 'slug'        => self::MANAGE_SETTINGS,
                 'description' => 'Configure Favorite Pay payment gateways and merchant credentials',
+                'group_name'  => 'payment',
+            ],
+            [
+                'name'        => 'View Favorite Pay Audit Logs',
+                'slug'        => self::VIEW_AUDIT,
+                'description' => 'View Favorite Pay administrative audit trail and operational activity',
                 'group_name'  => 'payment',
             ],
         ];

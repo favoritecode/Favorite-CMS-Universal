@@ -715,4 +715,330 @@ class CustomerAccountAndWalletTest extends TestCase
         $this->assertStringContainsString('REF-50-B', $content);
         $this->assertStringNotContainsString('SECRET-REF-51', $content, 'User 50 must NOT see User 51 ledger records');
     }
+
+    // =========================================================================
+    // 10. PHASE 8 TESTS: WALLET & TRANSACTION EXPERIENCE
+    // =========================================================================
+
+    public function testWalletDashboardDisplaysAvailableHeldAndTotalBalances(): void
+    {
+        $userId = 60;
+        $this->setLoggedInUser($userId, 'active', 'user60');
+
+        // Deposit 50,000 BDT
+        $this->walletService->deposit($userId, Money::bdt(50000), 'DEP-60', 'Initial Deposit');
+
+        // Hold 10,000 BDT for a withdrawal
+        $this->walletService->hold($userId, Money::bdt(10000), 'WTH-60', 'Withdrawal Hold');
+
+        // Invariants:
+        // Balance (spendable) = 40,000 BDT
+        // Held Balance = 10,000 BDT
+        // Total Balance = 50,000 BDT
+        $avail = $this->walletService->getBalance($userId);
+        $held = $this->walletService->getHeldBalance($userId);
+        $total = $this->walletService->getTotalBalance($userId);
+
+        $this->assertSame(40000, $avail->getAmount());
+        $this->assertSame(10000, $held->getAmount());
+        $this->assertSame(50000, $total->getAmount());
+
+        // Controller /account/wallet view
+        $req = new Request([], [], ['REQUEST_METHOD' => 'GET', 'REQUEST_URI' => '/account/wallet']);
+        $resp = $this->controller->wallet($req);
+
+        $this->assertSame(200, $resp->getStatusCode());
+        $content = $resp->getContent();
+
+        // Must display spendable available balance, held balance, and total balance
+        $this->assertStringContainsString('Spendable Available Balance', $content);
+        $this->assertStringContainsString('Held in Withdrawals', $content);
+        $this->assertStringContainsString('Total Wallet Balance', $content);
+        $this->assertStringContainsString('400.00', $content); // 40,000 cents = 400.00
+        $this->assertStringContainsString('100.00', $content); // 10,000 cents = 100.00
+        $this->assertStringContainsString('500.00', $content); // 50,000 cents = 500.00
+    }
+
+    public function testWalletSummaryCalculatesLifetimeMetrics(): void
+    {
+        $userId = 61;
+        $this->setLoggedInUser($userId, 'active', 'user61');
+
+        // Deposits
+        $this->walletService->deposit($userId, Money::bdt(30000), 'PAY-61-1', 'Recharge 1');
+        $this->walletService->deposit($userId, Money::bdt(20000), 'PAY-61-2', 'Recharge 2');
+
+        // Hold & finalize withdrawal
+        $this->walletService->hold($userId, Money::bdt(15000), 'WTH-61', 'Withdrawal hold');
+        $this->walletService->finalizeHold($userId, Money::bdt(15000), 'WTH-61', 'Withdrawal finalized');
+
+        // Summary metrics
+        $req = new Request([], [], ['REQUEST_METHOD' => 'GET', 'REQUEST_URI' => '/account/wallet']);
+        $resp = $this->controller->wallet($req);
+
+        $this->assertSame(200, $resp->getStatusCode());
+        $content = $resp->getContent();
+
+        // Check lifetime metrics sections are present
+        $this->assertStringContainsString('Total Recharges', $content);
+        $this->assertStringContainsString('Total Withdrawals', $content);
+        $this->assertStringContainsString('Lifetime Wallet Activity Summary', $content);
+    }
+
+    public function testTransactionLedgerFilteredByDirectionAndType(): void
+    {
+        $userId = 62;
+        $this->setLoggedInUser($userId, 'active', 'user62');
+
+        // 1. Credit (deposit)
+        $this->walletService->deposit($userId, Money::bdt(10000), 'REF-62-DEP', 'Initial Deposit');
+        // 2. Hold (debit)
+        $this->walletService->hold($userId, Money::bdt(3000), 'REF-62-WTH', 'Withdrawal Hold');
+        // 3. Release (credit)
+        $this->walletService->releaseHold($userId, Money::bdt(1000), 'REF-62-WTH', 'Partial Release');
+
+        // Filter direction=credit -> should return deposit and release (2 entries)
+        $reqCredit = new Request(['direction' => 'credit'], [], ['REQUEST_METHOD' => 'GET', 'REQUEST_URI' => '/account/transactions?direction=credit']);
+        $respCredit = $this->controller->transactions($reqCredit);
+        $this->assertSame(200, $respCredit->getStatusCode());
+        $contentCredit = $respCredit->getContent();
+        $this->assertStringContainsString('Initial Deposit', $contentCredit);
+        $this->assertStringContainsString('Hold released back to wallet', $contentCredit);
+        $this->assertStringNotContainsString('Withdrawal Hold', $contentCredit);
+
+        // Filter direction=debit -> should return only hold (1 entry)
+        $reqDebit = new Request(['direction' => 'debit'], [], ['REQUEST_METHOD' => 'GET', 'REQUEST_URI' => '/account/transactions?direction=debit']);
+        $respDebit = $this->controller->transactions($reqDebit);
+        $this->assertSame(200, $respDebit->getStatusCode());
+        $contentDebit = $respDebit->getContent();
+        $this->assertStringContainsString('Funds placed on hold', $contentDebit);
+        $this->assertStringNotContainsString('Initial Deposit', $contentDebit);
+        $this->assertStringNotContainsString('Partial Release', $contentDebit);
+
+        // Filter type=hold -> should return only hold
+        $reqHold = new Request(['type' => 'hold'], [], ['REQUEST_METHOD' => 'GET', 'REQUEST_URI' => '/account/transactions?type=hold']);
+        $respHold = $this->controller->transactions($reqHold);
+        $this->assertSame(200, $respHold->getStatusCode());
+        $this->assertStringContainsString('Funds placed on hold', $respHold->getContent());
+        $this->assertStringContainsString('REF-62-WTH', $respHold->getContent());
+        $this->assertStringNotContainsString('Initial Deposit', $respHold->getContent());
+    }
+
+    public function testTransactionLedgerFilteredBySearchAndDate(): void
+    {
+        $userId = 63;
+        $this->setLoggedInUser($userId, 'active', 'user63');
+
+        $this->walletService->deposit($userId, Money::bdt(10000), 'REF-SALARY', 'Monthly salary payment');
+        $this->walletService->deposit($userId, Money::bdt(5000), 'REF-BINANCE', 'Crypto recharge via Binance');
+
+        // Search: 'salary'
+        $reqSearch = new Request(['search' => 'salary'], [], ['REQUEST_METHOD' => 'GET', 'REQUEST_URI' => '/account/transactions?search=salary']);
+        $respSearch = $this->controller->transactions($reqSearch);
+        $this->assertSame(200, $respSearch->getStatusCode());
+        $contentSearch = $respSearch->getContent();
+        $this->assertStringContainsString('REF-SALARY', $contentSearch);
+        $this->assertStringNotContainsString('REF-BINANCE', $contentSearch);
+
+        // Search: 'BINANCE'
+        $reqBin = new Request(['search' => 'BINANCE'], [], ['REQUEST_METHOD' => 'GET', 'REQUEST_URI' => '/account/transactions?search=BINANCE']);
+        $respBin = $this->controller->transactions($reqBin);
+        $this->assertSame(200, $respBin->getStatusCode());
+        $this->assertStringContainsString('REF-BINANCE', $respBin->getContent());
+        $this->assertStringNotContainsString('REF-SALARY', $respBin->getContent());
+
+        // Search non-existent
+        $reqNone = new Request(['search' => 'NonExistentRef999'], [], ['REQUEST_METHOD' => 'GET', 'REQUEST_URI' => '/account/transactions?search=NonExistentRef999']);
+        $respNone = $this->controller->transactions($reqNone);
+        $this->assertSame(200, $respNone->getStatusCode());
+        $this->assertStringContainsString('No ledger entries found', $respNone->getContent());
+    }
+
+    public function testTransactionDetailEndpointAndIdorProtection(): void
+    {
+        $userA = 64;
+        $userB = 65;
+
+        // User A creates a transaction
+        $this->setLoggedInUser($userA, 'active', 'user64');
+        $this->walletService->deposit($userA, Money::bdt(10000), 'REF-64', 'User A Deposit');
+
+        $entriesA = $this->walletService->getLedgerHistory($userA);
+        $this->assertNotEmpty($entriesA);
+        $entryIdA = $entriesA[0]->getId();
+
+        // User A views own transaction detail -> 200 OK
+        $reqA = new Request([], [], ['REQUEST_METHOD' => 'GET', 'REQUEST_URI' => '/account/transactions/' . $entryIdA]);
+        $respA = $this->controller->transactionDetail($reqA, $entryIdA);
+
+        $this->assertSame(200, $respA->getStatusCode());
+        $contentA = $respA->getContent();
+        $this->assertStringContainsString($entryIdA, $contentA);
+        $this->assertStringContainsString('User A Deposit', $contentA);
+        $this->assertStringContainsString('Transaction Details', $contentA);
+
+        // User B attempts to access User A's transaction detail -> 403 Forbidden
+        $this->setLoggedInUser($userB, 'active', 'user65');
+        $reqB = new Request([], [], ['REQUEST_METHOD' => 'GET', 'REQUEST_URI' => '/account/transactions/' . $entryIdA]);
+        $respB = $this->controller->transactionDetail($reqB, $entryIdA);
+
+        $this->assertSame(403, $respB->getStatusCode());
+        $this->assertStringContainsString('Access denied', $respB->getContent());
+    }
+
+    public function testPaymentHistoryFilteringByStatusAndDate(): void
+    {
+        $userId = 66;
+        $this->setLoggedInUser($userId, 'active', 'user66');
+
+        $intentSuccess = $this->paymentService->createIntent('favorite-pay', 'order_success', Money::bdt(10000), [
+            'user_id'     => $userId,
+            'customer_id' => $userId,
+            'gateway_id'  => 'manual_bkash',
+        ]);
+
+        $intentPending = $this->paymentService->createIntent('favorite-pay', 'order_pending', Money::bdt(20000), [
+            'user_id'     => $userId,
+            'customer_id' => $userId,
+            'gateway_id'  => 'manual_nagad',
+        ]);
+
+        // Update in-memory intent status using reflection
+        $ref = new \ReflectionClass($this->paymentService);
+        $prop = $ref->getProperty('intents');
+        $prop->setAccessible(true);
+        $intents = $prop->getValue($this->paymentService);
+        $intents[$intentSuccess->getId()] = $intentSuccess->withStatus(PaymentStatus::SUCCEEDED);
+        $prop->setValue($this->paymentService, $intents);
+
+        // Filter status=succeeded
+        $reqSuccess = new Request(['status' => 'succeeded'], [], ['REQUEST_METHOD' => 'GET', 'REQUEST_URI' => '/account/payments?status=succeeded']);
+        $respSuccess = $this->controller->payments($reqSuccess);
+        $this->assertSame(200, $respSuccess->getStatusCode());
+        $contentSuccess = $respSuccess->getContent();
+        $this->assertStringContainsString($intentSuccess->getId(), $contentSuccess);
+        $this->assertStringNotContainsString($intentPending->getId(), $contentSuccess);
+
+        // Filter status=pending
+        $reqPending = new Request(['status' => 'pending'], [], ['REQUEST_METHOD' => 'GET', 'REQUEST_URI' => '/account/payments?status=pending']);
+        $respPending = $this->controller->payments($reqPending);
+        $this->assertSame(200, $respPending->getStatusCode());
+        $contentPending = $respPending->getContent();
+        $this->assertStringContainsString($intentPending->getId(), $contentPending);
+        $this->assertStringNotContainsString($intentSuccess->getId(), $contentPending);
+    }
+
+    public function testRechargeViewDisplaysRecentRechargesWithLockedConversionSnapshot(): void
+    {
+        $userId = 67;
+        $this->setLoggedInUser($userId, 'active', 'user67');
+
+        // Create an intent in primary currency BDT
+        $intent = $this->paymentService->createIntent('favorite-pay', 'recharge_order_67', Money::bdt(50000), [
+            'user_id'             => $userId,
+            'customer_id'         => $userId,
+            'gateway_id'          => 'manual_bkash',
+            'type'                => 'recharge',
+            'accounting_amount'   => 50000,
+            'accounting_currency' => 'BDT',
+            'exchange_rate'       => 1.0,
+        ]);
+
+        $ref = new \ReflectionClass($this->paymentService);
+        $prop = $ref->getProperty('intents');
+        $prop->setAccessible(true);
+        $intents = $prop->getValue($this->paymentService);
+        $intents[$intent->getId()] = $intent->withStatus(PaymentStatus::SUCCEEDED);
+        $prop->setValue($this->paymentService, $intents);
+
+        $req = new Request([], [], ['REQUEST_METHOD' => 'GET', 'REQUEST_URI' => '/account/recharge']);
+        $resp = $this->controller->recharge($req);
+
+        $this->assertSame(200, $resp->getStatusCode());
+        $content = $resp->getContent();
+
+        // Must display the recent recharge section
+        $this->assertStringContainsString('Recent Recharge Activity', $content);
+        $this->assertStringContainsString($intent->getId(), $content);
+    }
+
+    public function testReadEndpointsCauseZeroFinancialMutations(): void
+    {
+        $userId = 68;
+        $this->setLoggedInUser($userId, 'active', 'user68');
+
+        $this->walletService->deposit($userId, Money::bdt(25000), 'DEP-68', 'Initial deposit');
+        $this->walletService->hold($userId, Money::bdt(5000), 'WTH-68', 'Withdrawal hold');
+
+        $balanceBefore = $this->walletService->getBalance($userId)->getAmount();
+        $heldBefore = $this->walletService->getHeldBalance($userId)->getAmount();
+        $totalBefore = $this->walletService->getTotalBalance($userId)->getAmount();
+        $ledgerCountBefore = count($this->walletService->getLedgerHistory($userId));
+
+        // Perform read requests
+        $entries = $this->walletService->getLedgerHistory($userId);
+        $entryId = $entries[0]->getId();
+
+        $this->controller->wallet(new Request([], [], ['REQUEST_METHOD' => 'GET', 'REQUEST_URI' => '/account/wallet']));
+        $this->controller->transactions(new Request([], [], ['REQUEST_METHOD' => 'GET', 'REQUEST_URI' => '/account/transactions']));
+        $this->controller->transactionDetail(new Request([], [], ['REQUEST_METHOD' => 'GET', 'REQUEST_URI' => '/account/transactions/' . $entryId]), $entryId);
+        $this->controller->payments(new Request([], [], ['REQUEST_METHOD' => 'GET', 'REQUEST_URI' => '/account/payments']));
+        $this->controller->recharge(new Request([], [], ['REQUEST_METHOD' => 'GET', 'REQUEST_URI' => '/account/recharge']));
+
+        // Assert zero financial mutation
+        $this->assertSame($balanceBefore, $this->walletService->getBalance($userId)->getAmount());
+        $this->assertSame($heldBefore, $this->walletService->getHeldBalance($userId)->getAmount());
+        $this->assertSame($totalBefore, $this->walletService->getTotalBalance($userId)->getAmount());
+        $this->assertSame($ledgerCountBefore, count($this->walletService->getLedgerHistory($userId)));
+    }
+
+    public function testSuspendedCustomerCanViewWalletAndLedgerReadOnly(): void
+    {
+        $userId = 69;
+        $this->setLoggedInUser($userId, 'suspended', 'user69');
+
+        // Suspended customer viewing wallet -> 200 OK
+        $reqWallet = new Request([], [], ['REQUEST_METHOD' => 'GET', 'REQUEST_URI' => '/account/wallet']);
+        $respWallet = $this->controller->wallet($reqWallet);
+        $this->assertSame(200, $respWallet->getStatusCode());
+
+        // Suspended customer viewing transactions -> 200 OK
+        $reqTx = new Request([], [], ['REQUEST_METHOD' => 'GET', 'REQUEST_URI' => '/account/transactions']);
+        $respTx = $this->controller->transactions($reqTx);
+        $this->assertSame(200, $respTx->getStatusCode());
+
+        // Suspended customer viewing recharge -> 403 Forbidden (recharging is blocked)
+        $reqRecharge = new Request([], [], ['REQUEST_METHOD' => 'GET', 'REQUEST_URI' => '/account/recharge']);
+        $respRecharge = $this->controller->recharge($reqRecharge);
+        $this->assertSame(403, $respRecharge->getStatusCode());
+        $this->assertStringContainsString('suspended', strtolower($respRecharge->getContent()));
+
+        // Suspended customer submitting recharge -> blocked 403
+        $reqRechargePost = new Request([], ['amount' => 100, 'gateway_id' => 'manual_bkash', '_csrf_token' => 'valid-test-csrf-token'], ['REQUEST_METHOD' => 'POST', 'REQUEST_URI' => '/account/recharge']);
+        $respRechargePost = $this->controller->recharge($reqRechargePost);
+        $this->assertSame(403, $respRechargePost->getStatusCode());
+    }
+
+    public function testBannedCustomerIsBlockedFromAllAccountPages(): void
+    {
+        $userId = 70;
+        $this->setLoggedInUser($userId, 'banned', 'user70');
+
+        $reqWallet = new Request([], [], ['REQUEST_METHOD' => 'GET', 'REQUEST_URI' => '/account/wallet']);
+        $respWallet = $this->controller->wallet($reqWallet);
+        $this->assertSame(403, $respWallet->getStatusCode());
+
+        $reqTx = new Request([], [], ['REQUEST_METHOD' => 'GET', 'REQUEST_URI' => '/account/transactions']);
+        $respTx = $this->controller->transactions($reqTx);
+        $this->assertSame(403, $respTx->getStatusCode());
+
+        $reqPay = new Request([], [], ['REQUEST_METHOD' => 'GET', 'REQUEST_URI' => '/account/payments']);
+        $respPay = $this->controller->payments($reqPay);
+        $this->assertSame(403, $respPay->getStatusCode());
+
+        $reqRecharge = new Request([], [], ['REQUEST_METHOD' => 'GET', 'REQUEST_URI' => '/account/recharge']);
+        $respRecharge = $this->controller->recharge($reqRecharge);
+        $this->assertSame(403, $respRecharge->getStatusCode());
+    }
+
 }

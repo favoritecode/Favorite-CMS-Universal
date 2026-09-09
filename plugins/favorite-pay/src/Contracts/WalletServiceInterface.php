@@ -67,4 +67,73 @@ interface WalletServiceInterface
      * @return WalletLedgerEntry[]
      */
     public function getLedgerHistory(int $userId, int $limit = 50, int $offset = 0): array;
+
+    /**
+     * Get the total held/reserved balance for a user (e.g. pending withdrawals).
+     */
+    public function getHeldBalance(int $userId): Money;
+
+    /**
+     * Get the total wallet balance for a user (available + held).
+     */
+    public function getTotalBalance(int $userId): Money;
+
+    /**
+     * Filter and paginate transaction ledger history server-side.
+     *
+     * @param array $filters [type, direction, date_from, date_to, search, status]
+     * @return WalletLedgerEntry[]
+     */
+    public function getFilteredLedgerHistory(int $userId, array $filters = [], int $limit = 20, int $offset = 0): array;
+
+    /**
+     * Count total entries matching filters for pagination.
+     *
+     * @param array $filters [type, direction, date_from, date_to, search, status]
+     */
+    public function getFilteredLedgerCount(int $userId, array $filters = []): int;
+
+    /**
+     * Retrieve a specific ledger entry scoped to user ID for IDOR protection.
+     */
+    public function getLedgerEntry(string $entryId, ?int $userId = null): ?WalletLedgerEntry;
+
+    /**
+     * Get aggregate global wallet metrics across all customers.
+     *
+     * @return array{
+     *     total_wallets: int,
+     *     total_balance: Money,
+     *     available_balance: Money,
+     *     held_balance: Money,
+     *     currency: string
+     * }
+     */
+    public function getGlobalWalletOverview(): array;
+
+    /**
+     * Search customer wallets by user ID, username, or email.
+     *
+     * @return array<int, array{
+     *     user_id: int,
+     *     username: string,
+     *     email: string,
+     *     status: string,
+     *     available_balance: Money,
+     *     held_balance: Money,
+     *     total_balance: Money
+     * }>
+     */
+    public function searchCustomerWallets(string $query, int $limit = 20): array;
+
+    /**
+     * Get latest bounded financial ledger movements across all customers.
+     *
+     * @return array<int, array{
+     *     entry: WalletLedgerEntry,
+     *     username: string,
+     *     email: string
+     * }>
+     */
+    public function getGlobalRecentActivity(int $limit = 15): array;
 }

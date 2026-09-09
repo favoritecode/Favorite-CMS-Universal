@@ -275,6 +275,10 @@ if ($hasThemeHeader) {
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>
             Transactions
         </a>
+        <a href="/account/notifications" class="fpay-nav-link <?php echo $activeTab === 'notifications' ? 'active' : ''; ?>">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
+            Notifications<?php if (!empty($unreadNotificationsCount)): ?> <span style="background:#ef4444; color:#fff; font-size:11px; font-weight:700; padding:1px 6px; border-radius:10px; margin-left:4px;"><?php echo (int)$unreadNotificationsCount; ?></span><?php endif; ?>
+        </a>
     </nav>
 
     <!-- Flash Messages -->

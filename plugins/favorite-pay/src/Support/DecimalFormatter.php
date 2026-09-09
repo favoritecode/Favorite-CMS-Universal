@@ -89,4 +89,12 @@ final class DecimalFormatter
         $result = (int)$combined;
         return $negative ? -$result : $result;
     }
+
+    /**
+     * Alias for decimalToMinorUnits.
+     */
+    public static function decimalToMinorUnit(string|int|float $decimal, int $scale = 2): int
+    {
+        return self::decimalToMinorUnits($decimal, $scale);
+    }
 }

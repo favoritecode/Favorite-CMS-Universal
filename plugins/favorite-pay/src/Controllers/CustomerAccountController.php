@@ -13,6 +13,9 @@ use FavoriteCMS\Pay\Contracts\CurrencyServiceInterface;
 use FavoriteCMS\Pay\Contracts\PaymentServiceInterface;
 use FavoriteCMS\Pay\Contracts\WalletServiceInterface;
 use FavoriteCMS\Pay\Contracts\WithdrawalServiceInterface;
+use FavoriteCMS\Pay\Contracts\AuditLogServiceInterface;
+use FavoriteCMS\Pay\Contracts\NotificationServiceInterface;
+use FavoriteCMS\Pay\Services\NotificationService;
 use FavoriteCMS\Pay\Domain\Money;
 use FavoriteCMS\Pay\Domain\PaymentIntent;
 use FavoriteCMS\Pay\Domain\PaymentMethodType;
@@ -33,6 +36,8 @@ class CustomerAccountController
     protected CurrencyServiceInterface $currencyService;
     protected ?Database $db;
     protected ?WithdrawalServiceInterface $withdrawalService;
+    protected ?NotificationServiceInterface $notificationService = null;
+    protected ?AuditLogServiceInterface $auditService = null;
 
     public function __construct(
         Application $app,
@@ -41,7 +46,9 @@ class CustomerAccountController
         GatewayRegistry $gatewayRegistry,
         CurrencyServiceInterface $currencyService,
         ?Database $db = null,
-        ?WithdrawalServiceInterface $withdrawalService = null
+        ?WithdrawalServiceInterface $withdrawalService = null,
+        ?NotificationServiceInterface $notificationService = null,
+        ?AuditLogServiceInterface $auditService = null
     ) {
         $this->app = $app;
         $this->walletService = $walletService;
@@ -50,10 +57,32 @@ class CustomerAccountController
         $this->currencyService = $currencyService;
         $this->db = $db;
         $this->withdrawalService = $withdrawalService;
+        $this->notificationService = $notificationService;
+        $this->auditService = $auditService;
+
+        if ($this->auditService === null && method_exists($this->app, 'has') && $this->app->has(AuditLogServiceInterface::class)) {
+            $this->auditService = $this->app->make(AuditLogServiceInterface::class);
+        }
 
         if ($this->withdrawalService === null && method_exists($this->app, 'has') && $this->app->has(WithdrawalServiceInterface::class)) {
             $this->withdrawalService = $this->app->make(WithdrawalServiceInterface::class);
         }
+        if ($this->notificationService === null && method_exists($this->app, 'has') && $this->app->has(NotificationServiceInterface::class)) {
+            $this->notificationService = $this->app->make(NotificationServiceInterface::class);
+        }
+        if ($this->notificationService === null) {
+            $this->notificationService = new NotificationService($this->db);
+        }
+    }
+
+    public function setNotificationService(NotificationServiceInterface $notificationService): void
+    {
+        $this->notificationService = $notificationService;
+    }
+
+    public function getNotificationService(): ?NotificationServiceInterface
+    {
+        return $this->notificationService;
     }
 
     /**
@@ -148,6 +177,18 @@ class CustomerAccountController
     }
 
     /**
+     * Check whether customer account is suspended.
+     */
+    public function isUserSuspended(User $user): bool
+    {
+        if (method_exists($user, 'isSuspended') && $user->isSuspended()) {
+            return true;
+        }
+        $status = strtolower((string)($user->status ?? 'active'));
+        return $status === 'suspended';
+    }
+
+    /**
      * Customer Digital Wallet Hub (/account/wallet).
      */
     public function wallet(Request $request): Response
@@ -160,8 +201,11 @@ class CustomerAccountController
         $userId = (int)$user->id;
 
         $currency = $this->walletService->getWalletCurrency($userId);
-        $balance = $this->walletService->getBalance($userId);
+        $availableBalance = $this->walletService->getAvailableBalance($userId);
+        $heldBalance = $this->walletService->getHeldBalance($userId);
+        $totalBalance = $this->walletService->getTotalBalance($userId);
         $recentLedger = $this->walletService->getLedgerHistory($userId, 10, 0);
+        $summary = $this->getCustomerWalletSummary($userId, $currency);
 
         // Fetch wallet status from database if available
         $walletStatus = 'active';
@@ -173,18 +217,131 @@ class CustomerAccountController
         }
 
         $html = $this->renderView('wallet', [
-            'pageTitle'    => 'My Wallet & Balance',
-            'activeTab'    => 'wallet',
-            'user'         => $user,
-            'userId'       => $userId,
-            'balance'      => $balance,
-            'currency'     => $currency,
-            'walletStatus' => $walletStatus,
-            'recentLedger' => $recentLedger,
-            'isSuspended'  => method_exists($user, 'isSuspended') && $user->isSuspended(),
+            'pageTitle'        => 'My Wallet & Balance',
+            'activeTab'        => 'wallet',
+            'user'             => $user,
+            'userId'           => $userId,
+            'balance'          => $availableBalance, // preserved for backwards compatibility
+            'availableBalance' => $availableBalance,
+            'heldBalance'      => $heldBalance,
+            'totalBalance'     => $totalBalance,
+            'currency'         => $currency,
+            'walletStatus'     => $walletStatus,
+            'recentLedger'     => $recentLedger,
+            'summary'          => $summary,
+            'isSuspended'      => $this->isUserSuspended($user),
         ]);
 
         return Response::make($html, 200);
+    }
+
+    /**
+     * Retrieve lightweight customer wallet summary statistics (historical totals).
+     * Strictly read-only, causes zero accounting mutations.
+     *
+     * @return array{
+     *     total_recharge_amount: Money,
+     *     successful_recharge_count: int,
+     *     total_withdrawal_amount: Money,
+     *     total_withdrawal_fee: Money,
+     *     total_withdrawal_count: int,
+     *     paid_withdrawal_amount: Money,
+     *     paid_withdrawal_count: int
+     * }
+     */
+    public function getCustomerWalletSummary(int $userId, string $currency): array
+    {
+        $rechargeTotalMinor = 0;
+        $rechargeCount = 0;
+        $withdrawalTotalMinor = 0;
+        $withdrawalFeeMinor = 0;
+        $withdrawalCount = 0;
+        $paidWithdrawalMinor = 0;
+        $paidWithdrawalCount = 0;
+
+        if ($this->db !== null) {
+            if ($this->db->tableExists('favorite_pay_transactions')) {
+                $rcRow = $this->db->selectOne(
+                    "SELECT COUNT(*) as cnt, COALESCE(SUM(base_amount), 0) as total_amt 
+                     FROM favorite_pay_transactions 
+                     WHERE user_id = ? AND status = 'succeeded'",
+                    [$userId]
+                );
+                if ($rcRow) {
+                    $rechargeCount = (int)($rcRow->cnt ?? 0);
+                    $rechargeTotalMinor = (int)($rcRow->total_amt ?? 0);
+                }
+            }
+
+            if ($this->db->tableExists('favorite_pay_withdrawals')) {
+                $wdRow = $this->db->selectOne(
+                    "SELECT 
+                        COUNT(*) as total_cnt,
+                        COALESCE(SUM(amount), 0) as total_amt,
+                        COALESCE(SUM(fee), 0) as total_fee,
+                        COALESCE(SUM(CASE WHEN status = 'paid' THEN amount ELSE 0 END), 0) as paid_amt,
+                        COALESCE(SUM(CASE WHEN status = 'paid' THEN 1 ELSE 0 END), 0) as paid_cnt
+                     FROM favorite_pay_withdrawals 
+                     WHERE user_id = ?",
+                    [$userId]
+                );
+                if ($wdRow) {
+                    $withdrawalCount = (int)($wdRow->total_cnt ?? 0);
+                    $withdrawalTotalMinor = (int)($wdRow->total_amt ?? 0);
+                    $withdrawalFeeMinor = (int)($wdRow->total_fee ?? 0);
+                    $paidWithdrawalMinor = (int)($wdRow->paid_amt ?? 0);
+                    $paidWithdrawalCount = (int)($wdRow->paid_cnt ?? 0);
+                }
+            }
+        } else {
+            // In-memory fallback for test isolation
+            if ($this->paymentService instanceof \FavoriteCMS\Pay\Services\PaymentService) {
+                try {
+                    $ref = new \ReflectionClass($this->paymentService);
+                    if ($ref->hasProperty('intents')) {
+                        $prop = $ref->getProperty('intents');
+                        $prop->setAccessible(true);
+                        $intents = $prop->getValue($this->paymentService) ?: [];
+                        foreach ($intents as $intent) {
+                            if ($intent instanceof \FavoriteCMS\Pay\Domain\PaymentIntent 
+                                && (int)$intent->getUserId() === $userId 
+                                && $intent->getStatus() === \FavoriteCMS\Pay\Domain\PaymentStatus::SUCCEEDED
+                            ) {
+                                $rechargeCount++;
+                                $rechargeTotalMinor += $intent->getBaseAmount()->getAmount();
+                            }
+                        }
+                    }
+                } catch (\Throwable) {
+                }
+            }
+
+            if ($this->withdrawalService !== null) {
+                try {
+                    $wds = $this->withdrawalService->getUserWithdrawals($userId, 500, 0);
+                    foreach ($wds as $wd) {
+                        $withdrawalCount++;
+                        $withdrawalTotalMinor += $wd->getAmount()->getAmount();
+                        $withdrawalFeeMinor += $wd->getFee()->getAmount();
+                        if ($wd->getStatus() === \FavoriteCMS\Pay\Domain\WithdrawalStatus::PAID) {
+                            $paidWithdrawalCount++;
+                            $paidWithdrawalMinor += $wd->getAmount()->getAmount();
+                        }
+                    }
+                } catch (\Throwable) {
+                }
+            }
+        }
+
+        return [
+            'total_recharge_amount'     => new Money($rechargeTotalMinor, $currency),
+            'successful_recharge_count' => $rechargeCount,
+            'total_withdrawal_amount'   => new Money($withdrawalTotalMinor, $currency),
+            'total_withdrawal_fee'      => new Money($withdrawalFeeMinor, $currency),
+            'total_withdrawal_count'    => $withdrawalCount,
+            'paid_withdrawal_amount'    => new Money($paidWithdrawalMinor, $currency),
+            'paid_withdrawal_count'     => $paidWithdrawalCount,
+        ];
     }
 
     /**
@@ -201,7 +358,7 @@ class CustomerAccountController
         $user = $auth;
         $userId = (int)$user->id;
 
-        $isSuspended = method_exists($user, 'isSuspended') && $user->isSuspended();
+        $isSuspended = $this->isUserSuspended($user);
 
         if ($request->method() === 'POST') {
             // Security: Suspended accounts cannot perform financial recharge actions
@@ -226,18 +383,25 @@ class CustomerAccountController
         // GET: Discover active, configured gateways
         $primaryCurrency = $this->walletService->getPrimaryCurrency();
         $gateways = $this->getAvailableGateways($primaryCurrency);
-        $balance = $this->walletService->getBalance($userId);
+        $balance = $this->walletService->getAvailableBalance($userId);
+        $heldBalance = $this->walletService->getHeldBalance($userId);
+        $totalBalance = $this->walletService->getTotalBalance($userId);
+        $recentRecharges = $this->getCustomerRecentRecharges($userId, 10);
 
         $html = $this->renderView('recharge', [
-            'pageTitle'       => 'Recharge Wallet Balance',
-            'activeTab'       => 'recharge',
-            'user'            => $user,
-            'userId'          => $userId,
-            'balance'         => $balance,
-            'primaryCurrency' => $primaryCurrency,
-            'gateways'        => $gateways,
-            'csrfToken'       => $this->getCsrfToken(),
-            'isSuspended'     => $isSuspended,
+            'pageTitle'        => 'Recharge Wallet Balance',
+            'activeTab'        => 'recharge',
+            'user'             => $user,
+            'userId'           => $userId,
+            'balance'          => $balance,
+            'availableBalance' => $balance,
+            'heldBalance'      => $heldBalance,
+            'totalBalance'     => $totalBalance,
+            'primaryCurrency'  => $primaryCurrency,
+            'gateways'         => $gateways,
+            'recentRecharges'  => $recentRecharges,
+            'csrfToken'        => $this->getCsrfToken(),
+            'isSuspended'      => $isSuspended,
         ]);
 
         return Response::make($html, 200);
@@ -317,6 +481,28 @@ class CustomerAccountController
 
         $intentId = $intent->getId();
 
+        // Operational audit log (non-blocking)
+        if ($this->auditService !== null) {
+            try {
+                $this->auditService->log(
+                    action: 'recharge.intent_created',
+                    subjectType: 'recharge',
+                    subjectId: $intentId,
+                    targetUserId: $userId,
+                    metadata: [
+                        'amount'   => $baseMoney->getAmount(),
+                        'currency' => $baseMoney->getCurrency(),
+                        'gateway'  => $gatewayId,
+                    ],
+                    description: "Customer created recharge intent for {$baseMoney->format()} via {$gatewayId}",
+                    actorUserId: $userId,
+                    actorType: 'customer',
+                    paymentId: $intentId
+                );
+            } catch (Throwable) {
+            }
+        }
+
         // 4. Branch by gateway type
         // Manual Gateways
         if ($gateway instanceof ManualBangladeshGateway || str_starts_with($gatewayId, 'manual_')) {
@@ -366,8 +552,8 @@ class CustomerAccountController
         $user = $auth;
         $userId = (int)$user->id;
 
-        $intentId = trim((string)$request->get('intent_id', ''));
-        if (method_exists($user, 'isSuspended') && $user->isSuspended()) {
+        $isSuspended = $this->isUserSuspended($user);
+        if ($isSuspended) {
             return new Response('Access restricted: Your account is suspended. Protected financial and recharge actions are restricted.', 403);
         }
 
@@ -402,8 +588,7 @@ class CustomerAccountController
             'gateway'       => $gateway,
             'gatewayConfig' => $gatewayConfig,
             'csrfToken'     => $this->getCsrfToken(),
-            'isSuspended'   => method_exists($user, 'isSuspended') && $user->isSuspended(),
-            'isSuspended'   => true,
+            'isSuspended'   => $isSuspended,
         ]);
 
         return Response::make($html, 200);
@@ -421,10 +606,9 @@ class CustomerAccountController
         $user = $auth;
         $userId = (int)$user->id;
 
-        if (method_exists($user, 'isSuspended') && $user->isSuspended()) {
+        if ($this->isUserSuspended($user)) {
             $_SESSION['flash_error'] = 'Your account is suspended. Protected financial submissions are restricted.';
             return Response::redirect('/account/wallet');
-            return new Response('Access restricted: Your account is suspended. Protected financial and recharge actions are restricted.', 403);
         }
 
         if (!$this->validateCsrf($request)) {
@@ -466,6 +650,28 @@ class CustomerAccountController
                 'sender_number' => $senderNumber,
             ]);
 
+            // Operational audit log (non-blocking)
+            if ($this->auditService !== null) {
+                try {
+                    $this->auditService->log(
+                        action: 'recharge.manual_submitted',
+                        subjectType: 'recharge',
+                        subjectId: $intentId,
+                        targetUserId: $userId,
+                        metadata: [
+                            'transaction_id' => $trxId,
+                            'gateway_id'     => $gatewayId,
+                            'sender_number'  => $senderNumber,
+                        ],
+                        description: "Customer submitted manual payment verification for intent #{$intentId} with TrxID '{$trxId}'",
+                        actorUserId: $userId,
+                        actorType: 'customer',
+                        paymentId: $intentId
+                    );
+                } catch (Throwable) {
+                }
+            }
+
             $_SESSION['flash_success'] = 'Payment submitted successfully! Your transaction is in verification queue and will be credited once verified.';
             return Response::redirect('/account/payments/' . urlencode($intentId));
         } catch (Throwable $e) {
@@ -486,11 +692,17 @@ class CustomerAccountController
         $user = $auth;
         $userId = (int)$user->id;
 
+        $filters = [
+            'status'    => trim((string)$request->get('status', 'all')),
+            'date_from' => trim((string)$request->get('date_from', '')),
+            'date_to'   => trim((string)$request->get('date_to', '')),
+        ];
+
         $page = max(1, (int)$request->get('page', 1));
         $perPage = 15;
         $offset = ($page - 1) * $perPage;
 
-        $paymentsData = $this->getCustomerPayments($userId, $page, $perPage, $offset);
+        $paymentsData = $this->getCustomerPayments($userId, $page, $perPage, $offset, $filters);
 
         $html = $this->renderView('payments', [
             'pageTitle'    => 'Payment History',
@@ -502,7 +714,8 @@ class CustomerAccountController
             'page'         => $page,
             'perPage'      => $perPage,
             'totalPages'   => max(1, (int)ceil($paymentsData['total'] / $perPage)),
-            'isSuspended'  => method_exists($user, 'isSuspended') && $user->isSuspended(),
+            'filters'      => $filters,
+            'isSuspended'  => $this->isUserSuspended($user),
         ]);
 
         return Response::make($html, 200);
@@ -544,7 +757,7 @@ class CustomerAccountController
             'user'        => $user,
             'userId'      => $userId,
             'payment'     => $payment,
-            'isSuspended' => method_exists($user, 'isSuspended') && $user->isSuspended(),
+            'isSuspended' => $this->isUserSuspended($user),
         ]);
 
         return Response::make($html, 200);
@@ -562,39 +775,100 @@ class CustomerAccountController
         $user = $auth;
         $userId = (int)$user->id;
 
+        $filters = [
+            'type'      => trim((string)$request->get('type', 'all')),
+            'direction' => trim((string)$request->get('direction', 'all')),
+            'date_from' => trim((string)$request->get('date_from', '')),
+            'date_to'   => trim((string)$request->get('date_to', '')),
+            'search'    => trim((string)$request->get('search', '')),
+        ];
+
         $page = max(1, (int)$request->get('page', 1));
         $perPage = 20;
         $offset = ($page - 1) * $perPage;
 
         $currency = $this->walletService->getWalletCurrency($userId);
-        $balance = $this->walletService->getBalance($userId);
-        $entries = $this->walletService->getLedgerHistory($userId, $perPage, $offset);
+        $availableBalance = $this->walletService->getAvailableBalance($userId);
+        $heldBalance = $this->walletService->getHeldBalance($userId);
+        $totalBalance = $this->walletService->getTotalBalance($userId);
 
-        // Calculate total entries if database is available
-        $total = count($entries);
-        if ($this->db !== null && $this->db->tableExists('favorite_pay_wallet_entries')) {
-            $cntRow = $this->db->selectOne(
-                "SELECT COUNT(*) as cnt FROM favorite_pay_wallet_entries WHERE user_id = ?",
-                [$userId]
-            );
-            if ($cntRow) {
-                $total = (int)$cntRow->cnt;
-            }
-        }
+        $entries = $this->walletService->getFilteredLedgerHistory($userId, $filters, $perPage, $offset);
+        $total = $this->walletService->getFilteredLedgerCount($userId, $filters);
+        $totalPages = max(1, (int)ceil($total / $perPage));
 
         $html = $this->renderView('transactions', [
-            'pageTitle'   => 'Wallet Transactions',
-            'activeTab'   => 'transactions',
-            'user'        => $user,
-            'userId'      => $userId,
-            'balance'     => $balance,
-            'currency'    => $currency,
-            'entries'     => $entries,
-            'total'       => $total,
-            'page'        => $page,
-            'perPage'     => $perPage,
-            'totalPages'  => max(1, (int)ceil($total / $perPage)),
-            'isSuspended' => method_exists($user, 'isSuspended') && $user->isSuspended(),
+            'pageTitle'        => 'Wallet Transactions',
+            'activeTab'        => 'transactions',
+            'user'             => $user,
+            'userId'           => $userId,
+            'balance'          => $availableBalance,
+            'availableBalance' => $availableBalance,
+            'heldBalance'      => $heldBalance,
+            'totalBalance'     => $totalBalance,
+            'currency'         => $currency,
+            'entries'          => $entries,
+            'total'            => $total,
+            'page'             => $page,
+            'perPage'          => $perPage,
+            'totalPages'       => $totalPages,
+            'filters'          => $filters,
+            'isSuspended'      => $this->isUserSuspended($user),
+        ]);
+
+        return Response::make($html, 200);
+    }
+
+    /**
+     * Customer Transaction / Ledger Detail View (/account/transactions/{id}).
+     */
+    public function transactionDetail(Request $request, string $id): Response
+    {
+        $auth = $this->requireAuth($request);
+        if ($auth instanceof Response) {
+            return $auth;
+        }
+        $user = $auth;
+        $userId = (int)$user->id;
+
+        $cleanId = trim($id);
+        if ($cleanId === '') {
+            return new Response('Transaction not found.', 404);
+        }
+
+        $entry = $this->walletService->getLedgerEntry($cleanId);
+        if (!$entry) {
+            return new Response('Transaction record not found.', 404);
+        }
+
+        // Security / IDOR: Ensure entry strictly belongs to authenticated user
+        if ($entry->getUserId() !== $userId) {
+            return new Response('Access denied: You do not have permission to view this transaction.', 403);
+        }
+
+        // Customer-safe cross links
+        $relatedPaymentId = null;
+        $relatedWithdrawalId = null;
+
+        if ($entry->getReferenceType() === 'payment') {
+            $relatedPaymentId = $entry->getReferenceId();
+        } elseif ($entry->getReferenceType() === 'withdrawal' || str_starts_with($entry->getReferenceId(), 'wd_')) {
+            $relatedWithdrawalId = $entry->getReferenceId();
+        } elseif (str_starts_with($entry->getReferenceId(), 'hold:wd_')) {
+            $relatedWithdrawalId = substr($entry->getReferenceId(), 5);
+        }
+
+        $currency = $this->walletService->getWalletCurrency($userId);
+
+        $html = $this->renderView('transaction_detail', [
+            'pageTitle'           => 'Transaction #' . htmlspecialchars(substr($entry->getId(), 0, 12), ENT_QUOTES, 'UTF-8'),
+            'activeTab'           => 'transactions',
+            'user'                => $user,
+            'userId'              => $userId,
+            'entry'               => $entry,
+            'currency'            => $currency,
+            'relatedPaymentId'    => $relatedPaymentId,
+            'relatedWithdrawalId' => $relatedWithdrawalId,
+            'isSuspended'         => $this->isUserSuspended($user),
         ]);
 
         return Response::make($html, 200);
@@ -647,23 +921,56 @@ class CustomerAccountController
     }
 
     /**
-     * Retrieve paginated payments for customer.
+     * Retrieve paginated payments for customer with optional filters.
+     *
+     * @param array $filters [status, date_from, date_to]
      */
-    protected function getCustomerPayments(int $userId, int $page, int $perPage, int $offset): array
+    protected function getCustomerPayments(int $userId, int $page, int $perPage, int $offset, array $filters = []): array
     {
         if ($this->db !== null && $this->db->tableExists('favorite_pay_transactions')) {
+            $where = ['user_id = ?'];
+            $params = [$userId];
+
+            if (!empty($filters['status']) && $filters['status'] !== 'all') {
+                $statusEnum = PaymentStatus::tryFrom(trim((string)$filters['status']));
+                if ($statusEnum !== null) {
+                    $where[] = 'status = ?';
+                    $params[] = $statusEnum->value;
+                } else {
+                    $where[] = '1 = 0';
+                }
+            }
+
+            if (!empty($filters['date_from'])) {
+                $df = trim((string)$filters['date_from']);
+                if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $df)) {
+                    $where[] = 'created_at >= ?';
+                    $params[] = $df . ' 00:00:00';
+                }
+            }
+
+            if (!empty($filters['date_to'])) {
+                $dt = trim((string)$filters['date_to']);
+                if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $dt)) {
+                    $where[] = 'created_at <= ?';
+                    $params[] = $dt . ' 23:59:59';
+                }
+            }
+
+            $whereSql = implode(' AND ', $where);
+
             $totalRow = $this->db->selectOne(
-                "SELECT COUNT(*) as cnt FROM favorite_pay_transactions WHERE user_id = ?",
-                [$userId]
+                "SELECT COUNT(*) as cnt FROM favorite_pay_transactions WHERE {$whereSql}",
+                $params
             );
             $total = (int)($totalRow->cnt ?? 0);
 
             $rows = $this->db->select(
                 "SELECT * FROM favorite_pay_transactions 
-                 WHERE user_id = ? 
+                 WHERE {$whereSql} 
                  ORDER BY id DESC 
                  LIMIT {$perPage} OFFSET {$offset}",
-                [$userId]
+                $params
             );
 
             return [
@@ -682,6 +989,14 @@ class CustomerAccountController
                 $userIntents = [];
                 foreach ($allIntents as $intent) {
                     if ($intent instanceof \FavoriteCMS\Pay\Domain\PaymentIntent && (int)$intent->getUserId() === $userId) {
+                        // Apply in-memory status filter
+                        if (!empty($filters['status']) && $filters['status'] !== 'all') {
+                            $statusEnum = PaymentStatus::tryFrom(trim((string)$filters['status']));
+                            if ($statusEnum === null || $intent->getStatus() !== $statusEnum) {
+                                continue;
+                            }
+                        }
+
                         $metadata = $intent->getMetadata();
                         $gwId = $metadata['gateway_id'] ?? '';
                         $gwTitle = 'Online Payment';
@@ -720,6 +1035,42 @@ class CustomerAccountController
             'items' => [],
             'total' => 0,
         ];
+    }
+
+    /**
+     * Retrieve recent recharge payment records for a customer.
+     * Preserves original locked currency conversion snapshots.
+     *
+     * @return array<int, array>
+     */
+    public function getCustomerRecentRecharges(int $userId, int $limit = 10): array
+    {
+        $limit = max(1, min(50, $limit));
+
+        if ($this->db !== null && $this->db->tableExists('favorite_pay_transactions')) {
+            $rows = $this->db->select(
+                "SELECT * FROM favorite_pay_transactions 
+                 WHERE user_id = ? 
+                 ORDER BY id DESC 
+                 LIMIT {$limit}",
+                [$userId]
+            );
+
+            $recharges = [];
+            foreach ($rows as $r) {
+                $item = (array)$r;
+                $gwId = $item['gateway_id'] ?? $item['payment_method_type'] ?? '';
+                $item['gateway_title'] = $this->gatewayRegistry->has($gwId)
+                    ? $this->gatewayRegistry->get($gwId)->getTitle()
+                    : ($gwId !== '' ? ucwords(str_replace('_', ' ', $gwId)) : 'Payment');
+                $recharges[] = $item;
+            }
+            return $recharges;
+        }
+
+        // In-memory fallback
+        $payments = $this->getCustomerPayments($userId, 1, $limit, 0);
+        return $payments['items'];
     }
 
     /**
@@ -864,6 +1215,20 @@ class CustomerAccountController
             $data['withdrawEnabled'] = $this->withdrawalService !== null && $this->withdrawalService->isWithdrawalEnabled();
         }
 
+        if (!isset($data['unreadNotificationsCount'])) {
+            $currentUid = 0;
+            if (isset($data['userId'])) {
+                $currentUid = (int)$data['userId'];
+            } elseif (isset($data['user']->id)) {
+                $currentUid = (int)$data['user']->id;
+            } elseif (isset($_SESSION['user_id'])) {
+                $currentUid = (int)$_SESSION['user_id'];
+            }
+            $data['unreadNotificationsCount'] = ($currentUid > 0 && $this->notificationService !== null)
+                ? $this->notificationService->getUnreadCount($currentUid)
+                : 0;
+        }
+
         $data['contentView'] = $viewFile;
         extract($data, EXTR_SKIP);
 
@@ -902,7 +1267,7 @@ class CustomerAccountController
         $userId = (int)$user->id;
 
         // 3. Suspended check
-        $isSuspended = method_exists($user, 'isSuspended') && $user->isSuspended();
+        $isSuspended = $this->isUserSuspended($user);
         if ($isSuspended) {
             return new Response('Access restricted: Your account is suspended. Withdrawals are disabled.', 403, ['Content-Type' => 'text/html; charset=UTF-8']);
         }
@@ -921,10 +1286,11 @@ class CustomerAccountController
 
             $amountStr = trim((string)$request->post('amount', ''));
             $currency = strtoupper(trim((string)$request->post('currency', 'BDT')));
-            $payoutMethod = trim((string)$request->post('payout_method', ''));
-            $destination = trim((string)$request->post('destination', ''));
+            $payoutMethod = trim((string)($request->post('method') ?: $request->post('payout_method', '')));
+            $accountNumber = trim((string)($request->post('account_number') ?: $request->post('bank_account_number', $request->post('destination', ''))));
             $accountName = trim((string)$request->post('account_name', ''));
-            $userNote = trim((string)$request->post('user_note', ''));
+            $bankName = trim((string)$request->post('bank_name', ''));
+            $branchName = trim((string)$request->post('branch_name', ''));
             $idempotencyKey = trim((string)$request->post('idempotency_key', ''));
 
             if (!is_numeric($amountStr) || (float)$amountStr <= 0) {
@@ -932,18 +1298,29 @@ class CustomerAccountController
                 return Response::redirect('/account/withdraw');
             }
 
+            $destinationData = [
+                'account_number' => $accountNumber,
+            ];
+            if ($accountName !== '') {
+                $destinationData['account_name'] = $accountName;
+            }
+            if ($bankName !== '') {
+                $destinationData['bank_name'] = $bankName;
+            }
+            if ($branchName !== '') {
+                $destinationData['branch_name'] = $branchName;
+            }
+
             try {
-                $minorAmount = DecimalFormatter::decimalToMinorUnit($amountStr, 2);
+                $minorAmount = DecimalFormatter::decimalToMinorUnits($amountStr, 2);
                 $money = new Money($minorAmount, $currency);
 
                 $withdrawal = $this->withdrawalService->createWithdrawal(
-                    userId: $userId,
-                    amount: $money,
-                    payoutMethod: $payoutMethod,
-                    destination: $destination,
-                    accountName: $accountName !== '' ? $accountName : null,
-                    userNote: $userNote !== '' ? $userNote : null,
-                    idempotencyKey: $idempotencyKey !== '' ? $idempotencyKey : null
+                    $userId,
+                    $money,
+                    $payoutMethod,
+                    $destinationData,
+                    $idempotencyKey !== '' ? $idempotencyKey : null
                 );
 
                 $_SESSION['flash_success'] = 'Withdrawal request submitted successfully.';
@@ -959,21 +1336,32 @@ class CustomerAccountController
 
         // 5. Handle GET (Form + History)
         $primaryCurrency = $this->walletService->getPrimaryCurrency();
-        $wallet = $this->walletService->getOrCreateWallet($userId, $primaryCurrency);
+        $balance = $this->walletService->getAvailableBalance($userId);
+        $settings = $this->withdrawalService->getSettings();
         $withdrawals = $this->withdrawalService->getCustomerWithdrawals($userId, 20, 0);
         $methods = $this->withdrawalService->getSupportedPayoutMethods();
 
+        $monthlyCount = $this->withdrawalService->getMonthlyWithdrawalCount($userId);
+        $maxMonthlyCount = (int)($settings['max_monthly_count'] ?? 5);
+        $remainingMonthly = $this->withdrawalService->getRemainingMonthlyWithdrawals($userId);
+
         $html = $this->renderView('withdraw', [
-            'pageTitle'       => 'Withdraw Balance',
-            'activeTab'       => 'withdraw',
-            'user'            => $user,
-            'userId'          => $userId,
-            'wallet'          => $wallet,
-            'currency'        => $primaryCurrency,
-            'withdrawEnabled' => true,
-            'csrfToken'       => $this->getCsrfToken(),
-            'methods'         => $methods,
-            'withdrawals'     => $withdrawals,
+            'pageTitle'          => 'Withdraw Balance',
+            'activeTab'          => 'withdraw',
+            'user'               => $user,
+            'userId'             => $userId,
+            'balance'            => $balance,
+            'primaryCurrency'    => $primaryCurrency,
+            'withdrawEnabled'    => true,
+            'csrfToken'          => $this->getCsrfToken(),
+            'methods'            => $methods,
+            'recentWithdrawals'  => $withdrawals,
+            'withdrawals'        => $withdrawals,
+            'settings'           => $settings,
+            'monthlyCount'       => $monthlyCount,
+            'maxMonthlyCount'    => $maxMonthlyCount,
+            'remainingMonthly'   => $remainingMonthly,
+            'isSuspended'        => false,
         ]);
 
         return new Response($html, 200, ['Content-Type' => 'text/html; charset=UTF-8']);
@@ -1023,12 +1411,17 @@ class CustomerAccountController
             }
         }
 
+        $wdNotifications = $this->notificationService !== null
+            ? $this->notificationService->getNotificationsForWithdrawal($withdrawal->getId(), $userId)
+            : [];
+
         $html = $this->renderView('withdrawal_detail', [
             'pageTitle'       => 'Withdrawal #' . substr($withdrawal->getId(), 0, 8),
             'activeTab'       => 'withdraw',
             'user'            => $user,
             'userId'          => $userId,
             'withdrawal'      => $withdrawal,
+            'notifications'   => $wdNotifications,
             'withdrawEnabled' => $this->withdrawalService->isWithdrawalEnabled(),
             'csrfToken'       => $this->getCsrfToken(),
         ]);
@@ -1051,7 +1444,7 @@ class CustomerAccountController
         if (method_exists($user, 'isBanned') && $user->isBanned()) {
             return new Response('Access restricted: Your account has been banned.', 403);
         }
-        $isSuspended = method_exists($user, 'isSuspended') && $user->isSuspended();
+        $isSuspended = $this->isUserSuspended($user);
 
         if ($intentId === null || trim($intentId) === '') {
             $intentId = trim((string)($request->get('intent') ?: $request->get('intent_id', '')));
@@ -1310,5 +1703,71 @@ class CustomerAccountController
             }
         }
         return $base . '/' . ltrim($path, '/');
+    }
+/**
+     * Customer In-App Notifications Area (/account/notifications).
+     * GET: Lists notifications for the customer with unread filter and pagination.
+     * POST: Mark single notification read or mark all read with CSRF validation.
+     */
+    public function notifications(Request $request): Response
+    {
+        $auth = $this->requireAuth($request);
+        if ($auth instanceof Response) {
+            return $auth;
+        }
+        $user = $auth;
+        $userId = (int)$user->id;
+
+        if ($this->notificationService === null) {
+            $this->notificationService = new NotificationService($this->db);
+        }
+
+        // Handle POST actions: mark_read or mark_all_read
+        if ($request->isPost()) {
+            if (!$this->validateCsrf($request)) {
+                $_SESSION['flash_error'] = 'Invalid or expired security token.';
+                return Response::redirect('/account/notifications');
+            }
+
+            $action = (string)$request->post('action', '');
+
+            if ($action === 'mark_read') {
+                $notifId = trim((string)$request->post('id', $request->post('notification_id', '')));
+                if ($notifId !== '') {
+                    $this->notificationService->markAsRead($notifId, $userId);
+                    $_SESSION['flash_success'] = 'Notification marked as read.';
+                }
+            } elseif ($action === 'mark_all_read') {
+                $affected = $this->notificationService->markAllAsRead($userId);
+                $_SESSION['flash_success'] = $affected > 0 ? "All notifications marked as read." : "No unread notifications.";
+            }
+
+            return Response::redirect('/account/notifications');
+        }
+
+        // GET: Fetch list
+        $unreadOnly = $request->get('filter') === 'unread';
+        $page = max(1, (int)$request->get('page', 1));
+        $limit = 20;
+        $offset = ($page - 1) * $limit;
+
+        $result = $this->notificationService->listUserNotifications($userId, $limit, $offset, $unreadOnly);
+        $totalPages = max(1, (int)ceil($result['total'] / $limit));
+
+        $html = $this->renderView('notifications', [
+            'pageTitle'          => 'My Notifications',
+            'activeTab'          => 'notifications',
+            'user'               => $user,
+            'userId'             => $userId,
+            'notifications'      => $result['items'],
+            'totalNotifications' => $result['total'],
+            'unreadCount'        => $result['unread_count'],
+            'unreadOnly'         => $unreadOnly,
+            'currentPage'        => $page,
+            'totalPages'         => $totalPages,
+            'csrfToken'          => $this->getCsrfToken(),
+        ]);
+
+        return new Response($html, 200, ['Content-Type' => 'text/html; charset=UTF-8']);
     }
 }

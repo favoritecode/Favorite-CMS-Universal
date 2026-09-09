@@ -25,7 +25,18 @@ class UpdateFavoritePayRatesTable
 
         $isSqlite = $this->isSqlite();
 
-        if (!$isSqlite) {
+        if ($isSqlite) {
+            $tableName = method_exists($this->db, 'table') ? $this->db->table('favorite_pay_rates') : 'favorite_pay_rates';
+            $cols = $this->db->select("PRAGMA table_info('{$tableName}')");
+            $existing = array_map(fn($c) => strtolower(((array)$c)['name'] ?? ''), $cols);
+            if (!in_array('expires_at', $existing, true)) {
+                try {
+                    $this->db->execute("ALTER TABLE `favorite_pay_rates` ADD COLUMN `expires_at` DATETIME NULL");
+                    $this->db->execute("CREATE INDEX IF NOT EXISTS `idx_fpay_rates_expires` ON `favorite_pay_rates` (`expires_at`)");
+                } catch (\Throwable) {
+                }
+            }
+        } else {
             // Expand currency columns for 4+ char crypto codes (USDT, USDC)
             $this->db->execute("ALTER TABLE `favorite_pay_rates` MODIFY `base_currency` VARCHAR(16) NOT NULL DEFAULT 'BDT'");
             $this->db->execute("ALTER TABLE `favorite_pay_rates` MODIFY `quote_currency` VARCHAR(16) NOT NULL");

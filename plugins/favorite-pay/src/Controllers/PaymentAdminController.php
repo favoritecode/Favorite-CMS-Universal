@@ -9,6 +9,7 @@ use FavoriteCMS\Core\Request;
 use FavoriteCMS\Core\Response;
 use FavoriteCMS\Models\User;
 use FavoriteCMS\Pay\Contracts\PaymentServiceInterface;
+use FavoriteCMS\Pay\Contracts\AuditLogServiceInterface;
 use FavoriteCMS\Pay\Permissions\PaymentPermission;
 use FavoriteCMS\Pay\Repositories\PaymentAttemptRepository;
 use InvalidArgumentException;
@@ -20,15 +21,22 @@ class PaymentAdminController
     private Application $app;
     private PaymentServiceInterface $paymentService;
     private PaymentAttemptRepository $repository;
+    private ?AuditLogServiceInterface $auditService = null;
 
     public function __construct(
         Application $app,
         PaymentServiceInterface $paymentService,
-        PaymentAttemptRepository $repository
+        PaymentAttemptRepository $repository,
+        ?AuditLogServiceInterface $auditService = null
     ) {
         $this->app = $app;
         $this->paymentService = $paymentService;
         $this->repository = $repository;
+        $this->auditService = $auditService;
+
+        if ($this->auditService === null && method_exists($this->app, 'has') && $this->app->has(AuditLogServiceInterface::class)) {
+            $this->auditService = $this->app->make(AuditLogServiceInterface::class);
+        }
     }
 
     /**
@@ -156,6 +164,23 @@ class PaymentAdminController
         try {
             // Authoritative service call
             $this->paymentService->approveManualPayment($attemptId, (int)$currentUser->id, $notes);
+
+            if ($this->auditService !== null) {
+                try {
+                    $this->auditService->log(
+                        action: 'payment.manual_approved',
+                        subjectType: 'payment',
+                        subjectId: $attemptId,
+                        metadata: ['notes' => $notes],
+                        description: "Manual payment attempt '{$attemptId}' approved by admin",
+                        actorUserId: (int)$currentUser->id,
+                        actorType: 'admin',
+                        paymentId: $attemptId
+                    );
+                } catch (Throwable) {
+                }
+            }
+
             $_SESSION['flash_success'] = "Payment attempt '{$attemptId}' has been successfully approved.";
         } catch (RuntimeException $e) {
             // Double-action / state conflict
@@ -201,6 +226,23 @@ class PaymentAdminController
         try {
             // Authoritative service call
             $this->paymentService->rejectManualPayment($attemptId, (int)$currentUser->id, $reason);
+
+            if ($this->auditService !== null) {
+                try {
+                    $this->auditService->log(
+                        action: 'payment.manual_rejected',
+                        subjectType: 'payment',
+                        subjectId: $attemptId,
+                        metadata: ['reason' => $reason],
+                        description: "Manual payment attempt '{$attemptId}' rejected by admin",
+                        actorUserId: (int)$currentUser->id,
+                        actorType: 'admin',
+                        paymentId: $attemptId
+                    );
+                } catch (Throwable) {
+                }
+            }
+
             $_SESSION['flash_success'] = "Payment attempt '{$attemptId}' has been rejected.";
         } catch (RuntimeException $e) {
             // Double-action / state conflict

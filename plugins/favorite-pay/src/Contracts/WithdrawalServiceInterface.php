@@ -79,9 +79,26 @@ interface WithdrawalServiceInterface
     public function markFailed(string $id, int $adminUserId, string $reason): Withdrawal;
 
     /**
-     * Cancel a pending withdrawal by customer and release wallet hold.
+     * Cancel a withdrawal (by customer or administrator) and release wallet hold.
      */
-    public function cancel(string $id, int $userId, string $reason = 'Cancelled by customer'): Withdrawal;
+    public function cancel(string $id, int $userId, string $reason = 'Cancelled by customer', bool $isAdmin = false): Withdrawal;
+
+    /**
+     * Update internal administrative processing notes for a withdrawal.
+     */
+    public function updateProcessingNotes(string $id, int $adminUserId, string $notes): Withdrawal;
+
+    /**
+     * Update external transaction / payout reference for a withdrawal.
+     */
+    public function updateTransactionReference(string $id, int $adminUserId, string $transactionReference): Withdrawal;
+
+    /**
+     * Retrieve the audit trail for a withdrawal.
+     *
+     * @return array<int, array{action: string, actor_id: int|null, prev_status: string|null, new_status: string|null, timestamp: string, metadata: array}>
+     */
+    public function getAuditTrail(string $id): array;
 
     /**
      * Retrieve withdrawal configuration settings.
@@ -92,4 +109,44 @@ interface WithdrawalServiceInterface
      * Update withdrawal configuration settings.
      */
     public function updateSettings(array $settings): void;
+
+    /**
+     * Get count of successful/active withdrawals for a customer in a given calendar month.
+     * Default month is current calendar month (Y-m).
+     */
+    public function getMonthlyWithdrawalCount(int $userId, ?string $yearMonth = null): int;
+
+    /**
+     * Get remaining allowed withdrawals for a customer in the calendar month.
+     */
+    public function getRemainingMonthlyWithdrawals(int $userId, ?string $yearMonth = null): int;
+
+    /**
+     * Retrieve the notification service instance.
+     */
+    public function getNotificationService(): ?NotificationServiceInterface;
+
+    /**
+     * Set the notification service instance.
+     */
+    public function setNotificationService(NotificationServiceInterface $notificationService): void;
+
+    /**
+     * Get summary statistics (request counts and monetary totals) for withdrawals matching filters.
+     *
+     * @param array $filters Filtering options
+     * @return array{
+     *     counts: array<string, int>,
+     *     totals: array{gross_cents: int, fee_cents: int, net_cents: int, paid_gross_cents: int, paid_net_cents: int, currency: string}
+     * }
+     */
+    public function getSummary(array $filters = []): array;
+
+    /**
+     * Export withdrawals matching filters to customer-safe, formula-sanitized CSV string.
+     *
+     * @param array $filters Filtering options
+     * @return string CSV content with UTF-8 BOM
+     */
+    public function exportWithdrawalsCsv(array $filters = []): string;
 }

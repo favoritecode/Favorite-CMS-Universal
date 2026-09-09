@@ -43,6 +43,7 @@ class CreateFavoritePayWithdrawalsTable
                 `idempotency_key`       VARCHAR(191) NULL UNIQUE,
                 `admin_user_id`         BIGINT       NULL,
                 `operator_notes`        TEXT         NULL,
+                `audit_trail`           TEXT         NULL,
                 `created_at`            TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
                 `updated_at`            {$updatedAt},
                 `processed_at`          TIMESTAMP    NULL
