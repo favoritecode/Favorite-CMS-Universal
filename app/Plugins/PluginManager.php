@@ -39,21 +39,39 @@ class PluginManager
         return $this->activePlugins;
     }
 
+    public function resolvePluginDirectory(string $pluginId): ?string
+    {
+        $primary = $this->pluginsPath . '/' . $pluginId;
+        if (is_dir($primary)) {
+            return $primary;
+        }
+
+        $alt = dirname(APP_ROOT) . '/Favorite-CMS-Assets/plugins/' . $pluginId;
+        if (is_dir($alt)) {
+            return $alt;
+        }
+
+        return null;
+    }
+
     public function getInstalledPlugins(): array
     {
         $plugins = [];
-        if (!is_dir($this->pluginsPath)) {
-            return $plugins;
-        }
-
-        $dirs = glob($this->pluginsPath . '/*', GLOB_ONLYDIR);
-        if (!$dirs) {
-            return $plugins;
-        }
-
-        foreach ($dirs as $dir) {
-            $id = basename($dir);
-            $plugins[$id] = $this->getPluginMetadata($id, $dir);
+        $searchDirs = [$this->pluginsPath, dirname(APP_ROOT) . '/Favorite-CMS-Assets/plugins'];
+        foreach ($searchDirs as $base) {
+            if (!is_dir($base)) {
+                continue;
+            }
+            $dirs = glob($base . '/*', GLOB_ONLYDIR);
+            if (!$dirs) {
+                continue;
+            }
+            foreach ($dirs as $dir) {
+                $id = basename($dir);
+                if (!isset($plugins[$id])) {
+                    $plugins[$id] = $this->getPluginMetadata($id, $dir);
+                }
+            }
         }
 
         return $plugins;
@@ -61,7 +79,7 @@ class PluginManager
 
     public function getPluginMetadata(string $id, ?string $dir = null): array
     {
-        $dir = $dir ?? ($this->pluginsPath . '/' . $id);
+        $dir = $dir ?? ($this->resolvePluginDirectory($id) ?? ($this->pluginsPath . '/' . $id));
         $manifestFile = $dir . '/plugin.json';
 
         $meta = [
@@ -128,8 +146,8 @@ class PluginManager
 
     public function validatePlugin(string $pluginId): array
     {
-        $targetDir = $this->pluginsPath . '/' . $pluginId;
-        if (!is_dir($targetDir)) {
+        $targetDir = $this->resolvePluginDirectory($pluginId);
+        if ($targetDir === null) {
             return [
                 'valid' => false,
                 'errors' => ["Plugin directory does not exist: {$pluginId}"]
@@ -150,8 +168,8 @@ class PluginManager
             return;
         }
 
-        $pluginDir = $this->pluginsPath . '/' . $pluginId;
-        if (!is_dir($pluginDir)) {
+        $pluginDir = $this->resolvePluginDirectory($pluginId);
+        if ($pluginDir === null) {
             return;
         }
 
