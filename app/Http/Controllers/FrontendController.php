@@ -13,7 +13,6 @@ use FavoriteCMS\Models\Page;
 use FavoriteCMS\Models\Taxonomy;
 use FavoriteCMS\Models\Comment;
 use FavoriteCMS\Models\Setting;
-use FavoriteCMS\Models\User;
 use FavoriteCMS\Rendering\Engine;
 
 class FrontendController
@@ -203,49 +202,49 @@ class FrontendController
 
         $canonicalUrl = method_exists($post, 'url') ? $post->url() : ('/post/' . $post->slug);
 
-        // 2. Validate CSRF Token
+        // 2. Require an authenticated account: logged-out visitors cannot comment
+        $currentUser = current_user();
+        if (!$currentUser) {
+            $_SESSION['comment_error'] = 'Please log in to comment.';
+            return Response::redirect($canonicalUrl . '#comments');
+        }
+
+        // 3. Strict CSRF validation: a missing session token or submitted token always fails
         $sessionToken = (string)($_SESSION['_token'] ?? '');
         $token = (string)$request->post('_token', '');
-        if ($sessionToken !== '' && ($token === '' || !hash_equals($sessionToken, $token))) {
+        if ($sessionToken === '' || $token === '' || !hash_equals($sessionToken, $token)) {
             $_SESSION['comment_error'] = 'Security verification failed. Please refresh the page and try again.';
             return Response::redirect($canonicalUrl . '#comments');
         }
 
-        // 3. Validate Input Data
-        $name  = trim((string)$request->post('author_name', ''));
-        $email = trim((string)$request->post('author_email', ''));
-        $text  = trim((string)$request->post('content', ''));
-
-        if ($name === '' || $email === '' || $text === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
-            $_SESSION['comment_error'] = 'Please provide your name, a valid email address, and comment.';
+        // 4. Check Suspended Status
+        if (!$currentUser->canSubmitComments()) {
+            $_SESSION['comment_error'] = 'Your account is suspended and cannot submit comments.';
             return Response::redirect($canonicalUrl . '#comments');
         }
 
-        // 4. Check Suspended / Banned Status
-        $currentUserId = (int)($_SESSION['auth_user_id'] ?? 0);
-        if ($currentUserId > 0) {
-            $currentUser = User::find($currentUserId);
-            if ($currentUser && !$currentUser->canSubmitComments()) {
-                $_SESSION['comment_error'] = 'Your account is suspended and cannot submit comments.';
-                return Response::redirect($canonicalUrl . '#comments');
-            }
-        }
-
-        $userByEmail = User::findByEmail($email);
-        if ($userByEmail && !$userByEmail->canSubmitComments()) {
-            $_SESSION['comment_error'] = 'This account is suspended and cannot submit comments.';
+        // 5. Validate Input Data (identity always comes from the account, never from the request)
+        $text = trim((string)$request->post('content', ''));
+        if ($text === '') {
+            $_SESSION['comment_error'] = 'Please write a comment before submitting.';
             return Response::redirect($canonicalUrl . '#comments');
         }
 
-        // 5. Insert Comment
+        $authorName = trim((string)($currentUser->name ?? ''));
+        if ($authorName === '') {
+            $authorName = (string)$currentUser->username;
+        }
+
+        // 6. Insert Comment
         $db = $this->app->make(Database::class);
         $now = date('Y-m-d H:i:s');
         $ip = $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1';
 
         $db->insert('comments', [
             'post_id'      => (int)$post->id,
-            'author_name'  => $name,
-            'author_email' => $email,
+            'user_id'      => (int)$currentUser->id,
+            'author_name'  => $authorName,
+            'author_email' => (string)$currentUser->email,
             'author_ip'    => $ip,
             'content'      => $text,
             'status'       => 'approved', // auto-approve default comment for smooth workflow

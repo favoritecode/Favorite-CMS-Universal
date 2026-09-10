@@ -141,7 +141,8 @@ class Kernel
         }
 
         if ($path === '/login') {
-            return Response::redirect('/admin/login');
+            $loginRedirect = SafeRedirect::localPath($request->get('redirect'));
+            return Response::redirect('/admin/login' . ($loginRedirect !== null ? '?redirect=' . rawurlencode($loginRedirect) : ''));
         }
 
         if ($path === '/verify-email') {
@@ -577,8 +578,10 @@ class Kernel
     // -------------------------------------------------------------------------
     protected function showLogin(Request $request, string $error = ''): Response
     {
+        $redirect = $this->requestedRedirect($request);
+
         if (!empty($_SESSION['auth_user_id'])) {
-            return Response::redirect('/admin');
+            return Response::redirect($redirect ?? '/admin');
         }
 
         $siteName = 'Favorite CMS';
@@ -607,6 +610,11 @@ class Kernel
         }
 
         $sn = htmlspecialchars($siteName, ENT_QUOTES, 'UTF-8');
+
+        $redirectField = $redirect !== null
+            ? '<input type="hidden" name="redirect" value="' . htmlspecialchars($redirect, ENT_QUOTES, 'UTF-8') . '">'
+            : '';
+        $registerHref = htmlspecialchars('/register' . ($redirect !== null ? '?redirect=' . rawurlencode($redirect) : ''), ENT_QUOTES, 'UTF-8');
 
         $html = <<<HTML
 <!DOCTYPE html>
@@ -680,6 +688,7 @@ class Kernel
         $errorHtml
         <form method="POST" action="/admin/login">
             <input type="hidden" name="_token" value="$token">
+            $redirectField
             <div class="form-group">
                 <label for="login">Username or Email Address</label>
                 <input type="text" id="login" name="login" required autofocus autocomplete="username">
@@ -691,7 +700,7 @@ class Kernel
             <button type="submit" class="btn-submit">Log In</button>
         </form>
         <div style="margin-top: 16px; padding-top: 14px; border-top: 1px solid #e2e8f0; text-align: center; font-size: 13px;">
-            Don't have an account? <a href="/register" style="color: #2271b1; text-decoration: none; font-weight: 600;">Sign Up</a>
+            Don't have an account? <a href="$registerHref" style="color: #2271b1; text-decoration: none; font-weight: 600;">Sign Up</a>
         </div>
         <div style="margin-top: 8px; text-align: center; font-size: 12.5px;">
             <a href="/resend-verification" style="color: #64748b; text-decoration: none;">Resend email verification</a>
@@ -756,7 +765,7 @@ HTML;
                 return Response::redirect('/admin/users/profile');
             }
 
-            return Response::redirect('/admin');
+            return Response::redirect($this->requestedRedirect($request) ?? '/admin');
 
         } catch (\Throwable $e) {
             return $this->showLogin($request, 'Authentication error: ' . $e->getMessage());
@@ -787,6 +796,12 @@ HTML;
         $oldEmail    = htmlspecialchars($old['email'] ?? '', ENT_QUOTES, 'UTF-8');
 
         $formDisabled = !$regEnabled ? 'disabled' : '';
+
+        $redirect = $this->requestedRedirect($request);
+        $redirectField = $redirect !== null
+            ? '<input type="hidden" name="redirect" value="' . htmlspecialchars($redirect, ENT_QUOTES, 'UTF-8') . '">'
+            : '';
+        $loginHref = htmlspecialchars('/admin/login' . ($redirect !== null ? '?redirect=' . rawurlencode($redirect) : ''), ENT_QUOTES, 'UTF-8');
 
         $html = <<<HTML
 <!DOCTYPE html>
@@ -861,6 +876,7 @@ HTML;
         $errorHtml
         <form method="POST" action="/register">
             <input type="hidden" name="_token" value="$token">
+            $redirectField
             <div class="form-group">
                 <label for="username">Username (required)</label>
                 <input type="text" id="username" name="username" value="$oldUsername" required autofocus autocomplete="username" $formDisabled>
@@ -884,7 +900,7 @@ HTML;
             <button type="submit" class="btn-submit" $formDisabled>Create Account</button>
         </form>
         <div style="margin-top: 16px; padding-top: 14px; border-top: 1px solid #e2e8f0; text-align: center; font-size: 13px;">
-            Already have an account? <a href="/admin/login" style="color: #2271b1; text-decoration: none; font-weight: 600;">Log In</a>
+            Already have an account? <a href="$loginHref" style="color: #2271b1; text-decoration: none; font-weight: 600;">Log In</a>
         </div>
     </div>
     <div class="footer-links">
@@ -985,7 +1001,8 @@ HTML;
 
                 $_SESSION['login_flash'] = 'Registration successful! A verification email has been sent. Please check your inbox and verify your email to log in.';
                 $_SESSION['flash_info']  = 'Registration successful! A verification email has been sent. Please check your inbox and verify your email to log in.';
-                return Response::redirect('/admin/login');
+                $returnPath = $this->requestedRedirect($request);
+                return Response::redirect('/admin/login' . ($returnPath !== null ? '?redirect=' . rawurlencode($returnPath) : ''));
             }
 
             // Automatically authenticate user if email verification is not required
@@ -994,20 +1011,28 @@ HTML;
             $_SESSION['auth_user_email'] = $email;
 
             $_SESSION['flash_success'] = 'Welcome, ' . htmlspecialchars($username) . '! Your account has been registered successfully.';
-            return Response::redirect('/admin');
+            return Response::redirect($this->requestedRedirect($request) ?? '/admin');
 
         } catch (\Throwable $e) {
             return $this->showRegister($request, 'Registration error: ' . $e->getMessage(), $old);
         }
     }
 
+    /**
+     * Resolve a validated local return path from the request (form field first, then query string).
+     */
+    protected function requestedRedirect(Request $request): ?string
+    {
+        return SafeRedirect::localPath($request->post('redirect', $request->get('redirect')));
+    }
+
     protected function processLogout(Request $request): Response
     {
         unset($_SESSION['auth_user_id'], $_SESSION['auth_user_name'], $_SESSION['auth_user_email']);
         $_SESSION['login_flash'] = 'You have been successfully logged out.';
-        $redirect = $request->get('redirect');
-        if ($redirect && \FavoriteCMS\Core\AccountMenu::isValidUrl((string)$redirect)) {
-            return Response::redirect((string)$redirect);
+        $redirect = SafeRedirect::localPath($request->get('redirect'));
+        if ($redirect !== null) {
+            return Response::redirect($redirect);
         }
         return Response::redirect($request->path() === '/logout' ? '/' : '/admin/login');
     }

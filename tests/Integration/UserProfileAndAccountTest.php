@@ -354,13 +354,16 @@ class UserProfileAndAccountTest extends TestCase
 
         $suspendedUser = $this->createTestUser('susp_comm', 'subscriber', 'suspended');
         $_SESSION['auth_user_id'] = $suspendedUser->id;
+        $commentToken = bin2hex(random_bytes(16));
+        $_SESSION['_token'] = $commentToken;
 
         $frontend = new FrontendController(static::$app);
 
-        // 1. Submit comment while logged in as suspended user
+        // 1. Submit comment while logged in as suspended user (valid CSRF token)
         $reqLoggedIn = new Request(
             get: [],
             post: [
+                '_token'       => $commentToken,
                 'post_id'      => $postId,
                 'author_name'  => 'Suspended Person',
                 'author_email' => 'other@example.com',
@@ -372,7 +375,8 @@ class UserProfileAndAccountTest extends TestCase
         $this->assertSame(302, $respLoggedIn->getStatusCode());
         $this->assertStringContainsString('account is suspended', $_SESSION['comment_error'] ?? '');
 
-        // 2. Submit comment logged out, but using suspended user's email
+        // 2. Submit comment logged out, but using suspended user's email:
+        //    identity can no longer be claimed via the form, so logged-out submissions require login
         $_SESSION = [];
         $reqEmail = new Request(
             get: [],
@@ -386,7 +390,7 @@ class UserProfileAndAccountTest extends TestCase
         );
         $respEmail = $frontend->submitComment($reqEmail);
         $this->assertSame(302, $respEmail->getStatusCode());
-        $this->assertStringContainsString('account is suspended', $_SESSION['comment_error'] ?? '');
+        $this->assertStringContainsString('log in', strtolower($_SESSION['comment_error'] ?? ''));
 
         // Verify zero comments exist in DB for this post
         $countRow = static::$db->selectOne("SELECT COUNT(*) as cnt FROM `comments` WHERE `post_id` = ?", [$postId]);

@@ -147,33 +147,39 @@ $nextPost  = $post->getNext();
         <?php endif; ?>
 
         <!-- Comment Reply Form -->
+        <?php
+        $commentUser = function_exists('current_user') ? current_user() : null;
+        $commentBasePath = (string)($GLOBALS['favorite_cms_base_path'] ?? '');
+        $commentReturnPath = '/post/' . $post->slug . '#comments';
+        ?>
         <div class="comment-form-wrap">
-            <h3 class="form-heading">Leave a Reply</h3>
-            <p class="form-subtext">Your email address will not be published. Required fields are marked <span class="req">*</span></p>
+            <?php if ($commentUser): ?>
+                <h3 class="form-heading">Leave a Reply</h3>
+                <p class="form-subtext">Commenting as <strong><?php echo htmlspecialchars((string)($commentUser->name ?: $commentUser->username), ENT_QUOTES, 'UTF-8'); ?></strong></p>
 
-            <form action="<?php echo htmlspecialchars(($GLOBALS['favorite_cms_base_path'] ?? '') . '/post/' . $post->slug . '/comment', ENT_QUOTES, 'UTF-8'); ?>" method="POST">
-                <input type="hidden" name="_token" value="<?php echo htmlspecialchars(function_exists('csrf_token') ? csrf_token() : ($_SESSION['_token'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
-                <input type="hidden" name="post_id" value="<?php echo (int)$post->id; ?>">
-                <input type="hidden" name="post_slug" value="<?php echo htmlspecialchars($post->slug, ENT_QUOTES, 'UTF-8'); ?>">
+                <form action="<?php echo htmlspecialchars($commentBasePath . '/post/' . $post->slug . '/comment', ENT_QUOTES, 'UTF-8'); ?>" method="POST">
+                    <input type="hidden" name="_token" value="<?php echo htmlspecialchars(function_exists('csrf_token') ? csrf_token() : ($_SESSION['_token'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
+                    <input type="hidden" name="post_id" value="<?php echo (int)$post->id; ?>">
+                    <input type="hidden" name="post_slug" value="<?php echo htmlspecialchars($post->slug, ENT_QUOTES, 'UTF-8'); ?>">
 
-                <div class="form-grid-2">
                     <div class="form-group">
-                        <label for="author_name" class="form-label">Your Name <span class="req">*</span></label>
-                        <input type="text" id="author_name" name="author_name" class="form-input" required placeholder="Jane Doe">
+                        <label for="comment_content" class="form-label">Comment <span class="req">*</span></label>
+                        <textarea id="comment_content" name="content" class="form-textarea" rows="4" required placeholder="Share your thoughts..."></textarea>
                     </div>
-                    <div class="form-group">
-                        <label for="author_email" class="form-label">Your Email <span class="req">*</span></label>
-                        <input type="email" id="author_email" name="author_email" class="form-input" required placeholder="jane@example.com">
-                    </div>
-                </div>
 
-                <div class="form-group">
-                    <label for="comment_content" class="form-label">Comment <span class="req">*</span></label>
-                    <textarea id="comment_content" name="content" class="form-textarea" rows="4" required placeholder="Share your thoughts..."></textarea>
-                </div>
+                    <button type="submit" class="btn-primary">Post Comment</button>
+                </form>
+            <?php else: ?>
+                <h3 class="form-heading">Join the Discussion</h3>
+                <p class="form-subtext">You need an account to comment on this article.</p>
 
-                <button type="submit" class="btn-primary">Post Comment</button>
-            </form>
+                <div class="comment-auth-actions" style="display: flex; flex-wrap: wrap; gap: 10px; align-items: center;">
+                    <a href="<?php echo htmlspecialchars($commentBasePath . '/admin/login?redirect=' . rawurlencode($commentReturnPath), ENT_QUOTES, 'UTF-8'); ?>" class="btn-primary">Log in to comment</a>
+                    <?php if ((int)\FavoriteCMS\Models\Setting::get('general', 'allow_registration', 1)): ?>
+                        <a href="<?php echo htmlspecialchars($commentBasePath . '/register?redirect=' . rawurlencode($commentReturnPath), ENT_QUOTES, 'UTF-8'); ?>" class="btn-secondary">Create an account</a>
+                    <?php endif; ?>
+                </div>
+            <?php endif; ?>
         </div>
     </section>
 </main>
