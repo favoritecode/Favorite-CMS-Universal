@@ -1,178 +1,58 @@
 <?php
-$h = static fn ($value): string => htmlspecialchars((string)$value, ENT_QUOTES, 'UTF-8');
+['e' => $h] = require __DIR__ . '/../partials/standalone/view-helpers.php';
+
+$isRestore = str_ends_with((string)$siteName, '(Restored)');
+$migrationCount = is_countable($migrations ?? null) ? count($migrations) : 0;
+$pageTitle = $isRestore ? 'Site restored - Favorite CMS' : 'Favorite CMS installed';
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Favorite CMS &mdash; Installation Complete</title>
-    <style>
-        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-        :root {
-            --primary: #2563eb;
-            --primary-hover: #1d4ed8;
-            --success: #16a34a;
-            --success-light: #f0fdf4;
-            --slate-900: #0f172a;
-            --slate-800: #1e293b;
-            --slate-700: #334155;
-            --slate-600: #475569;
-            --slate-500: #64748b;
-            --slate-400: #94a3b8;
-            --slate-300: #cbd5e1;
-            --slate-200: #e2e8f0;
-            --slate-100: #f1f5f9;
-            --slate-50: #f8fafc;
-            --radius-md: 8px;
-            --radius-lg: 12px;
-            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -2px rgba(0, 0, 0, 0.04);
-            --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -4px rgba(0, 0, 0, 0.04);
-        }
-        body {
-            margin: 0;
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background: #f1f5f9;
-            color: var(--slate-800);
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
-            padding: 24px 16px;
-            overflow-x: hidden;
-        }
-        .panel {
-            width: 100%;
-            max-width: 640px;
-            background: #fff;
-            border: 1px solid var(--slate-200);
-            border-radius: var(--radius-lg);
-            padding: 36px 32px;
-            box-shadow: var(--shadow-lg);
-        }
-        .header-icon {
-            width: 52px;
-            height: 52px;
-            border-radius: 50%;
-            background: var(--success-light);
-            border: 2px solid #bbf7d0;
-            color: var(--success);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 24px;
-            margin-bottom: 18px;
-        }
-        h1 {
-            margin: 0 0 12px;
-            font-size: 26px;
-            font-weight: 800;
-            color: var(--slate-900);
-            letter-spacing: -0.4px;
-        }
-        .success {
-            border-left: 4px solid var(--success);
-            background: var(--success-light);
-            color: #166534;
-            padding: 14px 16px;
-            margin-bottom: 24px;
-            border-radius: var(--radius-md);
-            font-size: 14px;
-            font-weight: 600;
-        }
-        .details-card {
-            background: var(--slate-50);
-            border: 1px solid var(--slate-200);
-            border-radius: var(--radius-md);
-            padding: 20px;
-            margin-bottom: 28px;
-        }
-        dl {
-            display: grid;
-            grid-template-columns: 140px 1fr;
-            gap: 12px 14px;
-            margin: 0;
-            font-size: 13.5px;
-            line-height: 1.6;
-        }
-        dt {
-            font-weight: 600;
-            color: var(--slate-600);
-        }
-        dd {
-            margin: 0;
-            color: var(--slate-900);
-            font-weight: 500;
-            overflow-wrap: anywhere;
-        }
-        .actions {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 12px;
-            align-items: center;
-        }
-        a {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            min-height: 44px;
-            border: 1px solid var(--primary);
-            border-radius: var(--radius-md);
-            padding: 0 22px;
-            background: var(--primary);
-            color: #fff;
-            text-decoration: none;
-            font-weight: 600;
-            font-size: 14px;
-            transition: all 0.15s ease;
-        }
-        a:hover {
-            background: var(--primary-hover);
-            border-color: var(--primary-hover);
-        }
-        a.secondary {
-            background: #fff;
-            color: var(--slate-700);
-            border-color: var(--slate-300);
-        }
-        a.secondary:hover {
-            background: var(--slate-50);
-            color: var(--slate-900);
-            border-color: var(--slate-400);
-        }
-        @media (max-width: 560px) {
-            .panel { padding: 24px 20px; }
-            dl { grid-template-columns: 1fr; gap: 6px 0; }
-            dt { margin-top: 8px; }
-            dt:first-child { margin-top: 0; }
-        }
-    </style>
+<?php include __DIR__ . '/../partials/standalone/head.php'; ?>
 </head>
 <body>
-    <main class="panel">
-        <div class="header-icon">&#10004;</div>
-        <h1>Favorite CMS</h1>
-        <div class="success">Favorite CMS installed successfully.</div>
+<main class="fc-auth">
+    <div class="fc-auth__inner fc-auth__inner--wide">
+        <header class="fc-auth__header">
+            <span class="fc-brand"><span class="fc-brand__mark" aria-hidden="true">&#9733;</span><span class="fc-brand__name">Favorite CMS</span></span>
+        </header>
 
-        <div class="details-card">
-            <dl>
-                <dt>Site Name</dt>
-                <dd><?php echo $h($siteName); ?></dd>
-                <dt>Site URL</dt>
-                <dd><?php echo $h($siteUrl); ?></dd>
-                <dt>Admin Username</dt>
-                <dd><strong><?php echo $h($adminUsername); ?></strong></dd>
-                <dt>Admin Email</dt>
-                <dd><?php echo $h($adminEmail); ?></dd>
-                <dt>Migrations</dt>
-                <dd><?php echo count($migrations); ?> applied this run</dd>
+        <section class="fc-auth__card" aria-labelledby="success-title">
+            <span class="fc-status-icon fc-status-icon--success" aria-hidden="true">&#10003;</span>
+            <header>
+                <h1 class="fc-auth__title" id="success-title"><?php echo $isRestore ? 'Your site has been restored' : 'You&rsquo;re all set'; ?></h1>
+                <p class="fc-auth__subtitle"><?php echo $isRestore ? 'The backup was restored and site links now point to this address.' : 'Your new website is installed and ready to use.'; ?></p>
+            </header>
+
+            <div class="fc-alert fc-alert--success" role="status">
+                <p><?php echo $isRestore ? 'Favorite CMS site restored successfully.' : 'Favorite CMS installed successfully.'; ?></p>
+            </div>
+
+            <dl class="fc-review">
+                <div class="fc-review__row"><dt>Site name</dt><dd><?php echo $h($siteName); ?></dd></div>
+                <div class="fc-review__row"><dt>Site URL</dt><dd><?php echo $h($siteUrl); ?></dd></div>
+                <div class="fc-review__row"><dt>Administrator</dt><dd><strong><?php echo $h($adminUsername); ?></strong></dd></div>
+                <div class="fc-review__row"><dt>Administrator email</dt><dd><?php echo $h($adminEmail); ?></dd></div>
+                <div class="fc-review__row"><dt><?php echo $isRestore ? 'Tables restored' : 'Migrations'; ?></dt><dd><?php echo (int)$migrationCount; ?> <?php echo $isRestore ? 'in this run' : 'applied this run'; ?></dd></div>
             </dl>
-        </div>
 
-        <div class="actions">
-            <a href="<?php echo $h($loginUrl); ?>">Login to Admin &rarr;</a>
-            <a href="<?php echo $h($homeUrl); ?>" class="secondary">Visit Website</a>
-        </div>
-    </main>
+            <div>
+                <h2 class="fc-legend">What to do next</h2>
+                <ol class="fc-next-steps">
+                    <li><span class="fc-next-steps__num" aria-hidden="true">1</span><span><?php echo $isRestore ? 'Log in with the administrator credentials from the original site.' : 'Log in with the administrator account you just created.'; ?></span></li>
+                    <li><span class="fc-next-steps__num" aria-hidden="true">2</span><span>Review your site settings, theme and navigation menus.</span></li>
+                    <li><span class="fc-next-steps__num" aria-hidden="true">3</span><span><?php echo $isRestore ? 'Check a few pages and media files to confirm everything came across.' : 'Publish your first page or post.'; ?></span></li>
+                </ol>
+            </div>
+
+            <div class="fc-auth__actions">
+                <a class="fc-btn fc-btn--primary" href="<?php echo $h($loginUrl); ?>">Log in to the dashboard</a>
+                <a class="fc-btn fc-btn--secondary" href="<?php echo $h($homeUrl); ?>">Visit your site</a>
+            </div>
+
+            <p class="fc-hint">The installer is now locked. To start over you would need to remove the installation, so keep a backup before making major changes.</p>
+        </section>
+    </div>
+</main>
 </body>
 </html>

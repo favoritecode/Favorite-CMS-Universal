@@ -43,7 +43,10 @@ class InstallerController
         return $this->show($request);
     }
 
-    protected function show(Request $request, array $errors = [], array $notices = [], array $old = []): Response
+    /**
+     * @param array<string, array<int, string>> $errorGroups Errors keyed by the installer step that owns them (presentation only).
+     */
+    protected function show(Request $request, array $errors = [], array $notices = [], array $old = [], array $errorGroups = [], ?string $focusStep = null): Response
     {
         $checks = $this->environment->check($request);
         $dbStatus = $this->detectDatabaseStatus();
@@ -71,6 +74,9 @@ class InstallerController
             'detectedUrl' => $detectedUrl,
             'installAction' => $this->urls->route($request, '/install'),
             'basePath' => $request->basePath(),
+            'errorGroups' => $errorGroups,
+            'focusStep' => $focusStep,
+            'formMode' => (string)$request->post('db_action', '') === 'restore' ? 'restore' : 'install',
         ]);
 
         return $this->noCache(Response::make($content, 200));
@@ -106,7 +112,7 @@ class InstallerController
 
             if (!$auto['ok']) {
                 $old['setup_mode'] = 'advanced';
-                return $this->show($request, [(string)$auto['message']], ['Advanced Database Setup is available below to verify manual credentials.'], $old);
+                return $this->show($request, [(string)$auto['message']], ['Advanced Database Setup is available below to verify manual credentials.'], $old, ['database' => [(string)$auto['message']]]);
             }
 
             $dbConfig = $auto['config'];
@@ -115,25 +121,32 @@ class InstallerController
         if ($action === 'test_database') {
             try {
                 $this->databases->testConnection($dbConfig);
-                return $this->show($request, [], ['Database connection verified successfully! Everything is ready for installation.'], $old);
+                return $this->show($request, [], ['Database connection verified successfully! Everything is ready for installation.'], $old, [], 'database');
             } catch (Throwable $e) {
-                return $this->show($request, [$this->databasePublicMessage($e, $dbConfig)], [], $old);
+                $databaseMessage = $this->databasePublicMessage($e, $dbConfig);
+                return $this->show($request, [$databaseMessage], [], $old, ['database' => [$databaseMessage]]);
             }
         }
 
         $site = $this->validateSite($request);
         $admin = $this->validateAdmin($request);
-        $errors = array_merge($this->databases->validate($dbConfig), $site['errors'], $admin['errors']);
+        $databaseErrors = $this->databases->validate($dbConfig);
+        $errors = array_merge($databaseErrors, $site['errors'], $admin['errors']);
 
         if ($errors !== []) {
-            return $this->show($request, $errors, [], $old);
+            return $this->show($request, $errors, [], $old, [
+                'database' => $databaseErrors,
+                'site'     => $site['errors'],
+                'admin'    => $admin['errors'],
+            ]);
         }
 
         try {
             $result = $this->installer->install($dbConfig, $site['data'], $admin['data']);
             (new InstallerSession($this->urls))->regenerate();
         } catch (Throwable $e) {
-            return $this->show($request, [$this->installer->publicMessage($e)], [], $old);
+            $installMessage = $this->installer->publicMessage($e);
+            return $this->show($request, [$installMessage], [], $old, ['review' => [$installMessage]]);
         }
 
         $content = $this->renderView('installer/success', [
@@ -156,13 +169,14 @@ class InstallerController
     {
         $uploaded = $_FILES['backup_file'] ?? null;
         if (!$uploaded || empty($uploaded['tmp_name']) || $uploaded['error'] !== UPLOAD_ERR_OK) {
-            return $this->show($request, ['Please select a valid Favorite CMS backup (.zip) file to restore.'], [], $old);
+            $uploadMessage = 'Please select a valid Favorite CMS backup (.zip) file to restore.';
+            return $this->show($request, [$uploadMessage], [], $old, ['restore' => [$uploadMessage]]);
         }
 
         $dbConfig = $this->databases->normalize($request->all());
         $validationErrors = $this->databases->validate($dbConfig);
         if (!empty($validationErrors)) {
-            return $this->show($request, $validationErrors, [], $old);
+            return $this->show($request, $validationErrors, [], $old, ['restore' => $validationErrors]);
         }
 
         try {
@@ -200,7 +214,8 @@ class InstallerController
 
             return $this->noCache(Response::make($content, 200));
         } catch (Throwable $e) {
-            return $this->show($request, ['Restore failed: ' . $e->getMessage()], [], $old);
+            $restoreMessage = 'Restore failed: ' . $e->getMessage();
+            return $this->show($request, [$restoreMessage], [], $old, ['restore' => [$restoreMessage]]);
         }
     }
 

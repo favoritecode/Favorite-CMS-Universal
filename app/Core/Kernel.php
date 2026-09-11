@@ -597,123 +597,49 @@ class Kernel
         if (empty($_SESSION['_token'])) {
             $_SESSION['_token'] = bin2hex(random_bytes(32));
         }
-        $token = $_SESSION['_token'];
 
         $flashMsg = $_SESSION['login_flash'] ?? '';
         unset($_SESSION['login_flash']);
 
-        $errorHtml = '';
-        if ($error !== '') {
-            $errorHtml = '<div class="alert alert-error">' . htmlspecialchars($error, ENT_QUOTES, 'UTF-8') . '</div>';
-        } elseif ($flashMsg !== '') {
-            $errorHtml = '<div class="alert alert-info">' . htmlspecialchars($flashMsg, ENT_QUOTES, 'UTF-8') . '</div>';
+        $registrationEnabled = true;
+        try {
+            $registrationEnabled = (bool)(int)Setting::get('general', 'allow_registration', 1);
+        } catch (\Throwable) {
         }
 
-        $sn = htmlspecialchars($siteName, ENT_QUOTES, 'UTF-8');
+        return $this->renderAuthPage($request, 'login', [
+            'siteName'            => (string)$siteName,
+            'token'               => (string)$_SESSION['_token'],
+            'redirect'            => $redirect,
+            'error'               => $error,
+            'flash'               => $error === '' ? (string)$flashMsg : '',
+            'oldLogin'            => trim((string)$request->post('login', '')),
+            'registrationEnabled' => $registrationEnabled,
+        ]);
+    }
 
-        $redirectField = $redirect !== null
-            ? '<input type="hidden" name="redirect" value="' . htmlspecialchars($redirect, ENT_QUOTES, 'UTF-8') . '">'
-            : '';
-        $registerHref = htmlspecialchars('/register' . ($redirect !== null ? '?redirect=' . rawurlencode($redirect) : ''), ENT_QUOTES, 'UTF-8');
+    /**
+     * Render an authentication screen inside the shared auth layout.
+     * Links and form actions are built from the request base path so subdirectory installs work.
+     */
+    protected function renderAuthPage(Request $request, string $view, array $data = [], int $status = 200): Response
+    {
+        ['e' => $e, 'field' => $field] = require APP_ROOT . '/resources/views/partials/standalone/view-helpers.php';
+        $basePath = $request->basePath();
+        $url = static fn (string $path): string => $basePath . $path;
+        $siteName = (string)($data['siteName'] ?? 'Favorite CMS');
+        $pageTitle = $siteName;
 
-        $html = <<<HTML
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Log In &lsaquo; $sn &mdash; Favorite CMS</title>
-    <style>
-        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-        body {
-            background: #f0f0f1;
-            color: #3c434a;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
-            font-size: 14px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            min-height: 100vh;
-            padding: 1rem;
-        }
-        .login-box {
-            background: #fff;
-            border: 1px solid #c3c4c7;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
-            padding: 26px 24px;
-            width: 100%;
-            max-width: 360px;
-        }
-        .header { text-align: center; margin-bottom: 24px; }
-        .header h1 { font-size: 24px; font-weight: 600; color: #1d2327; }
-        .header .star { color: #e5a00d; font-size: 28px; }
-        .alert { padding: 12px; border-left: 4px solid; margin-bottom: 16px; font-size: 13px; }
-        .alert-error { background: #fcf0f1; border-color: #d63638; color: #8a1f11; }
-        .alert-info { background: #f0f6fc; border-color: #2271b1; color: #1d4ed8; }
-        .form-group { margin-bottom: 16px; }
-        label { display: block; margin-bottom: 5px; font-weight: 500; color: #1d2327; font-size: 13.5px; }
-        input[type="text"], input[type="password"] {
-            width: 100%;
-            padding: 8px 10px;
-            border: 1px solid #8c8f94;
-            border-radius: 4px;
-            font-size: 14px;
-            color: #2c3338;
-        }
-        input:focus { border-color: #2271b1; outline: 2px solid transparent; box-shadow: 0 0 0 1px #2271b1; }
-        .btn-submit {
-            width: 100%;
-            padding: 10px;
-            background: #2271b1;
-            border: 1px solid #2271b1;
-            border-radius: 4px;
-            color: #fff;
-            font-size: 14px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: background 0.15s;
-        }
-        .btn-submit:hover { background: #135e96; }
-        .back-link { margin-top: 18px; text-align: center; font-size: 13px; }
-        .back-link a { color: #2271b1; text-decoration: none; }
-        .back-link a:hover { text-decoration: underline; }
-    </style>
-</head>
-<body>
-    <div class="header">
-        <h1><span class="star">&#9733;</span> $sn</h1>
-    </div>
-    <div class="login-box">
-        $errorHtml
-        <form method="POST" action="/admin/login">
-            <input type="hidden" name="_token" value="$token">
-            $redirectField
-            <div class="form-group">
-                <label for="login">Username or Email Address</label>
-                <input type="text" id="login" name="login" required autofocus autocomplete="username">
-            </div>
-            <div class="form-group">
-                <label for="password">Password</label>
-                <input type="password" id="password" name="password" required autocomplete="current-password">
-            </div>
-            <button type="submit" class="btn-submit">Log In</button>
-        </form>
-        <div style="margin-top: 16px; padding-top: 14px; border-top: 1px solid #e2e8f0; text-align: center; font-size: 13px;">
-            Don't have an account? <a href="$registerHref" style="color: #2271b1; text-decoration: none; font-weight: 600;">Sign Up</a>
-        </div>
-        <div style="margin-top: 8px; text-align: center; font-size: 12.5px;">
-            <a href="/resend-verification" style="color: #64748b; text-decoration: none;">Resend email verification</a>
-        </div>
-    </div>
-    <div class="back-link">
-        <a href="/">&larr; Go to $sn</a>
-    </div>
-</body>
-</html>
-HTML;
+        extract($data, EXTR_SKIP);
 
-        return Response::make($html, 200);
+        ob_start();
+        include APP_ROOT . '/resources/views/auth/' . $view . '.php';
+        $content = (string)ob_get_clean();
+
+        ob_start();
+        include APP_ROOT . '/resources/views/auth/layout.php';
+
+        return Response::make((string)ob_get_clean(), $status);
     }
 
     protected function processLogin(Request $request): Response
@@ -782,135 +708,15 @@ HTML;
         if (empty($_SESSION['_token'])) {
             $_SESSION['_token'] = bin2hex(random_bytes(32));
         }
-        $token = htmlspecialchars($_SESSION['_token'], ENT_QUOTES, 'UTF-8');
-        $siteName = Setting::get('general', 'site_name', 'Favorite CMS');
-        $sn = htmlspecialchars($siteName, ENT_QUOTES, 'UTF-8');
 
-        $errorHtml = '';
-        if ($error) {
-            $errorHtml = '<div class="alert alert-error">' . htmlspecialchars($error, ENT_QUOTES, 'UTF-8') . '</div>';
-        }
-
-        $oldUsername = htmlspecialchars($old['username'] ?? '', ENT_QUOTES, 'UTF-8');
-        $oldName     = htmlspecialchars($old['name'] ?? '', ENT_QUOTES, 'UTF-8');
-        $oldEmail    = htmlspecialchars($old['email'] ?? '', ENT_QUOTES, 'UTF-8');
-
-        $formDisabled = !$regEnabled ? 'disabled' : '';
-
-        $redirect = $this->requestedRedirect($request);
-        $redirectField = $redirect !== null
-            ? '<input type="hidden" name="redirect" value="' . htmlspecialchars($redirect, ENT_QUOTES, 'UTF-8') . '">'
-            : '';
-        $loginHref = htmlspecialchars('/admin/login' . ($redirect !== null ? '?redirect=' . rawurlencode($redirect) : ''), ENT_QUOTES, 'UTF-8');
-
-        $html = <<<HTML
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sign Up &lsaquo; $sn &mdash; Favorite CMS</title>
-    <style>
-        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
-            background: #f0f0f1;
-            color: #2c3338;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            min-height: 100vh;
-            padding: 1rem;
-        }
-        .register-box {
-            background: #fff;
-            border: 1px solid #c3c4c7;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
-            padding: 26px 24px;
-            width: 100%;
-            max-width: 400px;
-            border-radius: 4px;
-        }
-        .header { text-align: center; margin-bottom: 20px; }
-        .header h1 { font-size: 22px; font-weight: 600; color: #1d2327; }
-        .header .star { color: #e5a00d; font-size: 26px; }
-        .alert { padding: 12px; border-left: 4px solid; margin-bottom: 16px; font-size: 13px; }
-        .alert-error { background: #fcf0f1; border-color: #d63638; color: #8a1f11; }
-        .form-group { margin-bottom: 14px; }
-        label { display: block; margin-bottom: 5px; font-weight: 500; color: #1d2327; font-size: 13px; }
-        input[type="text"], input[type="email"], input[type="password"] {
-            width: 100%;
-            padding: 8px 10px;
-            border: 1px solid #8c8f94;
-            border-radius: 4px;
-            font-size: 14px;
-            color: #2c3338;
-        }
-        input:focus { border-color: #2271b1; outline: 2px solid transparent; box-shadow: 0 0 0 1px #2271b1; }
-        .btn-submit {
-            width: 100%;
-            padding: 10px;
-            background: #2271b1;
-            border: 1px solid #2271b1;
-            border-radius: 4px;
-            color: #fff;
-            font-size: 14px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: background 0.15s;
-            margin-top: 6px;
-        }
-        .btn-submit:hover { background: #135e96; }
-        .btn-submit:disabled { background: #94a3b8; border-color: #94a3b8; cursor: not-allowed; }
-        .footer-links { margin-top: 18px; text-align: center; font-size: 13px; }
-        .footer-links a { color: #2271b1; text-decoration: none; }
-        .footer-links a:hover { text-decoration: underline; }
-    </style>
-</head>
-<body>
-    <div class="header">
-        <h1><span class="star">&#9733;</span> $sn</h1>
-    </div>
-    <div class="register-box">
-        $errorHtml
-        <form method="POST" action="/register">
-            <input type="hidden" name="_token" value="$token">
-            $redirectField
-            <div class="form-group">
-                <label for="username">Username (required)</label>
-                <input type="text" id="username" name="username" value="$oldUsername" required autofocus autocomplete="username" $formDisabled>
-            </div>
-            <div class="form-group">
-                <label for="name">Display Name (optional)</label>
-                <input type="text" id="name" name="name" value="$oldName" autocomplete="name" $formDisabled>
-            </div>
-            <div class="form-group">
-                <label for="email">Email Address (required)</label>
-                <input type="email" id="email" name="email" value="$oldEmail" required autocomplete="email" $formDisabled>
-            </div>
-            <div class="form-group">
-                <label for="password">Password (min 8 characters)</label>
-                <input type="password" id="password" name="password" required autocomplete="new-password" minlength="8" $formDisabled>
-            </div>
-            <div class="form-group">
-                <label for="password_confirmation">Confirm Password</label>
-                <input type="password" id="password_confirmation" name="password_confirmation" required autocomplete="new-password" minlength="8" $formDisabled>
-            </div>
-            <button type="submit" class="btn-submit" $formDisabled>Create Account</button>
-        </form>
-        <div style="margin-top: 16px; padding-top: 14px; border-top: 1px solid #e2e8f0; text-align: center; font-size: 13px;">
-            Already have an account? <a href="$loginHref" style="color: #2271b1; text-decoration: none; font-weight: 600;">Log In</a>
-        </div>
-    </div>
-    <div class="footer-links">
-        <a href="/">&larr; Go to $sn</a>
-    </div>
-</body>
-</html>
-HTML;
-
-        return Response::make($html, 200);
+        return $this->renderAuthPage($request, 'register', [
+            'siteName'            => (string)Setting::get('general', 'site_name', 'Favorite CMS'),
+            'token'               => (string)$_SESSION['_token'],
+            'redirect'            => $this->requestedRedirect($request),
+            'error'               => $error,
+            'old'                 => $old,
+            'registrationEnabled' => (bool)$regEnabled,
+        ]);
     }
 
     protected function processRegister(Request $request): Response
@@ -1062,69 +868,16 @@ HTML;
             return Response::redirect('/admin/login');
         }
 
-        return $this->showVerificationResult(false, $result['error'] ?? 'Verification link is invalid or expired.');
+        return $this->showVerificationResult($request, false, $result['error'] ?? 'Verification link is invalid or expired.');
     }
 
-    protected function showVerificationResult(bool $success, string $message): Response
+    protected function showVerificationResult(Request $request, bool $success, string $message): Response
     {
-        $siteName = Setting::get('general', 'site_name', 'Favorite CMS');
-        $sn = htmlspecialchars($siteName, ENT_QUOTES, 'UTF-8');
-        $msgHtml = htmlspecialchars($message, ENT_QUOTES, 'UTF-8');
-        $alertClass = $success ? 'alert-success' : 'alert-error';
-        $title = $success ? 'Email Verified' : 'Verification Failed';
-
-        $html = <<<HTML
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>{$title} &lsaquo; {$sn} &mdash; Favorite CMS</title>
-    <style>
-        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-        body {
-            background: #f0f0f1;
-            color: #3c434a;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
-            font-size: 14px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            min-height: 100vh;
-            padding: 1rem;
-        }
-        .box {
-            background: #fff;
-            border: 1px solid #c3c4c7;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
-            padding: 28px 24px;
-            width: 100%;
-            max-width: 420px;
-            border-radius: 4px;
-            text-align: center;
-        }
-        .alert { padding: 12px; border-left: 4px solid; margin-bottom: 20px; font-size: 13.5px; text-align: left; }
-        .alert-error { background: #fcf0f1; border-color: #d63638; color: #8a1f11; }
-        .alert-success { background: #f0fdf4; border-color: #16a34a; color: #166534; }
-        .btn { display: inline-block; padding: 10px 18px; border-radius: 4px; font-size: 13.5px; font-weight: 600; text-decoration: none; }
-        .btn-primary { background: #2271b1; color: #fff; border: 1px solid #2271b1; }
-        .btn-secondary { background: #fff; color: #3c434a; border: 1px solid #c3c4c7; margin-left: 8px; }
-    </style>
-</head>
-<body>
-    <div class="box">
-        <h1 style="font-size: 20px; margin-bottom: 16px; color: #1d2327;">{$title}</h1>
-        <div class="alert {$alertClass}">{$msgHtml}</div>
-        <div style="margin-top: 20px;">
-            <a href="/admin/login" class="btn btn-primary">Sign In</a>
-            <a href="/resend-verification" class="btn btn-secondary">Resend Link</a>
-        </div>
-    </div>
-</body>
-</html>
-HTML;
-        return Response::make($html, $success ? 200 : 400);
+        return $this->renderAuthPage($request, 'verification-result', [
+            'siteName' => (string)Setting::get('general', 'site_name', 'Favorite CMS'),
+            'success'  => $success,
+            'message'  => $message,
+        ], $success ? 200 : 400);
     }
 
     protected function showResendVerification(Request $request, ?string $error = null, ?string $success = null): Response
@@ -1132,98 +885,14 @@ HTML;
         if (empty($_SESSION['_token'])) {
             $_SESSION['_token'] = bin2hex(random_bytes(32));
         }
-        $token = htmlspecialchars($_SESSION['_token'], ENT_QUOTES, 'UTF-8');
-        $siteName = Setting::get('general', 'site_name', 'Favorite CMS');
-        $sn = htmlspecialchars($siteName, ENT_QUOTES, 'UTF-8');
-        $emailParam = htmlspecialchars(trim((string)$request->get('email', '')), ENT_QUOTES, 'UTF-8');
 
-        $statusHtml = '';
-        if ($error) {
-            $statusHtml = '<div class="alert alert-error">' . htmlspecialchars($error, ENT_QUOTES, 'UTF-8') . '</div>';
-        } elseif ($success) {
-            $statusHtml = '<div class="alert alert-success">' . htmlspecialchars($success, ENT_QUOTES, 'UTF-8') . '</div>';
-        }
-
-        $html = <<<HTML
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Resend Email Verification &lsaquo; {$sn} &mdash; Favorite CMS</title>
-    <style>
-        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-        body {
-            background: #f0f0f1;
-            color: #3c434a;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
-            font-size: 14px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            min-height: 100vh;
-            padding: 1rem;
-        }
-        .box {
-            background: #fff;
-            border: 1px solid #c3c4c7;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
-            padding: 26px 24px;
-            width: 100%;
-            max-width: 380px;
-            border-radius: 4px;
-        }
-        .header { text-align: center; margin-bottom: 20px; }
-        .header h1 { font-size: 20px; font-weight: 600; color: #1d2327; }
-        .alert { padding: 12px; border-left: 4px solid; margin-bottom: 16px; font-size: 13px; }
-        .alert-error { background: #fcf0f1; border-color: #d63638; color: #8a1f11; }
-        .alert-success { background: #f0fdf4; border-color: #16a34a; color: #166534; }
-        .form-group { margin-bottom: 16px; }
-        label { display: block; margin-bottom: 6px; font-weight: 500; font-size: 13px; }
-        input[type="email"] {
-            width: 100%;
-            padding: 8px 10px;
-            border: 1px solid #8c8f94;
-            border-radius: 4px;
-            font-size: 14px;
-        }
-        .btn-submit {
-            width: 100%;
-            padding: 10px;
-            background: #2271b1;
-            border: 1px solid #2271b1;
-            border-radius: 4px;
-            color: #fff;
-            font-weight: 600;
-            cursor: pointer;
-        }
-        .back-link { margin-top: 16px; text-align: center; font-size: 13px; }
-        .back-link a { color: #2271b1; text-decoration: none; }
-    </style>
-</head>
-<body>
-    <div class="box">
-        <div class="header">
-            <h1>Resend Verification Email</h1>
-        </div>
-        {$statusHtml}
-        <form method="POST" action="/resend-verification">
-            <input type="hidden" name="_token" value="{$token}">
-            <div class="form-group">
-                <label for="email">Email Address</label>
-                <input type="email" id="email" name="email" value="{$emailParam}" required autofocus autocomplete="email">
-            </div>
-            <button type="submit" class="btn-submit">Send Verification Link</button>
-        </form>
-        <div class="back-link">
-            <a href="/admin/login">&larr; Back to Log In</a>
-        </div>
-    </div>
-</body>
-</html>
-HTML;
-        return Response::make($html, 200);
+        return $this->renderAuthPage($request, 'resend-verification', [
+            'siteName' => (string)Setting::get('general', 'site_name', 'Favorite CMS'),
+            'token'    => (string)$_SESSION['_token'],
+            'error'    => $error,
+            'success'  => $success,
+            'email'    => trim((string)$request->get('email', $request->post('email', ''))),
+        ]);
     }
 
     protected function processResendVerification(Request $request): Response

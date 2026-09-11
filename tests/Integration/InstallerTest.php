@@ -106,8 +106,12 @@ class InstallerTest extends TestCase
         $this->assertStringContainsString('name="admin_password_confirm"', $html);
         $this->assertStringContainsString('name="admin_email"', $html);
         $this->assertStringContainsString('Install Favorite CMS', $html);
-        $this->assertStringContainsString('Step 1 - Welcome & Requirements', $html);
-        $this->assertStringContainsString('Step 2 - Database', $html);
+        $this->assertStringContainsString('id="step-requirements"', $html);
+        $this->assertStringContainsString('System requirements', $html);
+        $this->assertStringContainsString('id="step-database"', $html);
+        $this->assertStringContainsString('Database connection', $html);
+        $this->assertStringContainsString('id="step-restore"', $html);
+        $this->assertStringContainsString('name="backup_file"', $html);
         $this->assertStringContainsString('Test Database Connection', $html);
     }
 
@@ -142,6 +146,11 @@ class InstallerTest extends TestCase
         $this->assertStringContainsString('Please choose an admin username', $html);
         $this->assertStringContainsString('Please provide a valid admin email address', $html);
         $this->assertStringContainsString('Admin password must be at least 10 characters long', $html);
+
+        // Errors are grouped into the installer step that owns them, and the wizard opens there
+        $this->assertStringContainsString('id="step-site-errors"', $html);
+        $this->assertStringContainsString('id="step-admin-errors"', $html);
+        $this->assertStringContainsString('data-initial-step="site"', $html);
 
         // Verify installed.lock was NOT created
         $this->assertFileDoesNotExist(static::$lockFile);
