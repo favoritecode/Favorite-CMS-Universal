@@ -61,7 +61,7 @@ class ProductManagementTest extends TestCase
 
         // Run migrations
         $migrator = new Migrator($this->sqliteDb);
-        $migrator->migrate(APP_ROOT . '/plugins/favorite-digital/database/migrations');
+        $migrator->migrate(test_plugin_directory('favorite-digital') . '/database/migrations');
 
         $this->app->singleton(Database::class, fn () => $this->sqliteDb);
 
@@ -780,7 +780,7 @@ class ProductManagementTest extends TestCase
 
             // Run migrations on MySQL
             $migrator = new Migrator($mysqlDb);
-            $applied = $migrator->migrate(APP_ROOT . '/plugins/favorite-digital/database/migrations');
+            $applied = $migrator->migrate(test_plugin_directory('favorite-digital') . '/database/migrations');
             $this->assertCount(16, $applied);
 
             $repo = new ProductRepository($mysqlDb);

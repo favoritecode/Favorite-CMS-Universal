@@ -24,23 +24,22 @@ class MediaController
         $this->capabilityService = new UploadCapabilityService($app);
     }
 
+    /** Media cards shown per Media Library page. */
+    protected const PER_PAGE = 12;
+
+    /** Media returned per batch to editor media pickers. */
+    public const PICKER_BATCH = 24;
+
     public function index(Request $request): Response
     {
         $category = trim((string)$request->get('category', 'all'));
         $search   = trim((string)$request->get('s', ''));
 
-        $allItems = Media::all();
-        $mediaItems = [];
-
-        foreach ($allItems as $item) {
-            if ($category !== 'all' && $item->getTypeCategory() !== $category) {
-                continue;
-            }
-            if ($search !== '' && stripos($item->filename ?? '', $search) === false && stripos($item->title ?? '', $search) === false) {
-                continue;
-            }
-            $mediaItems[] = $item;
-        }
+        // Filter and paginate in SQL instead of loading the whole media table
+        $totalItems  = Media::countFiltered($category, $search);
+        $totalPages  = max(1, (int)ceil($totalItems / self::PER_PAGE));
+        $currentPage = min(max(1, (int)$request->get('p', 1)), $totalPages);
+        $mediaItems  = Media::filtered($category, $search, self::PER_PAGE, ($currentPage - 1) * self::PER_PAGE);
 
         $currentUser = isset($_SESSION['auth_user_id']) ? User::find((int)$_SESSION['auth_user_id']) : null;
         $capabilities = $this->capabilityService->getUserCapabilities($currentUser);
@@ -52,6 +51,9 @@ class MediaController
             'capabilities' => $capabilities,
             'currentCat'   => $category,
             'searchQuery'  => $search,
+            'currentPage'  => $currentPage,
+            'totalPages'   => $totalPages,
+            'totalItems'   => $totalItems,
             'contentView'  => APP_ROOT . '/resources/views/admin/media/index.php',
         ];
 
@@ -149,6 +151,29 @@ class MediaController
                 'message' => 'Upload failed: ' . $e->getMessage(),
             ], 500);
         }
+    }
+
+    /**
+     * JSON endpoint returning a bounded batch of media for editor pickers ("Load more", filters, search).
+     */
+    public function library(Request $request): Response
+    {
+        $category = trim((string)$request->get('category', 'all'));
+        $search   = trim((string)$request->get('s', ''));
+        $page     = max(1, (int)$request->get('page', 1));
+        $perPage  = max(1, min(60, (int)$request->get('per_page', self::PICKER_BATCH)));
+
+        $total = Media::countFiltered($category, $search);
+        $items = Media::filtered($category, $search, $perPage, ($page - 1) * $perPage);
+
+        return Response::json([
+            'success'  => true,
+            'items'    => array_map(static fn(Media $media): array => $media->toPickerArray(), $items),
+            'page'     => $page,
+            'per_page' => $perPage,
+            'total'    => $total,
+            'has_more' => ($page * $perPage) < $total,
+        ], 200);
     }
 
     /**

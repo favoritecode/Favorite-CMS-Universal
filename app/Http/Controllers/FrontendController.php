@@ -17,6 +17,9 @@ use FavoriteCMS\Rendering\Engine;
 
 class FrontendController
 {
+    /** Upper bound for the posts-per-page reading setting so listings always stay bounded. */
+    protected const MAX_POSTS_PER_PAGE = 100;
+
     protected Application $app;
     protected Engine $engine;
 
@@ -39,22 +42,29 @@ class FrontendController
         }
 
         // Show latest posts with pagination
-        $perPage     = max(1, (int)Setting::get('reading', 'posts_per_page', 10));
-        $currentPage = max(1, (int)$request->get('page', 1));
+        $perPage     = $this->postsPerPage();
+        $currentPage = $this->currentPage($request);
         $totalPosts  = (int)(Post::countByStatus()['published'] ?? 0);
         $totalPages  = max(1, (int)ceil($totalPosts / $perPage));
         $offset      = ($currentPage - 1) * $perPage;
 
         $posts = Post::published($perPage, $offset);
+        Post::preloadListData($posts);
 
-        $html = $this->engine->render('index', [
+        $data = [
             'posts'        => $posts,
             'archiveTitle' => null,
             'isHome'       => true,
             'currentPage'  => $currentPage,
             'totalPages'   => $totalPages,
             'totalPosts'   => $totalPosts,
-        ]);
+        ];
+
+        if ($currentPage > 1) {
+            $data['metaTitle'] = $this->pagedTitle($this->siteTitle(), $currentPage);
+        }
+
+        $html = $this->engine->render('index', $data);
 
         return Response::make($html, 200);
     }
@@ -125,14 +135,7 @@ class FrontendController
             return $this->notFound();
         }
 
-        $posts = $cat->getPosts();
-        $html = $this->engine->render('archive', [
-            'posts'              => $posts,
-            'archiveTitle'       => "Category: {$cat->name}",
-            'archiveDescription' => $cat->description,
-        ]);
-
-        return Response::make($html, 200);
+        return $this->renderTermArchive($request, $cat, 'category', "Category: {$cat->name}");
     }
 
     public function tag(Request $request, string $slug): Response
@@ -142,11 +145,35 @@ class FrontendController
             return $this->notFound();
         }
 
-        $posts = $tag->getPosts();
+        return $this->renderTermArchive($request, $tag, 'tag', "Tag: #{$tag->name}");
+    }
+
+    /**
+     * Render a bounded, paginated archive for a category or tag.
+     */
+    protected function renderTermArchive(Request $request, Taxonomy $term, string $type, string $archiveTitle): Response
+    {
+        $perPage     = $this->postsPerPage();
+        $currentPage = $this->currentPage($request);
+        $totalPosts  = $term->countPublishedPosts();
+        $totalPages  = max(1, (int)ceil($totalPosts / $perPage));
+
+        $posts = $term->getPosts($perPage, ($currentPage - 1) * $perPage);
+        Post::preloadListData($posts);
+
+        $description = trim((string)($term->description ?? ''));
+
         $html = $this->engine->render('archive', [
             'posts'              => $posts,
-            'archiveTitle'       => "Tag: #{$tag->name}",
-            'archiveDescription' => $tag->description,
+            'archiveTitle'       => $archiveTitle,
+            'archiveDescription' => $term->description,
+            'archiveType'        => $type,
+            'archiveTerm'        => $term,
+            'currentPage'        => $currentPage,
+            'totalPages'         => $totalPages,
+            'totalPosts'         => $totalPosts,
+            'metaTitle'          => $this->pagedTitle($archiveTitle . ' ' . $this->titleSeparator() . ' ' . $this->siteTitle(), $currentPage),
+            'metaDescription'    => $description !== '' ? $description : null,
         ]);
 
         return Response::make($html, 200);
@@ -154,21 +181,26 @@ class FrontendController
 
     public function search(Request $request): Response
     {
-        $query = trim((string)$request->get('q', ''));
-        $posts = [];
+        $rawQuery = $request->get('q', '');
+        $query = is_string($rawQuery) ? trim($rawQuery) : '';
 
-        if ($query !== '') {
-            $db = $this->app->make(Database::class);
-            $rows = $db->select(
-                "SELECT * FROM `posts` WHERE `status` = 'published' AND `type` = 'post' AND (`title` LIKE ? OR `content` LIKE ?) ORDER BY `published_at` DESC LIMIT 20",
-                ["%{$query}%", "%{$query}%"]
-            );
-            $posts = array_map(fn($r) => new Post((array)$r), $rows);
-        }
+        $perPage     = $this->postsPerPage();
+        $currentPage = $this->currentPage($request);
+        $totalPosts  = $query !== '' ? Post::countSearchPublished($query) : 0;
+        $totalPages  = max(1, (int)ceil($totalPosts / $perPage));
+
+        $posts = $query !== '' ? Post::searchPublished($query, $perPage, ($currentPage - 1) * $perPage) : [];
+        Post::preloadListData($posts);
+
+        $baseTitle = $query !== '' ? 'Search results for "' . $query . '"' : 'Search';
 
         $html = $this->engine->render('search', [
             'posts'       => $posts,
             'searchQuery' => $query,
+            'currentPage' => $currentPage,
+            'totalPages'  => $totalPages,
+            'totalPosts'  => $totalPosts,
+            'metaTitle'   => $this->pagedTitle($baseTitle . ' ' . $this->titleSeparator() . ' ' . $this->siteTitle(), $currentPage),
         ]);
 
         return Response::make($html, 200);
@@ -353,5 +385,33 @@ class FrontendController
             return Response::make('<h1>404 Not Found</h1>', 404);
         }
     }
-}
 
+    protected function postsPerPage(): int
+    {
+        return max(1, min(self::MAX_POSTS_PER_PAGE, (int)Setting::get('reading', 'posts_per_page', 10)));
+    }
+
+    protected function currentPage(Request $request): int
+    {
+        $raw = $request->get('page', 1);
+        return is_scalar($raw) ? max(1, (int)$raw) : 1;
+    }
+
+    protected function siteTitle(): string
+    {
+        return (string)Setting::get('general', 'site_name', 'Favorite CMS');
+    }
+
+    protected function titleSeparator(): string
+    {
+        return (string)Setting::get('seo', 'title_separator', '—');
+    }
+
+    /**
+     * Append a page indicator to titles of paginated listing pages (page 2 and later).
+     */
+    protected function pagedTitle(string $title, int $currentPage): string
+    {
+        return $currentPage > 1 ? $title . ' ' . $this->titleSeparator() . ' Page ' . $currentPage : $title;
+    }
+}

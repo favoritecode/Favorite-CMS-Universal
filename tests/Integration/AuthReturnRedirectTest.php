@@ -130,11 +130,13 @@ class AuthReturnRedirectTest extends TestCase
 
     public function testLoginRedirectsToSafeLocalReturnPath(): void
     {
+        $oldSessionId = session_id();
         $response = $this->login(['redirect' => self::RETURN_PATH]);
 
         $this->assertSame(302, $response->getStatusCode());
         $this->assertSame(self::RETURN_PATH, $response->getHeader('Location'));
         $this->assertSame(static::$userId, (int)($_SESSION['auth_user_id'] ?? 0));
+        $this->assertNotSame($oldSessionId, session_id());
     }
 
     public function testLoginWithoutReturnPathKeepsDefaultAdminRedirect(): void
@@ -263,7 +265,10 @@ class AuthReturnRedirectTest extends TestCase
         foreach ($cases as [$uri, $redirect, $expectedLocation]) {
             $_SESSION = ['_token' => self::TOKEN, 'auth_user_id' => static::$userId];
 
-            $response = $this->handle('GET', $uri, ['redirect' => $redirect]);
+            $confirmation = $this->handle('GET', $uri, ['redirect' => $redirect]);
+            $this->assertSame(200, $confirmation->getStatusCode());
+            $this->assertArrayHasKey('auth_user_id', $_SESSION);
+            $response = $this->handle('POST', $uri, [], ['_token' => self::TOKEN, 'redirect' => $redirect]);
 
             $this->assertSame(302, $response->getStatusCode());
             $this->assertSame($expectedLocation, $response->getHeader('Location'), "Logout via {$uri} with redirect '{$redirect}'");

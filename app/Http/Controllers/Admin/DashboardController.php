@@ -31,8 +31,9 @@ class DashboardController
         $pagesCount = Page::countByStatus();
         $commentsCount = Comment::countByStatus();
 
-        $userCount = count(User::all());
-        $mediaCount = count(Media::all());
+        // COUNT queries instead of loading every user and media row just to count them
+        $userCount = (int)($db->selectOne("SELECT COUNT(*) AS cnt FROM `users`")->cnt ?? 0);
+        $mediaCount = (int)($db->selectOne("SELECT COUNT(*) AS cnt FROM `media`")->cnt ?? 0);
 
         $recentPosts = Post::published(5);
         $recentComments = $db->select("SELECT * FROM `comments` ORDER BY `created_at` DESC LIMIT 5");

@@ -111,7 +111,7 @@ class CustomerWalletRechargeIntegrationTest extends TestCase
 
         // Run Favorite Digital migrations
         $migrator = new Migrator($this->sqliteDb);
-        $migrator->migrate(APP_ROOT . '/plugins/favorite-digital/database/migrations');
+        $migrator->migrate(test_plugin_directory('favorite-digital') . '/database/migrations');
 
         // Run Favorite Pay tables migration if available
         $payMigrationFile = file_exists(APP_ROOT . '/plugins/favorite-pay/database/migrations/001_create_favorite_pay_tables.php')
@@ -1168,7 +1168,7 @@ class CustomerWalletRechargeIntegrationTest extends TestCase
 
         // Run migrations with prefix
         $migrator = new Migrator($prefixDb);
-        $migrator->migrate(APP_ROOT . '/plugins/favorite-digital/database/migrations');
+        $migrator->migrate(test_plugin_directory('favorite-digital') . '/database/migrations');
 
         $pRepo = new WalletRepository($prefixDb);
         $pWallet = $pRepo->getOrCreateWallet(55);
@@ -1206,7 +1206,7 @@ class CustomerWalletRechargeIntegrationTest extends TestCase
             };
             $db->registerPrefixableTables(FavoriteDigitalPlugin::TABLES);
             $migrator = new Migrator($db);
-            $migrator->migrate(APP_ROOT . '/plugins/favorite-digital/database/migrations');
+            $migrator->migrate(test_plugin_directory('favorite-digital') . '/database/migrations');
 
             $repo = new WalletRepository($db);
             $w = $repo->getOrCreateWallet(999);

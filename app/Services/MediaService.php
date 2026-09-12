@@ -13,6 +13,47 @@ use FavoriteCMS\Models\User;
 
 class MediaService
 {
+    /** Accept only passive SVG graphics; reject active content instead of attempting to repair it. */
+    public function validateSvg(string $path): void
+    {
+        $unsafe = 'SVG contains unsupported or active content. Please upload a plain SVG or a raster image.';
+        if (!class_exists(\DOMDocument::class) || filesize($path) > 2 * 1024 * 1024) {
+            throw new SecurityException($unsafe);
+        }
+        $xml = (string)file_get_contents($path);
+        if (preg_match('/<!DOCTYPE|<!ENTITY/i', $xml)) {
+            throw new SecurityException($unsafe);
+        }
+        $previous = libxml_use_internal_errors(true);
+        try {
+            $doc = new \DOMDocument();
+            if (!$doc->loadXML($xml, LIBXML_NONET) || $doc->documentElement?->localName !== 'svg') {
+                throw new SecurityException($unsafe);
+            }
+            $elements = ['svg', 'g', 'defs', 'path', 'rect', 'circle', 'ellipse', 'line', 'polyline', 'polygon', 'title', 'desc', 'text', 'tspan', 'linearGradient', 'radialGradient', 'stop', 'clipPath', 'mask'];
+            $attributes = ['id', 'version', 'viewBox', 'width', 'height', 'x', 'y', 'x1', 'x2', 'y1', 'y2', 'cx', 'cy', 'r', 'rx', 'ry', 'd', 'points', 'transform', 'fill', 'fill-rule', 'fill-opacity', 'stroke', 'stroke-width', 'stroke-linecap', 'stroke-linejoin', 'stroke-miterlimit', 'stroke-dasharray', 'stroke-dashoffset', 'stroke-opacity', 'opacity', 'offset', 'stop-color', 'stop-opacity', 'gradientUnits', 'gradientTransform', 'spreadMethod', 'fx', 'fy', 'clip-path', 'clip-rule', 'mask', 'preserveAspectRatio', 'font-size', 'font-family', 'font-weight', 'text-anchor', 'dx', 'dy'];
+            $xpath = new \DOMXPath($doc);
+            if ($xpath->query('//processing-instruction()')->length > 0) {
+                throw new SecurityException($unsafe);
+            }
+            foreach ($doc->getElementsByTagName('*') as $element) {
+                if ($element->namespaceURI !== 'http://www.w3.org/2000/svg' || !in_array($element->localName, $elements, true)) {
+                    throw new SecurityException($unsafe);
+                }
+                foreach ($element->attributes as $attribute) {
+                    if (!in_array($attribute->name, $attributes, true) || $attribute->namespaceURI
+                        || preg_match('/(?:javascript|data|https?):|[<>]/i', $attribute->value)
+                        || (stripos($attribute->value, 'url') !== false && !preg_match('/^url\(#[A-Za-z][A-Za-z0-9_-]*\)$/D', $attribute->value))) {
+                        throw new SecurityException($unsafe);
+                    }
+                }
+            }
+        } finally {
+            libxml_clear_errors();
+            libxml_use_internal_errors($previous);
+        }
+    }
+
     protected Application $app;
     protected string $uploadsBaseDir;
     protected string $uploadsBaseUrl;
@@ -157,6 +198,9 @@ class MediaService
         }
 
         $targetExtension = $this->allowedMimeTypes[$detectedMime];
+        if ($detectedMime === 'image/svg+xml') {
+            $this->validateSvg($file['tmp_name']);
+        }
 
         // 5. Sanitize base filename for disk storage
         $safeBase = preg_replace('/[^a-zA-Z0-9_-]/', '_', pathinfo($originalName, PATHINFO_FILENAME));

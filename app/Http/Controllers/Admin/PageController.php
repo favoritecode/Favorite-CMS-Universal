@@ -17,6 +17,9 @@ class PageController
 {
     protected Application $app;
 
+    /** Rows shown per Pages list page. */
+    protected const PER_PAGE = 12;
+
     public function __construct(Application $app)
     {
         $this->app = $app;
@@ -28,24 +31,30 @@ class PageController
         $status = $request->get('status', 'all');
         $search = trim((string)$request->get('s', ''));
 
-        $query = "SELECT * FROM `pages` WHERE 1=1";
+        $where = "WHERE 1=1";
         $params = [];
 
         if ($status !== 'all') {
-            $query .= " AND `status` = ?";
+            $where .= " AND `status` = ?";
             $params[] = $status;
         } else {
-            $query .= " AND `status` != 'trash'";
+            $where .= " AND `status` != 'trash'";
         }
 
         if ($search !== '') {
-            $query .= " AND (`title` LIKE ? OR `content` LIKE ?)";
+            $where .= " AND (`title` LIKE ? OR `content` LIKE ?)";
             $params[] = "%{$search}%";
             $params[] = "%{$search}%";
         }
 
-        $query .= " ORDER BY `menu_order` ASC, `created_at` DESC";
-        $pages = array_map(fn($row) => new Page((array)$row), $db->select($query, $params));
+        // Bounded page of rows; the total is counted separately
+        $totalItems  = (int)($db->selectOne("SELECT COUNT(*) AS cnt FROM `pages` {$where}", $params)->cnt ?? 0);
+        $totalPages  = max(1, (int)ceil($totalItems / self::PER_PAGE));
+        $currentPage = min(max(1, (int)$request->get('p', 1)), $totalPages);
+
+        $query = "SELECT * FROM `pages` {$where} ORDER BY `menu_order` ASC, `created_at` DESC, `id` DESC LIMIT ? OFFSET ?";
+        $rows = $db->select($query, array_merge($params, [self::PER_PAGE, ($currentPage - 1) * self::PER_PAGE]));
+        $pages = array_map(fn($row) => new Page((array)$row), $rows);
         $counts = Page::countByStatus();
 
         $viewData = [
@@ -55,6 +64,9 @@ class PageController
             'counts'      => $counts,
             'status'      => $status,
             'search'      => $search,
+            'currentPage' => $currentPage,
+            'totalPages'  => $totalPages,
+            'totalItems'  => $totalItems,
             'contentView' => APP_ROOT . '/resources/views/admin/pages/index.php',
         ];
 
@@ -66,8 +78,8 @@ class PageController
 
     public function create(Request $request): Response
     {
-        $allPages = Page::all();
-        $mediaItems = Media::all();
+        $allPages = Page::summaries();
+        $mediaItems = Media::filtered('all', '', MediaController::PICKER_BATCH);
 
         $viewData = [
             'pageTitle'   => 'Add New Page',
@@ -75,6 +87,9 @@ class PageController
             'page'        => null,
             'allPages'    => $allPages,
             'mediaItems'  => $mediaItems,
+            'mediaTotal'  => Media::countFiltered(),
+            'mediaBatchSize' => MediaController::PICKER_BATCH,
+            'selectedMedia'  => null,
             'seo'         => null,
             'contentView' => APP_ROOT . '/resources/views/admin/pages/edit.php',
         ];
@@ -142,8 +157,8 @@ class PageController
             return Response::redirect('/admin/pages');
         }
 
-        $allPages = Page::all();
-        $mediaItems = Media::all();
+        $allPages = Page::summaries();
+        $mediaItems = Media::filtered('all', '', MediaController::PICKER_BATCH);
         $seo = $page->getSeoMeta();
 
         $viewData = [
@@ -152,6 +167,9 @@ class PageController
             'page'        => $page,
             'allPages'    => $allPages,
             'mediaItems'  => $mediaItems,
+            'mediaTotal'  => Media::countFiltered(),
+            'mediaBatchSize' => MediaController::PICKER_BATCH,
+            'selectedMedia'  => !empty($page->featured_image_id) ? Media::find((int)$page->featured_image_id) : null,
             'seo'         => $seo,
             'contentView' => APP_ROOT . '/resources/views/admin/pages/edit.php',
         ];

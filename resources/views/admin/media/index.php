@@ -107,12 +107,14 @@
                 <div style="margin-top: auto; display: flex; justify-content: space-between; align-items: center; font-size: 12px; border-top: 1px solid var(--wp-border); padding-top: 8px;">
                     <a href="<?php echo htmlspecialchars($item->url, ENT_QUOTES, 'UTF-8'); ?>" target="_blank" style="color: var(--wp-blue); text-decoration: none;">View File &#8599;</a>
                     <button type="button" class="copy-url-btn" data-url="<?php echo htmlspecialchars($item->url, ENT_QUOTES, 'UTF-8'); ?>" style="background: none; border: none; color: #64748b; font-size: 11px; cursor: pointer; text-decoration: underline;">Copy URL</button>
-                    <a href="/admin/media/delete?id=<?php echo (int)$item->id; ?>" onclick="return confirm('Delete this media file permanently?');" style="color: var(--wp-danger); text-decoration: none;">Delete</a>
+                    <button type="submit" form="core-action-form" formmethod="POST" formnovalidate formaction="<?php echo htmlspecialchars(site_base_path(), ENT_QUOTES, 'UTF-8'); ?>/admin/media/delete?id=<?php echo (int)$item->id; ?>" class="core-action-link" onclick="return confirm('Delete this media file permanently?');" style="color: var(--wp-danger); text-decoration: none;">Delete</button>
                 </div>
             </div>
         <?php endforeach; ?>
     <?php endif; ?>
 </div>
+
+<?php $paginationBase = '/admin/media'; include APP_ROOT . '/resources/views/admin/partials/pagination.php'; ?>
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {

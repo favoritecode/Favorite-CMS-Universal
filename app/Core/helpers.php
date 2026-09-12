@@ -757,6 +757,185 @@ if (!function_exists('get_user_display_name')) {
 }
 
 // -----------------------------------------------------------------------------
+// Site URL, Base Path & Theme Asset APIs
+// -----------------------------------------------------------------------------
+
+if (!function_exists('site_base_path')) {
+    /**
+     * The URL path prefix of the installation ('' for root installs, '/cms' for subdirectory installs).
+     */
+    function site_base_path(): string
+    {
+        $base = trim((string)($GLOBALS['favorite_cms_base_path'] ?? ''), '/');
+        return $base === '' ? '' : '/' . $base;
+    }
+}
+
+if (!function_exists('site_path')) {
+    /**
+     * Build a browser URL for a site-relative path, honoring subdirectory installs.
+     *
+     * Root-relative paths (/post/example) receive the base path exactly once. Absolute URLs,
+     * protocol-relative URLs, fragments, query-only and relative values are returned unchanged,
+     * as are paths that already start with the base path.
+     */
+    function site_path(string $path = '/'): string
+    {
+        $path = trim($path);
+        if ($path === '') {
+            $path = '/';
+        }
+
+        if (!str_starts_with($path, '/') || str_starts_with($path, '//')) {
+            return $path;
+        }
+
+        $base = site_base_path();
+        if ($base === '' || $path === $base || str_starts_with($path, $base . '/') || str_starts_with($path, $base . '?') || str_starts_with($path, $base . '#')) {
+            return $path;
+        }
+
+        return $base . $path;
+    }
+}
+
+if (!function_exists('site_request_path')) {
+    /**
+     * Normalized site-relative path of a URI (defaults to the current request): no base path,
+     * no query string, no fragment and no trailing slash ('/' for the homepage).
+     */
+    function site_request_path(?string $uri = null): string
+    {
+        $uri = $uri ?? (string)($_SERVER['REQUEST_URI'] ?? '/');
+        $path = parse_url($uri, PHP_URL_PATH);
+        $path = is_string($path) && $path !== '' ? '/' . ltrim($path, '/') : '/';
+
+        $base = site_base_path();
+        if ($base !== '' && ($path === $base || str_starts_with($path, $base . '/'))) {
+            $path = substr($path, strlen($base));
+        }
+
+        $path = rtrim($path, '/');
+        return $path === '' ? '/' : $path;
+    }
+}
+
+if (!function_exists('is_current_url')) {
+    /**
+     * Whether a menu/link URL points at the current request path.
+     * Handles base paths, query strings, fragments, trailing slashes and same-host absolute URLs.
+     */
+    function is_current_url(string $url): bool
+    {
+        $url = trim($url);
+        if ($url === '' || $url === '#' || str_starts_with($url, '#')) {
+            return false;
+        }
+
+        $parts = parse_url($url);
+        if ($parts === false) {
+            return false;
+        }
+
+        if (isset($parts['scheme']) || isset($parts['host'])) {
+            if (!in_array(strtolower((string)($parts['scheme'] ?? 'http')), ['http', 'https'], true) || empty($parts['host'])) {
+                return false;
+            }
+            $requestHost = strtolower((string)($_SERVER['HTTP_HOST'] ?? ''));
+            $urlHost = strtolower((string)$parts['host']) . (isset($parts['port']) ? ':' . (int)$parts['port'] : '');
+            if ($requestHost === '' || $urlHost !== $requestHost) {
+                return false;
+            }
+        } elseif (!str_starts_with($url, '/')) {
+            return false;
+        }
+
+        $path = (string)($parts['path'] ?? '/');
+        return site_request_path($path === '' ? '/' : $path) === site_request_path();
+    }
+}
+
+if (!function_exists('menu_item_url')) {
+    /**
+     * Resolve the browser URL of a stored menu item without rewriting stored menu data.
+     */
+    function menu_item_url(object|array $item): string
+    {
+        $url = trim((string)(is_array($item) ? ($item['url'] ?? '') : ($item->url ?? '')));
+        return $url === '' ? '#' : site_path($url);
+    }
+}
+
+if (!function_exists('active_theme_id')) {
+    /**
+     * Identifier of the active theme directory (validated, defaults to 'default').
+     */
+    function active_theme_id(): string
+    {
+        try {
+            $theme = (string)\FavoriteCMS\Models\Setting::get('theme', 'active_theme', 'default');
+        } catch (\Throwable) {
+            $theme = 'default';
+        }
+        return preg_match('/^[A-Za-z0-9_-]+$/', $theme) === 1 ? $theme : 'default';
+    }
+}
+
+if (!function_exists('theme_asset_url')) {
+    /**
+     * Base-path-aware URL for a static asset of the active (or given) theme, e.g.
+     * theme_asset_url('assets/css/style.css'). A file modification version is appended for cache busting.
+     */
+    function theme_asset_url(string $asset, ?string $themeId = null): string
+    {
+        $themeId = ($themeId !== null && preg_match('/^[A-Za-z0-9_-]+$/', $themeId) === 1) ? $themeId : active_theme_id();
+        $asset = ltrim(str_replace('\\', '/', trim($asset)), '/');
+
+        if ($asset === '' || str_contains($asset, '..')) {
+            return site_path('/themes/' . $themeId . '/');
+        }
+
+        $url = site_path('/themes/' . $themeId . '/' . $asset);
+        $file = APP_ROOT . '/themes/' . $themeId . '/' . $asset;
+        if (is_file($file)) {
+            $url .= (str_contains($url, '?') ? '&' : '?') . 'v=' . filemtime($file);
+        }
+
+        return $url;
+    }
+}
+
+if (!function_exists('site_language')) {
+    /**
+     * BCP 47 language tag for the <html lang> attribute.
+     * Uses the optional general.site_language setting, then config app.locale, then 'en'.
+     */
+    function site_language(): string
+    {
+        $lang = '';
+        try {
+            $lang = trim((string)\FavoriteCMS\Models\Setting::get('general', 'site_language', ''));
+        } catch (\Throwable) {
+            $lang = '';
+        }
+        if ($lang === '') {
+            try {
+                $lang = trim((string)config('app.locale', 'en'));
+            } catch (\Throwable) {
+                $lang = 'en';
+            }
+        }
+
+        $lang = str_replace('_', '-', $lang);
+        if (function_exists('apply_filters')) {
+            $lang = (string)apply_filters('site_language', $lang);
+        }
+
+        return preg_match('/^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$/', $lang) === 1 ? $lang : 'en';
+    }
+}
+
+// -----------------------------------------------------------------------------
 // Site Date & Timezone APIs
 // -----------------------------------------------------------------------------
 

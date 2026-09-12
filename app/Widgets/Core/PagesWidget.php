@@ -52,24 +52,21 @@ class PagesWidget extends AbstractWidget
 
         $sortBy = $settings['sortby'] ?? 'menu_order';
         if ($sortBy === 'title') {
-            usort($pages, fn($a, $b) => strcmp($a->title, $b->title));
+            usort($pages, fn($a, $b) => strcmp((string)$a->title, (string)$b->title));
         } elseif ($sortBy === 'created_at') {
-            usort($pages, fn($a, $b) => strcmp($b->created_at, $a->created_at));
+            usort($pages, fn($a, $b) => strcmp((string)$b->created_at, (string)$a->created_at));
         }
-
-        $currentUri = $_SERVER['REQUEST_URI'] ?? '/';
 
         $html = '<ul class="widget-list widget-pages">';
         foreach ($pages as $page) {
-            $url    = '/page/' . htmlspecialchars($page->slug, ENT_QUOTES, 'UTF-8');
-            $title  = htmlspecialchars($page->title, ENT_QUOTES, 'UTF-8');
-            $active = ($currentUri === $url) ? ' class="active"' : '';
+            $href   = site_path('/page/' . $page->slug);
+            $title  = htmlspecialchars((string)$page->title, ENT_QUOTES, 'UTF-8');
+            $active = is_current_url($href) ? ' class="active" aria-current="page"' : '';
 
-            $html .= '<li><a href="' . $url . '"' . $active . '>' . $title . '</a></li>';
+            $html .= '<li class="widget-pages__item"><a href="' . htmlspecialchars($href, ENT_QUOTES, 'UTF-8') . '"' . $active . '>' . $title . '</a></li>';
         }
         $html .= '</ul>';
 
         return $this->wrapOutput($html, $settings, $args);
     }
 }
-

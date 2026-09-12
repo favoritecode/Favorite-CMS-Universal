@@ -360,7 +360,8 @@ class AccountMenu
         $dropdownClass  = htmlspecialchars($options['dropdown_class'] ?? 'cms-account-dropdown', ENT_QUOTES, 'UTF-8');
 
         $displayName = htmlspecialchars($user->name ?? $user->username ?? 'Account', ENT_QUOTES, 'UTF-8');
-        $initial = strtoupper(substr($user->name ?? $user->username ?? 'U', 0, 1));
+        $initialSource = trim((string)($user->name ?? '')) !== '' ? (string)$user->name : (string)($user->username ?? 'U');
+        $initial = htmlspecialchars(mb_strtoupper(mb_substr(trim($initialSource) !== '' ? trim($initialSource) : 'U', 0, 1)), ENT_QUOTES, 'UTF-8');
         $avatarUrl = !empty($user->avatar) && static::isValidUrl($user->avatar) ? htmlspecialchars($user->avatar, ENT_QUOTES, 'UTF-8') : null;
 
         $roles = method_exists($user, 'getRoles') ? $user->getRoles() : [];
@@ -403,7 +404,7 @@ class AccountMenu
                         <?php
                         $itemId = htmlspecialchars($item['id'], ENT_QUOTES, 'UTF-8');
                         $itemLabel = htmlspecialchars($item['label'], ENT_QUOTES, 'UTF-8');
-                        $itemUrl = htmlspecialchars($item['url'], ENT_QUOTES, 'UTF-8');
+                        $itemUrl = htmlspecialchars(function_exists('site_path') ? site_path((string)$item['url']) : (string)$item['url'], ENT_QUOTES, 'UTF-8');
                         $isLogout = ($item['id'] === 'logout');
                         ?>
                         <?php if ($isLogout): ?>

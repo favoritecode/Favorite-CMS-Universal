@@ -200,9 +200,14 @@ class PostEditorAndMediaSystemTest extends TestCase
     public function testSettingControllerMediaSettingsRoundtrip(): void
     {
         $controller = new \FavoriteCMS\Http\Controllers\Admin\SettingController(static::$app);
-        
+        $_SESSION['_token'] = 'media-settings-csrf';
+        $originalLimit = Setting::get('media', 'max_upload_size_user');
+        $controller->update(new \FavoriteCMS\Core\Request([], ['max_upload_size_user_mb' => 200]));
+        $this->assertSame($originalLimit, Setting::get('media', 'max_upload_size_user'), 'Missing CSRF must not update settings.');
+
         // Update media upload limits
         $request = new \FavoriteCMS\Core\Request([], [
+            '_token'                  => 'media-settings-csrf',
             'site_name'                => 'Test CMS Title',
             'site_description'         => 'Test tagline',
             'site_url'                 => 'http://favorite-cms.local',

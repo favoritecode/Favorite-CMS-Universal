@@ -93,7 +93,7 @@
                                     <span style="color: var(--wp-text-muted); font-size: 12px; margin-left: 8px;"><?php echo htmlspecialchars($item->url ?? '', ENT_QUOTES, 'UTF-8'); ?></span>
                                 </div>
                                 <div>
-                                    <a href="/admin/menus/item/delete?id=<?php echo (int)$item->id; ?>&menu=<?php echo (int)$selectedMenu->id; ?>" style="color: var(--wp-danger); font-size: 12px;">Remove</a>
+                                    <button type="submit" form="core-action-form" formmethod="POST" formnovalidate formaction="<?php echo htmlspecialchars(site_base_path(), ENT_QUOTES, 'UTF-8'); ?>/admin/menus/item/delete?id=<?php echo (int)$item->id; ?>&menu=<?php echo (int)$selectedMenu->id; ?>" class="core-action-link" style="color: var(--wp-danger); font-size: 12px;">Remove</button>
                                 </div>
                             </li>
                         <?php endforeach; ?>
@@ -126,7 +126,7 @@
                 </div>
 
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 20px;">
-                    <a href="/admin/menus/delete?menu=<?php echo (int)$selectedMenu->id; ?>" onclick="return confirm('Delete this menu completely?');" style="color: var(--wp-danger); font-size: 13px;">Delete Menu</a>
+                    <button type="submit" form="core-action-form" formmethod="POST" formnovalidate formaction="<?php echo htmlspecialchars(site_base_path(), ENT_QUOTES, 'UTF-8'); ?>/admin/menus/delete?menu=<?php echo (int)$selectedMenu->id; ?>" class="core-action-link" onclick="return confirm('Delete this menu completely?');" style="color: var(--wp-danger); font-size: 13px;">Delete Menu</button>
                     <button type="submit" class="btn btn-primary">Save Menu</button>
                 </div>
             </form>

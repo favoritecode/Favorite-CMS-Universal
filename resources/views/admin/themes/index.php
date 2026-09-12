@@ -43,11 +43,11 @@
                     </span>
                     <a href="/" target="_blank" class="btn btn-secondary" style="font-size: 12px;">Customize / View</a>
                 <?php else: ?>
-                    <a href="/admin/themes/activate?id=<?php echo urlencode($id); ?>" class="btn btn-primary" style="font-size: 12px;">
+                    <button type="submit" form="core-action-form" formmethod="POST" formnovalidate formaction="<?php echo htmlspecialchars(site_base_path(), ENT_QUOTES, 'UTF-8'); ?>/admin/themes/activate?id=<?php echo urlencode($id); ?>" class="btn btn-primary" style="font-size: 12px;">
                         Activate
-                    </a>
+                    </button>
                     <?php if ($id !== 'default'): ?>
-                        <a href="/admin/themes/delete?id=<?php echo urlencode($id); ?>" onclick="return confirm('Delete this theme?');" style="color: var(--wp-danger); font-size: 12px;">Delete</a>
+                        <button type="submit" form="core-action-form" formmethod="POST" formnovalidate formaction="<?php echo htmlspecialchars(site_base_path(), ENT_QUOTES, 'UTF-8'); ?>/admin/themes/delete?id=<?php echo urlencode($id); ?>" class="core-action-link" onclick="return confirm('Delete this theme?');" style="color: var(--wp-danger); font-size: 12px;">Delete</button>
                     <?php endif; ?>
                 <?php endif; ?>
             </div>

@@ -22,9 +22,20 @@ class UserController
         $this->app = $app;
     }
 
+    /** Users shown per list page. */
+    protected const PER_PAGE = 12;
+
     public function index(Request $request): Response
     {
-        $users = User::all();
+        $db = $this->app->make(Database::class);
+
+        // Bounded page of users (same ascending ID order as before); the total is counted separately
+        $totalItems  = (int)($db->selectOne("SELECT COUNT(*) AS cnt FROM `users`")->cnt ?? 0);
+        $totalPages  = max(1, (int)ceil($totalItems / self::PER_PAGE));
+        $currentPage = min(max(1, (int)$request->get('p', 1)), $totalPages);
+
+        $rows = $db->select("SELECT * FROM `users` ORDER BY `id` ASC LIMIT ? OFFSET ?", [self::PER_PAGE, ($currentPage - 1) * self::PER_PAGE]);
+        $users = array_map(fn($row) => new User((array)$row), $rows);
         $roles = Role::all();
 
         $viewData = [
@@ -32,6 +43,9 @@ class UserController
             'activeMenu'  => 'users',
             'users'       => $users,
             'roles'       => $roles,
+            'currentPage' => $currentPage,
+            'totalPages'  => $totalPages,
+            'totalItems'  => $totalItems,
             'contentView' => APP_ROOT . '/resources/views/admin/users/index.php',
         ];
 

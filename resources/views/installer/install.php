@@ -6,16 +6,18 @@ $errors = array_values(array_filter((array)($errors ?? []), 'is_string'));
 $notices = array_values(array_filter((array)($notices ?? []), 'is_string'));
 $errorGroups = is_array($errorGroups ?? null) ? $errorGroups : [];
 $formMode = ($formMode ?? 'install') === 'restore' ? 'restore' : 'install';
-$mode = (string)($old['setup_mode'] ?? $dbDefaults['setup_mode'] ?? 'recommended');
+$mode = (string)($old['setup_mode'] ?? $dbDefaults['setup_mode'] ?? 'environment');
+$manualDatabase = in_array($mode, ['recommended', 'advanced', 'automatic'], true);
+$databasePrepared = (bool)($databasePrepared ?? false);
 $value = static fn (string $key, string $fallback = ''): string => (string)($old[$key] ?? $dbDefaults[$key] ?? $fallback);
 
 $installSteps = [
     'welcome'      => 'Welcome',
     'requirements' => 'Requirements',
-    'database'     => 'Database',
-    'site'         => 'Site',
-    'admin'        => 'Administrator',
-    'review'       => 'Review & install',
+    ...($manualDatabase ? ['database' => 'Advanced Database Setup'] : []),
+    'site'         => 'Site Information',
+    'admin'        => 'Admin Account',
+    'review'       => 'Install',
 ];
 $stepErrors = static fn (string $step): array => array_values(array_filter((array)($errorGroups[$step] ?? []), 'is_string'));
 
@@ -92,7 +94,7 @@ $pageTitle = 'Install Favorite CMS';
             <span class="fc-brand"><span class="fc-brand__mark" aria-hidden="true">&#9733;</span><span class="fc-brand__name">Favorite CMS</span></span>
 
             <div class="fc-rail__progress" data-js-only hidden>
-                <span data-progress-label>Step 1 of 6: Welcome</span>
+                <span data-progress-label>Step 1 of <?php echo count($installSteps); ?>: Welcome</span>
                 <div class="fc-rail__bar" aria-hidden="true"><span data-progress-bar></span></div>
             </div>
 
@@ -108,7 +110,7 @@ $pageTitle = 'Install Favorite CMS';
                     <?php endforeach; ?>
                     <?php $restoreFlagged = $stepErrors('restore') !== []; ?>
                     <li class="fc-step<?php echo $restoreFlagged ? ' has-error' : ''; ?>" data-step-item="restore" data-step-title="Restore backup">
-                        <a href="#step-restore" data-goto="restore" data-mode="restore">
+                        <a href="<?php echo $h($installAction . '?mode=restore'); ?>"<?php echo $formMode === 'restore' ? ' data-goto="restore" data-mode="restore"' : ''; ?>>
                             <span class="fc-step__num" aria-hidden="true">&#8634;</span>
                             <span>Restore backup<?php if ($restoreFlagged): ?><span class="fc-visually-hidden"> (needs attention)</span><?php endif; ?></span>
                         </a>
@@ -124,11 +126,11 @@ $pageTitle = 'Install Favorite CMS';
             <h1 class="fc-visually-hidden">Favorite CMS installation</h1>
 
             <?php if ($errors !== []): ?>
-                <div class="fc-alert fc-alert--error" role="alert">
+                <div class="fc-alert fc-alert--error" role="alert" data-error-summary>
                     <p class="fc-alert__title"><?php echo count($errors) === 1 ? 'Please fix the following issue before continuing.' : 'Please fix the following ' . count($errors) . ' issues before continuing.'; ?></p>
                     <ul>
                         <?php $linkedOwners = []; foreach ($errorsWithStep as [$message, $owner]): ?>
-                            <li>
+                            <li data-error-step="<?php echo $h($owner ?? ''); ?>">
                                 <?php echo $h($message); ?>
                                 <?php if ($owner !== null && !isset($linkedOwners[$owner])): $linkedOwners[$owner] = true; ?>
                                     <a href="#step-<?php echo $h($owner); ?>" data-goto="<?php echo $h($owner); ?>"<?php echo $owner === 'restore' ? ' data-mode="restore"' : ' data-mode="install"'; ?>>Go to <?php echo $h($installSteps[$owner] ?? 'Restore backup'); ?></a>
@@ -152,12 +154,12 @@ $pageTitle = 'Install Favorite CMS';
                 </header>
 
                 <div class="fc-choices">
-                    <a class="fc-choice" href="#step-requirements" data-goto="requirements" data-mode="install">
+                    <a class="fc-choice" href="<?php echo $h($installAction); ?>"<?php echo $formMode === 'install' ? ' data-goto="requirements" data-mode="install"' : ''; ?>>
                         <span class="fc-pill fc-pill--pass fc-choice__tag">Recommended</span>
                         <span class="fc-choice__title">Fresh installation</span>
                         <span class="fc-choice__text">Start a new website with an empty database.</span>
                     </a>
-                    <a class="fc-choice" href="#step-restore" data-goto="requirements" data-mode="restore">
+                    <a class="fc-choice" href="<?php echo $h($installAction . '?mode=restore'); ?>"<?php echo $formMode === 'restore' ? ' data-goto="requirements" data-mode="restore"' : ''; ?>>
                         <span class="fc-choice__title">Restore from a backup</span>
                         <span class="fc-choice__text">Move an existing Favorite CMS site to this server using its backup .zip archive.</span>
                     </a>
@@ -202,28 +204,40 @@ $pageTitle = 'Install Favorite CMS';
                     <?php endforeach; ?>
                 </ul>
 
-                <div class="fc-panel__actions" data-js-only hidden>
-                    <button type="button" class="fc-btn fc-btn--secondary" data-goto="welcome">Back</button>
+                <div class="fc-panel__actions">
+                    <button type="button" class="fc-btn fc-btn--secondary" data-goto="welcome" data-js-only hidden>Back</button>
                     <div class="fc-panel__actions-end">
-                        <button type="button" class="fc-btn fc-btn--primary" data-goto="database" data-mode="install" data-show-mode="install">Continue</button>
-                        <button type="button" class="fc-btn fc-btn--primary" data-goto="restore" data-mode="restore" data-show-mode="restore">Continue</button>
+                        <?php if (!$databasePrepared && $formMode !== 'restore'): ?>
+                            <form id="database-prepare-form" method="POST" action="<?php echo $h($installAction); ?>" data-show-mode="install">
+                                <input type="hidden" name="_token" value="<?php echo $h($token); ?>">
+                                <input type="hidden" name="setup_mode" value="environment">
+                                <button type="submit" name="db_action" value="prepare_database" class="fc-btn fc-btn--primary"<?php echo $hasRequirementFailures ? ' disabled' : ''; ?>>Continue</button>
+                            </form>
+                        <?php else: ?>
+                            <button type="button" class="fc-btn fc-btn--primary" data-goto="<?php echo $manualDatabase ? 'database' : 'site'; ?>" data-mode="install" data-show-mode="install" data-js-only hidden>Continue</button>
+                        <?php endif; ?>
+                        <button type="button" class="fc-btn fc-btn--primary" data-goto="restore" data-mode="restore" data-show-mode="restore" data-js-only hidden>Continue</button>
                     </div>
                 </div>
             </section>
 
             <!-- Fresh installation -->
+            <?php if ($databasePrepared && $formMode !== 'restore'): ?>
             <form id="install-form" method="POST" action="<?php echo $h($installAction); ?>" autocomplete="off" class="fc-main__inner">
                 <input type="hidden" name="_token" value="<?php echo $h($token); ?>">
-                <input type="hidden" name="setup_mode" value="recommended">
+                <input type="hidden" name="setup_mode" value="<?php echo $manualDatabase ? 'advanced' : 'environment'; ?>">
 
+                <?php if ($manualDatabase): ?>
                 <section class="fc-panel" id="step-database" data-step="database" aria-labelledby="step-database-title">
                     <header class="fc-panel__head">
                         <p class="fc-panel__eyebrow">Step 3 &middot; Database</p>
-                        <h2 class="fc-panel__title" id="step-database-title" tabindex="-1">Database connection</h2>
+                        <h2 class="fc-panel__title" id="step-database-title" tabindex="-1">Advanced Database Setup</h2>
                         <p class="fc-panel__lead">Enter the MySQL or MariaDB credentials from your hosting control panel. Favorite CMS creates all of its tables automatically.</p>
                     </header>
 
                     <?php echo $renderStepErrors('database'); ?>
+
+                    <div id="database-feedback" class="fc-alert fc-alert--info" role="status"<?php echo empty($old['database_fallback_notice']) ? ' hidden' : ''; ?>><?php echo $h((string)($old['database_fallback_notice'] ?? '')); ?></div>
 
                     <?php if ($dbState === 'installed'): ?>
                         <div class="fc-alert fc-alert--warning"><p><?php echo $h($dbStatus['message']); ?></p></div>
@@ -271,10 +285,11 @@ $pageTitle = 'Install Favorite CMS';
                     </div>
                 </section>
 
+                <?php endif; ?>
                 <section class="fc-panel" id="step-site" data-step="site" aria-labelledby="step-site-title">
                     <header class="fc-panel__head">
-                        <p class="fc-panel__eyebrow">Step 4 &middot; Site</p>
-                        <h2 class="fc-panel__title" id="step-site-title" tabindex="-1">Site details</h2>
+                        <p class="fc-panel__eyebrow">Step <?php echo $manualDatabase ? 4 : 3; ?> &middot; Site</p>
+                        <h2 class="fc-panel__title" id="step-site-title" tabindex="-1">Site Information</h2>
                         <p class="fc-panel__lead">You can change the site name at any time from the dashboard.</p>
                     </header>
 
@@ -286,7 +301,7 @@ $pageTitle = 'Install Favorite CMS';
                     </div>
 
                     <div class="fc-panel__actions" data-js-only hidden>
-                        <button type="button" class="fc-btn fc-btn--secondary" data-goto="database">Back</button>
+                        <button type="button" class="fc-btn fc-btn--secondary" data-goto="<?php echo $manualDatabase ? 'database' : 'requirements'; ?>">Back</button>
                         <div class="fc-panel__actions-end">
                             <button type="button" class="fc-btn fc-btn--primary" data-goto="admin">Continue</button>
                         </div>
@@ -295,8 +310,8 @@ $pageTitle = 'Install Favorite CMS';
 
                 <section class="fc-panel" id="step-admin" data-step="admin" aria-labelledby="step-admin-title">
                     <header class="fc-panel__head">
-                        <p class="fc-panel__eyebrow">Step 5 &middot; Administrator</p>
-                        <h2 class="fc-panel__title" id="step-admin-title" tabindex="-1">Administrator account</h2>
+                        <p class="fc-panel__eyebrow">Step <?php echo $manualDatabase ? 5 : 4; ?> &middot; Administrator</p>
+                        <h2 class="fc-panel__title" id="step-admin-title" tabindex="-1">Admin Account</h2>
                         <p class="fc-panel__lead">This account gets full access to the dashboard. Choose a strong password and keep it safe.</p>
                     </header>
 
@@ -326,8 +341,8 @@ $pageTitle = 'Install Favorite CMS';
 
                 <section class="fc-panel" id="step-review" data-step="review" aria-labelledby="step-review-title">
                     <header class="fc-panel__head">
-                        <p class="fc-panel__eyebrow">Step 6 &middot; Review &amp; install</p>
-                        <h2 class="fc-panel__title" id="step-review-title" tabindex="-1">Review and install</h2>
+                        <p class="fc-panel__eyebrow">Step <?php echo $manualDatabase ? 6 : 5; ?> &middot; Install</p>
+                        <h2 class="fc-panel__title" id="step-review-title" tabindex="-1">Install</h2>
                         <p class="fc-panel__lead">Installing verifies the database connection, creates all tables, creates your administrator account and locks the installer.</p>
                     </header>
 
@@ -338,10 +353,6 @@ $pageTitle = 'Install Favorite CMS';
                         <div class="fc-review__row"><dt>Site URL</dt><dd data-review="site_url"></dd></div>
                         <div class="fc-review__row"><dt>Administrator</dt><dd data-review="admin_username"></dd></div>
                         <div class="fc-review__row"><dt>Administrator email</dt><dd data-review="admin_email"></dd></div>
-                        <div class="fc-review__row"><dt>Database</dt><dd data-review="db_name"></dd></div>
-                        <div class="fc-review__row"><dt>Database user</dt><dd data-review="db_username"></dd></div>
-                        <div class="fc-review__row"><dt>Database host</dt><dd data-review="db_host"></dd></div>
-                        <div class="fc-review__row"><dt>Table prefix</dt><dd data-review="db_prefix"></dd></div>
                     </dl>
                     <p class="fc-hint" data-nojs-only>Check the details you entered above, then install. Passwords are never shown.</p>
 
@@ -357,8 +368,10 @@ $pageTitle = 'Install Favorite CMS';
                     </div>
                 </section>
             </form>
+            <?php endif; ?>
 
             <!-- Restore from backup -->
+            <?php if ($formMode === 'restore'): ?>
             <form id="restore-form" method="POST" action="<?php echo $h($installAction); ?>" enctype="multipart/form-data" autocomplete="off" class="fc-main__inner">
                 <input type="hidden" name="_token" value="<?php echo $h($token); ?>">
                 <input type="hidden" name="db_action" value="restore">
@@ -406,6 +419,7 @@ $pageTitle = 'Install Favorite CMS';
                 </section>
             </form>
 
+            <?php endif; ?>
             <p class="fc-footer-note">Favorite CMS Universal installer &middot; responses are sent with no-cache headers.</p>
         </div>
     </main>

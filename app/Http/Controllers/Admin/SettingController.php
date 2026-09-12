@@ -53,7 +53,7 @@ class SettingController
             'max_upload_size_user'      => Setting::get('media', 'max_upload_size_user', UploadCapabilityService::DEFAULT_USER_LIMIT_BYTES),
         ];
 
-        $pages = Page::published();
+        $pages = Page::summaries('published');
         $categories = Taxonomy::getByTaxonomy('category');
 
         $lockReason = null;
@@ -82,7 +82,7 @@ class SettingController
     public function update(Request $request): Response
     {
         $token = (string)$request->post('_token', '');
-        if (!empty($_SESSION['_token']) && !hash_equals($_SESSION['_token'], $token)) {
+        if (empty($_SESSION['_token']) || !hash_equals($_SESSION['_token'], $token)) {
             $_SESSION['flash_error'] = 'Security verification failed (invalid CSRF token).';
             return Response::redirect('/admin/settings');
         }

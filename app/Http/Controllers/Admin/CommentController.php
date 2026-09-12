@@ -15,6 +15,9 @@ class CommentController
 {
     protected Application $app;
 
+    /** Comments shown per moderation list page. */
+    protected const PER_PAGE = 12;
+
     public function __construct(Application $app)
     {
         $this->app = $app;
@@ -25,18 +28,24 @@ class CommentController
         $db = $this->app->make(Database::class);
         $status = $request->get('status', 'all');
 
-        $query = "SELECT * FROM `comments` WHERE 1=1";
+        $where = "WHERE 1=1";
         $params = [];
 
         if ($status !== 'all') {
-            $query .= " AND `status` = ?";
+            $where .= " AND `status` = ?";
             $params[] = $status;
         } else {
-            $query .= " AND `status` != 'trash'";
+            $where .= " AND `status` != 'trash'";
         }
 
-        $query .= " ORDER BY `created_at` DESC";
-        $comments = array_map(fn($row) => new Comment((array)$row), $db->select($query, $params));
+        // Bounded page of comments; the total is counted separately
+        $totalItems  = (int)($db->selectOne("SELECT COUNT(*) AS cnt FROM `comments` {$where}", $params)->cnt ?? 0);
+        $totalPages  = max(1, (int)ceil($totalItems / self::PER_PAGE));
+        $currentPage = min(max(1, (int)$request->get('p', 1)), $totalPages);
+
+        $query = "SELECT * FROM `comments` {$where} ORDER BY `created_at` DESC, `id` DESC LIMIT ? OFFSET ?";
+        $rows = $db->select($query, array_merge($params, [self::PER_PAGE, ($currentPage - 1) * self::PER_PAGE]));
+        $comments = array_map(fn($row) => new Comment((array)$row), $rows);
         $counts = Comment::countByStatus();
 
         $viewData = [
@@ -45,6 +54,9 @@ class CommentController
             'comments'    => $comments,
             'counts'      => $counts,
             'status'      => $status,
+            'currentPage' => $currentPage,
+            'totalPages'  => $totalPages,
+            'totalItems'  => $totalItems,
             'contentView' => APP_ROOT . '/resources/views/admin/comments/index.php',
         ];
 

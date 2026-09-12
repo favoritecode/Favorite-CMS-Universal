@@ -205,6 +205,7 @@
     };
     var panels = {};
     all('[data-step]', root).forEach(function (panel) { panels[panel.getAttribute('data-step')] = panel; });
+    flows.install = flows.install.filter(function (step) { return !!panels[step]; });
     var stepItems = all('[data-step-item]', root);
     var rail = one('.fc-rail', root);
     var progressLabel = one('[data-progress-label]', root);
@@ -280,6 +281,10 @@
         if (to > from && from > -1 && panels[current]) {
             var invalid = firstInvalidWithin(panels[current]);
             if (invalid) { focusField(invalid); return; }
+            if (mode === 'install' && current === 'database' && window.fetch) {
+                checkDatabase(target);
+                return;
+            }
         }
         show(target, true);
     }
@@ -293,6 +298,67 @@
     });
 
     var installForm = doc.getElementById('install-form');
+    var databaseChecking = false;
+    var databaseRevision = 0;
+
+    function clearDatabaseErrors() {
+        var errors = doc.getElementById('step-database-errors');
+        if (errors) { errors.remove(); }
+        all('[data-error-step="database"]', root).forEach(function (item) { item.remove(); });
+        all('[data-error-summary]', root).forEach(function (summary) {
+            var remaining = all('li', summary).length;
+            if (!remaining) { summary.remove(); }
+            else {
+                var title = one('.fc-alert__title', summary);
+                if (title) { title.textContent = remaining === 1 ? 'Please fix the following issue before continuing.' : 'Please fix the following ' + remaining + ' issues before continuing.'; }
+            }
+        });
+        var item = one('[data-step-item="database"]', root);
+        if (item) {
+            item.classList.remove('has-error');
+            all('.fc-visually-hidden', item).forEach(function (label) { label.remove(); });
+        }
+    }
+
+    function databaseFeedback(message, state) {
+        var feedback = doc.getElementById('database-feedback');
+        if (!feedback) { return; }
+        feedback.textContent = message;
+        feedback.className = 'fc-alert fc-alert--' + state;
+        feedback.hidden = false;
+    }
+
+    function checkDatabase(nextStep) {
+        if (databaseChecking || !installForm || !panels.database) { return; }
+        var invalid = firstInvalidWithin(panels.database);
+        if (invalid) { focusField(invalid); return; }
+        databaseChecking = true;
+        var revision = databaseRevision;
+        var data = new FormData(installForm);
+        data.set('db_action', 'test_database');
+        data.set('_response', 'json');
+        databaseFeedback('Checking database connection...', 'info');
+        window.fetch(installForm.action, { method: 'POST', body: data, credentials: 'same-origin', headers: { Accept: 'application/json' } })
+            .then(function (response) { return response.json(); })
+            .then(function (result) {
+                if (revision !== databaseRevision) { return; }
+                clearDatabaseErrors();
+                databaseFeedback(result.message || 'Unable to verify the database connection.', result.ok === true ? 'success' : 'error');
+                if (result.ok === true && nextStep && current === 'database' && mode === 'install') { show(nextStep, true); }
+            })
+            .catch(function () {
+                if (revision === databaseRevision) { databaseFeedback('Unable to verify the database connection. Please try again.', 'error'); }
+            })
+            .then(function () { databaseChecking = false; });
+    }
+
+    if (panels.database) {
+        panels.database.addEventListener('input', function () {
+            databaseRevision++;
+            clearDatabaseErrors();
+            databaseFeedback('Database details changed. Continue or test the connection to verify them.', 'info');
+        });
+    }
     if (installForm) {
         installForm.addEventListener('submit', function (event) {
             if (installForm.getAttribute('data-submitting')) { event.preventDefault(); return; }
@@ -303,6 +369,7 @@
             if (action === 'test_database') {
                 invalid = firstInvalidWithin(panels.database);
                 if (invalid) { event.preventDefault(); show('database', false); focusField(invalid); return; }
+                if (window.fetch) { event.preventDefault(); checkDatabase(null); return; }
                 installForm.setAttribute('data-submitting', '1');
                 setBusy(button, 'Testing connection...');
                 return;

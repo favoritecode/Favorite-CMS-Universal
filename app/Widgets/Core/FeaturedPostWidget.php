@@ -64,30 +64,31 @@ class FeaturedPostWidget extends AbstractWidget
             return '';
         }
 
-        $url     = '/post/' . htmlspecialchars($post->slug, ENT_QUOTES, 'UTF-8');
-        $title   = htmlspecialchars($post->title, ENT_QUOTES, 'UTF-8');
+        $url     = htmlspecialchars(site_path('/post/' . $post->slug), ENT_QUOTES, 'UTF-8');
+        $title   = htmlspecialchars((string)$post->title, ENT_QUOTES, 'UTF-8');
         $featImg = $post->getFeaturedImage();
 
-        $html = '<div class="featured-post-card" style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; overflow: hidden; padding: 12px;">';
+        $html = '<article class="featured-post-card">';
 
         if ($featImg && !empty($featImg->url)) {
-            $html .= '<a href="' . $url . '" style="display: block; margin-bottom: 8px; border-radius: 4px; overflow: hidden;">' .
-                     '<img src="' . htmlspecialchars($featImg->url, ENT_QUOTES, 'UTF-8') . '" alt="' . $title . '" style="width: 100%; max-height: 140px; object-fit: cover; display: block;" loading="lazy">' .
+            $width  = (int)($featImg->width ?? 0);
+            $height = (int)($featImg->height ?? 0);
+            $dimensions = ($width > 0 && $height > 0) ? ' width="' . $width . '" height="' . $height . '"' : '';
+
+            $html .= '<a href="' . $url . '" class="featured-post-card__media" tabindex="-1" aria-hidden="true">' .
+                     '<img src="' . htmlspecialchars(site_path((string)$featImg->url), ENT_QUOTES, 'UTF-8') . '" alt=""' . $dimensions . ' loading="lazy" decoding="async">' .
                      '</a>';
         }
 
-        $html .= '<h4 style="font-size: 14px; font-weight: 700; margin-bottom: 6px; line-height: 1.3;">' .
-                 '<a href="' . $url . '" style="text-decoration: none; color: inherit;">' . $title . '</a>' .
-                 '</h4>';
+        $html .= '<h4 class="featured-post-card__title"><a href="' . $url . '">' . $title . '</a></h4>';
 
         if (!empty($settings['show_excerpt']) && !empty($post->excerpt)) {
-            $html .= '<p style="font-size: 12px; color: #64748b; line-height: 1.4; margin-bottom: 8px;">' . htmlspecialchars($post->excerpt, ENT_QUOTES, 'UTF-8') . '</p>';
+            $html .= '<p class="featured-post-card__excerpt">' . htmlspecialchars((string)$post->excerpt, ENT_QUOTES, 'UTF-8') . '</p>';
         }
 
-        $html .= '<a href="' . $url . '" style="font-size: 12px; font-weight: 600; color: var(--wp-blue, #0284c7); text-decoration: none;">Read Story &rarr;</a>';
-        $html .= '</div>';
+        $html .= '<a href="' . $url . '" class="featured-post-card__link">Read Story &rarr;</a>';
+        $html .= '</article>';
 
         return $this->wrapOutput($html, $settings, $args);
     }
 }
-

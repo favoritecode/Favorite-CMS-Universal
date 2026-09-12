@@ -27,8 +27,8 @@
                     <label for="parent_id">Parent Category</label>
                     <select id="parent_id" name="parent_id" class="form-control">
                         <option value="0">&mdash; None &mdash;</option>
-                        <?php foreach ($items as $item): ?>
-                            <option value="<?php echo (int)$item->id; ?>"><?php echo htmlspecialchars($item->name, ENT_QUOTES, 'UTF-8'); ?></option>
+                        <?php foreach (($parentOptions ?? $items) as $parentOption): ?>
+                            <option value="<?php echo (int)$parentOption->id; ?>"><?php echo htmlspecialchars($parentOption->name, ENT_QUOTES, 'UTF-8'); ?></option>
                         <?php endforeach; ?>
                     </select>
                 </div>
@@ -44,6 +44,7 @@
     </div>
 
     <!-- Table of existing items -->
+    <div>
     <div class="wp-table-wrap">
         <table class="wp-table">
             <thead>
@@ -70,7 +71,7 @@
                                     <a href="/<?php echo $taxonomyType; ?>/<?php echo htmlspecialchars($item->slug, ENT_QUOTES, 'UTF-8'); ?>" target="_blank">View</a>
                                     <?php if ($item->slug !== 'uncategorized'): ?>
                                         <?php $csrfToken = htmlspecialchars($_SESSION['_token'] ?? '', ENT_QUOTES, 'UTF-8'); ?>
-                                        | <a href="/admin/taxonomies/delete?id=<?php echo (int)$item->id; ?>&_token=<?php echo $csrfToken; ?>" onclick="return confirm('Delete this <?php echo $taxonomyType; ?>?');" style="color: var(--wp-danger);">Delete</a>
+                                        | <button type="submit" form="core-action-form" formmethod="POST" formnovalidate formaction="<?php echo htmlspecialchars(site_base_path(), ENT_QUOTES, 'UTF-8'); ?>/admin/taxonomies/delete?id=<?php echo (int)$item->id; ?>" class="core-action-link" onclick="return confirm('Delete this <?php echo $taxonomyType; ?>?');" style="color: var(--wp-danger);">Delete</button>
                                     <?php endif; ?>
                                 </div>
                             </td>
@@ -82,6 +83,8 @@
                 <?php endif; ?>
             </tbody>
         </table>
+    </div>
+    <?php $paginationBase = '/admin/taxonomies/' . ($taxonomyType === 'tag' ? 'tags' : 'categories'); include APP_ROOT . '/resources/views/admin/partials/pagination.php'; ?>
     </div>
 </div>
 

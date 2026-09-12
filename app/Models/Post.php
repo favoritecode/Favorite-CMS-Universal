@@ -28,6 +28,117 @@ class Post extends BaseModel
         return array_map(fn($row) => new static((array)$row), $results);
     }
 
+    /**
+     * Relations loaded in bulk by preloadListData() for listing pages.
+     *
+     * @var array<string, mixed>
+     */
+    protected array $preloaded = [];
+
+    /**
+     * Load featured images, authors and categories for a list of posts using one query per relation,
+     * instead of several queries for every post rendered in a listing.
+     *
+     * @param array<int, mixed> $posts
+     */
+    public static function preloadListData(array $posts): void
+    {
+        $posts = array_values(array_filter($posts, static fn($post) => $post instanceof self && !empty($post->id)));
+        if ($posts === []) {
+            return;
+        }
+
+        $db = Container::getInstance()->get(Database::class);
+
+        $mediaIds = array_values(array_unique(array_filter(array_map(static fn(self $post) => (int)$post->featured_image_id, $posts))));
+        $media = [];
+        if ($mediaIds !== []) {
+            foreach ($db->select('SELECT * FROM `media` WHERE `id` IN (' . self::placeholders($mediaIds) . ')', $mediaIds) as $row) {
+                $media[(int)$row->id] = new Media((array)$row);
+            }
+        }
+
+        $authorIds = array_values(array_unique(array_filter(array_map(static fn(self $post) => (int)$post->author_id, $posts))));
+        $authors = [];
+        if ($authorIds !== []) {
+            foreach ($db->select('SELECT * FROM `users` WHERE `id` IN (' . self::placeholders($authorIds) . ')', $authorIds) as $row) {
+                $authors[(int)$row->id] = new User((array)$row);
+            }
+        }
+
+        $postIds = array_map(static fn(self $post) => (int)$post->id, $posts);
+        $categories = [];
+        $rows = $db->select(
+            "SELECT t.*, pt.post_id AS preload_post_id FROM `taxonomies` t
+             JOIN `post_taxonomies` pt ON t.id = pt.taxonomy_id
+             WHERE t.taxonomy = 'category' AND pt.post_id IN (" . self::placeholders($postIds) . ')',
+            $postIds
+        );
+        foreach ($rows as $row) {
+            $data = (array)$row;
+            $postId = (int)$data['preload_post_id'];
+            unset($data['preload_post_id']);
+            $categories[$postId][] = new Taxonomy($data);
+        }
+
+        foreach ($posts as $post) {
+            $featuredId = (int)$post->featured_image_id;
+            $authorId = (int)$post->author_id;
+            $post->preloaded['featured_image'] = $featuredId > 0 ? ($media[$featuredId] ?? null) : null;
+            $post->preloaded['author'] = $authorId > 0 ? ($authors[$authorId] ?? null) : null;
+            $post->preloaded['taxonomies:category'] = $categories[(int)$post->id] ?? [];
+        }
+    }
+
+    /**
+     * Published posts whose title or content contains the search query (bounded page).
+     */
+    public static function searchPublished(string $query, int $limit = 10, int $offset = 0): array
+    {
+        $query = trim($query);
+        if ($query === '') {
+            return [];
+        }
+
+        $db = Container::getInstance()->get(Database::class);
+        $pattern = self::likePattern($query);
+        $rows = $db->select(
+            "SELECT * FROM `posts` WHERE `status` = 'published' AND `type` = 'post' AND (`title` LIKE ? OR `content` LIKE ?)
+             ORDER BY `published_at` DESC, `id` DESC LIMIT ? OFFSET ?",
+            [$pattern, $pattern, max(1, $limit), max(0, $offset)]
+        );
+        return array_map(fn($row) => new static((array)$row), $rows);
+    }
+
+    /**
+     * Accurate total of published posts matching a search query.
+     */
+    public static function countSearchPublished(string $query): int
+    {
+        $query = trim($query);
+        if ($query === '') {
+            return 0;
+        }
+
+        $db = Container::getInstance()->get(Database::class);
+        $pattern = self::likePattern($query);
+        $row = $db->selectOne(
+            "SELECT COUNT(*) AS cnt FROM `posts` WHERE `status` = 'published' AND `type` = 'post' AND (`title` LIKE ? OR `content` LIKE ?)",
+            [$pattern, $pattern]
+        );
+        return (int)($row->cnt ?? 0);
+    }
+
+    protected static function likePattern(string $query): string
+    {
+        return '%' . addcslashes($query, '\\%_') . '%';
+    }
+
+    protected static function placeholders(array $values): string
+    {
+        return implode(', ', array_fill(0, count($values), '?'));
+    }
+
     public static function countByStatus(): array
     {
         $db = Container::getInstance()->get(Database::class);
@@ -97,11 +208,18 @@ class Post extends BaseModel
         if (empty($this->author_id)) {
             return null;
         }
+        if (array_key_exists('author', $this->preloaded)) {
+            return $this->preloaded['author'];
+        }
         return User::find((int)$this->author_id);
     }
 
     public function getTaxonomies(string $taxonomy = 'category'): array
     {
+        if (array_key_exists('taxonomies:' . $taxonomy, $this->preloaded)) {
+            return $this->preloaded['taxonomies:' . $taxonomy];
+        }
+
         $sql = "SELECT t.* FROM `taxonomies` t 
                 JOIN `post_taxonomies` pt ON t.id = pt.taxonomy_id 
                 WHERE pt.post_id = ? AND t.taxonomy = ?";
@@ -162,6 +280,9 @@ class Post extends BaseModel
     public function getFeaturedImage(): ?Media
     {
         if (empty($this->featured_image_id)) return null;
+        if (array_key_exists('featured_image', $this->preloaded)) {
+            return $this->preloaded['featured_image'];
+        }
         return Media::find((int)$this->featured_image_id);
     }
 

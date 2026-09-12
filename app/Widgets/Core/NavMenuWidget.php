@@ -15,6 +15,9 @@ class NavMenuWidget extends AbstractWidget
     protected string $category = 'Navigation';
     protected string $icon = '🧭';
 
+    /** Maximum nesting depth rendered for child menu items. */
+    protected const MAX_DEPTH = 5;
+
     public function getSchema(): array
     {
         $menuOptions = ['0' => '— Select a Menu —'];
@@ -64,20 +67,46 @@ class NavMenuWidget extends AbstractWidget
             return '';
         }
 
-        $currentUri = $_SERVER['REQUEST_URI'] ?? '/';
+        return $this->wrapOutput($this->renderItems($items, 0), $settings, $args);
+    }
 
-        $html = '<ul class="widget-list widget-nav-menu">';
+    /**
+     * Render menu items recursively so child items are never discarded.
+     */
+    protected function renderItems(array $items, int $depth): string
+    {
+        $html = '<ul class="' . ($depth === 0 ? 'widget-list widget-nav-menu' : 'sub-menu') . '">';
+
         foreach ($items as $item) {
-            $url    = $item->url ?? '#';
-            $title  = htmlspecialchars($item->title, ENT_QUOTES, 'UTF-8');
-            $active = ($currentUri === $url) ? ' class="active"' : '';
-            $target = !empty($item->target) ? ' target="' . htmlspecialchars($item->target, ENT_QUOTES, 'UTF-8') . '"' : '';
+            $url      = menu_item_url($item);
+            $title    = htmlspecialchars((string)($item->title ?? ''), ENT_QUOTES, 'UTF-8');
+            $children = (!empty($item->children) && is_array($item->children)) ? $item->children : [];
 
-            $html .= '<li><a href="' . htmlspecialchars($url, ENT_QUOTES, 'UTF-8') . '"' . $active . $target . '>' . $title . '</a></li>';
+            $liClasses = [];
+            $customClass = trim(preg_replace('/[^A-Za-z0-9_\- ]/', '', (string)($item->css_class ?? '')) ?? '');
+            if ($customClass !== '') {
+                $liClasses[] = $customClass;
+            }
+            if ($children !== [] && $depth < self::MAX_DEPTH) {
+                $liClasses[] = 'menu-item-has-children';
+            }
+
+            $active = is_current_url($url) ? ' class="active" aria-current="page"' : '';
+
+            $target = (string)($item->target ?? '');
+            $targetAttr = '';
+            if (in_array($target, ['_blank', '_self', '_parent', '_top'], true)) {
+                $targetAttr = ' target="' . $target . '"' . ($target === '_blank' ? ' rel="noopener"' : '');
+            }
+
+            $html .= '<li' . ($liClasses !== [] ? ' class="' . htmlspecialchars(implode(' ', $liClasses), ENT_QUOTES, 'UTF-8') . '"' : '') . '>';
+            $html .= '<a href="' . htmlspecialchars($url, ENT_QUOTES, 'UTF-8') . '"' . $active . $targetAttr . '>' . $title . '</a>';
+            if ($children !== [] && $depth < self::MAX_DEPTH) {
+                $html .= $this->renderItems($children, $depth + 1);
+            }
+            $html .= '</li>';
         }
-        $html .= '</ul>';
 
-        return $this->wrapOutput($html, $settings, $args);
+        return $html . '</ul>';
     }
 }
-

@@ -66,9 +66,13 @@ class RecentPostsWidget extends AbstractWidget
 
         try {
             if ($catId > 0) {
-                $posts = Taxonomy::find($catId)?->getPosts('published', $number) ?? [];
+                $category = Taxonomy::find($catId);
+                $posts = $category ? $category->getPosts($number) : [];
             } else {
                 $posts = Post::published($number);
+            }
+            if ($showThumb && $posts !== []) {
+                Post::preloadListData($posts);
             }
         } catch (\Throwable) {
             $posts = [];
@@ -80,25 +84,26 @@ class RecentPostsWidget extends AbstractWidget
 
         $html = '<ul class="widget-list widget-recent-posts">';
         foreach ($posts as $post) {
-            $url   = '/post/' . htmlspecialchars($post->slug, ENT_QUOTES, 'UTF-8');
-            $title = htmlspecialchars($post->title, ENT_QUOTES, 'UTF-8');
-            $date  = format_date($post->published_at ?? $post->created_at, 'M j, Y');
+            $url   = htmlspecialchars(site_path('/post/' . $post->slug), ENT_QUOTES, 'UTF-8');
+            $title = htmlspecialchars((string)$post->title, ENT_QUOTES, 'UTF-8');
+            $rawDate = $post->published_at ?? $post->created_at;
 
-            $html .= '<li style="display: flex; gap: 10px; align-items: center; margin-bottom: 10px;">';
-
+            $thumbHtml = '';
             if ($showThumb) {
                 $featImg = $post->getFeaturedImage();
                 if ($featImg && !empty($featImg->url)) {
-                    $html .= '<a href="' . $url . '" style="flex-shrink: 0; width: 44px; height: 44px; border-radius: 4px; overflow: hidden; display: block;">' .
-                             '<img src="' . htmlspecialchars($featImg->url, ENT_QUOTES, 'UTF-8') . '" alt="' . $title . '" style="width: 100%; height: 100%; object-fit: cover;">' .
-                             '</a>';
+                    $thumbHtml = '<a href="' . $url . '" class="widget-recent-posts__thumb" tabindex="-1" aria-hidden="true">' .
+                                 '<img src="' . htmlspecialchars(site_path((string)$featImg->url), ENT_QUOTES, 'UTF-8') . '" alt="" width="64" height="64" loading="lazy" decoding="async">' .
+                                 '</a>';
                 }
             }
 
-            $html .= '<div style="flex: 1; min-width: 0;">';
-            $html .= '<a href="' . $url . '" class="recent-post-link" style="display: block; font-weight: 500; text-decoration: none; color: inherit; line-height: 1.3;">' . $title . '</a>';
+            $html .= '<li class="widget-recent-posts__item' . ($thumbHtml !== '' ? ' has-thumb' : '') . '">' . $thumbHtml;
+            $html .= '<div class="widget-recent-posts__body">';
+            $html .= '<a href="' . $url . '" class="recent-post-link">' . $title . '</a>';
             if ($showDate) {
-                $html .= '<div class="recent-post-meta" style="font-size: 11px; color: var(--color-muted, #64748b); margin-top: 2px;">' . $date . '</div>';
+                $html .= '<time class="recent-post-meta" datetime="' . htmlspecialchars(format_date($rawDate, 'c'), ENT_QUOTES, 'UTF-8') . '">' .
+                         htmlspecialchars(format_date($rawDate, 'M j, Y'), ENT_QUOTES, 'UTF-8') . '</time>';
             }
             $html .= '</div></li>';
         }
@@ -107,4 +112,3 @@ class RecentPostsWidget extends AbstractWidget
         return $this->wrapOutput($html, $settings, $args);
     }
 }
-

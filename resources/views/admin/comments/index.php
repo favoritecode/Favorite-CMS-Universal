@@ -71,20 +71,20 @@
                                     $csrfToken = htmlspecialchars($_SESSION['_token'] ?? '', ENT_QUOTES, 'UTF-8'); 
                                     ?>
                                     <?php if ($comment->status === 'pending'): ?>
-                                        <a href="/admin/comments/approve?id=<?php echo (int)$comment->id; ?>&_token=<?php echo $csrfToken; ?>" style="color: var(--wp-success); font-weight: 600;">Approve</a> |
+                                        <button type="submit" form="core-action-form" formmethod="POST" formnovalidate formaction="<?php echo htmlspecialchars(site_base_path(), ENT_QUOTES, 'UTF-8'); ?>/admin/comments/approve?id=<?php echo (int)$comment->id; ?>" class="core-action-link" style="color: var(--wp-success); font-weight: 600;">Approve</button> |
                                     <?php elseif ($comment->status === 'approved'): ?>
-                                        <a href="/admin/comments/unapprove?id=<?php echo (int)$comment->id; ?>&_token=<?php echo $csrfToken; ?>" style="color: #b35900;">Unapprove</a> |
+                                        <button type="submit" form="core-action-form" formmethod="POST" formnovalidate formaction="<?php echo htmlspecialchars(site_base_path(), ENT_QUOTES, 'UTF-8'); ?>/admin/comments/unapprove?id=<?php echo (int)$comment->id; ?>" class="core-action-link" style="color: #b35900;">Unapprove</button> |
                                     <?php endif; ?>
 
                                     <?php if ($comment->status !== 'spam'): ?>
-                                        <a href="/admin/comments/spam?id=<?php echo (int)$comment->id; ?>&_token=<?php echo $csrfToken; ?>" style="color: var(--wp-danger);">Spam</a> |
+                                        <button type="submit" form="core-action-form" formmethod="POST" formnovalidate formaction="<?php echo htmlspecialchars(site_base_path(), ENT_QUOTES, 'UTF-8'); ?>/admin/comments/spam?id=<?php echo (int)$comment->id; ?>" class="core-action-link" style="color: var(--wp-danger);">Spam</button> |
                                     <?php endif; ?>
 
                                     <?php if ($comment->status === 'trash'): ?>
-                                        <a href="/admin/comments/approve?id=<?php echo (int)$comment->id; ?>&_token=<?php echo $csrfToken; ?>&status=trash" style="color: var(--wp-success);">Restore</a> |
-                                        <a href="/admin/comments/delete?id=<?php echo (int)$comment->id; ?>&_token=<?php echo $csrfToken; ?>" onclick="return confirm('Permanently delete this comment?');" style="color: var(--wp-danger);">Delete Permanently</a>
+                                        <button type="submit" form="core-action-form" formmethod="POST" formnovalidate formaction="<?php echo htmlspecialchars(site_base_path(), ENT_QUOTES, 'UTF-8'); ?>/admin/comments/approve?id=<?php echo (int)$comment->id; ?>&status=trash" class="core-action-link" style="color: var(--wp-success);">Restore</button> |
+                                        <button type="submit" form="core-action-form" formmethod="POST" formnovalidate formaction="<?php echo htmlspecialchars(site_base_path(), ENT_QUOTES, 'UTF-8'); ?>/admin/comments/delete?id=<?php echo (int)$comment->id; ?>" class="core-action-link" onclick="return confirm('Permanently delete this comment?');" style="color: var(--wp-danger);">Delete Permanently</button>
                                     <?php else: ?>
-                                        <a href="/admin/comments/trash?id=<?php echo (int)$comment->id; ?>&_token=<?php echo $csrfToken; ?>" style="color: var(--wp-danger);">Trash</a>
+                                        <button type="submit" form="core-action-form" formmethod="POST" formnovalidate formaction="<?php echo htmlspecialchars(site_base_path(), ENT_QUOTES, 'UTF-8'); ?>/admin/comments/trash?id=<?php echo (int)$comment->id; ?>" class="core-action-link" style="color: var(--wp-danger);">Trash</button>
                                     <?php endif; ?>
                                 </div>
                             </td>
@@ -113,4 +113,6 @@ document.addEventListener('DOMContentLoaded', function() {
     initAdminMultiSelect('comments-bulk-form', { itemType: 'comment' });
 });
 </script>
+
+<?php $paginationBase = '/admin/comments'; include APP_ROOT . '/resources/views/admin/partials/pagination.php'; ?>
 

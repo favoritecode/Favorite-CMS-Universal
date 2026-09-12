@@ -109,13 +109,13 @@
                                             <a href="<?php echo htmlspecialchars($plugin['settings_url'], ENT_QUOTES, 'UTF-8'); ?>" style="color: var(--wp-blue); font-weight: 600;">Settings</a>
                                             <span style="color: #cbd5e1;"> | </span>
                                         <?php endif; ?>
-                                        <a href="/admin/plugins/deactivate?id=<?php echo urlencode($id); ?>" style="color: #b45309; font-weight: 500;">Deactivate</a>
+                                        <button type="submit" form="core-action-form" formmethod="POST" formnovalidate formaction="<?php echo htmlspecialchars(site_base_path(), ENT_QUOTES, 'UTF-8'); ?>/admin/plugins/deactivate?id=<?php echo urlencode($id); ?>" class="core-action-link" style="color: #b45309; font-weight: 500;">Deactivate</button>
                                     <?php else: ?>
                                         <?php if (!empty($plugin['valid']) && !empty($plugin['compatible'])): ?>
-                                            <a href="/admin/plugins/activate?id=<?php echo urlencode($id); ?>" style="color: var(--wp-blue); font-weight: 600;">Activate</a>
+                                            <button type="submit" form="core-action-form" formmethod="POST" formnovalidate formaction="<?php echo htmlspecialchars(site_base_path(), ENT_QUOTES, 'UTF-8'); ?>/admin/plugins/activate?id=<?php echo urlencode($id); ?>" class="core-action-link" style="color: var(--wp-blue); font-weight: 600;">Activate</button>
                                             <span style="color: #cbd5e1;"> | </span>
                                         <?php endif; ?>
-                                        <a href="/admin/plugins/delete?id=<?php echo urlencode($id); ?>" onclick="return confirm('Are you sure you want to permanently delete this plugin? This action cannot be undone.');" style="color: var(--wp-danger); font-weight: 500;">Delete</a>
+                                        <button type="submit" form="core-action-form" formmethod="POST" formnovalidate formaction="<?php echo htmlspecialchars(site_base_path(), ENT_QUOTES, 'UTF-8'); ?>/admin/plugins/delete?id=<?php echo urlencode($id); ?>" class="core-action-link" onclick="return confirm('Are you sure you want to permanently delete this plugin? This action cannot be undone.');" style="color: var(--wp-danger); font-weight: 500;">Delete</button>
                                     <?php endif; ?>
                                 </div>
                             </td>

@@ -1,72 +1,87 @@
 <?php
 require __DIR__ . '/header.php';
 
-$currentPage = $currentPage ?? 1;
-$totalPages  = $totalPages ?? 1;
-$totalPosts  = $totalPosts ?? count($posts ?? []);
-$isHome      = $isHome ?? false;
+$posts       = is_array($posts ?? null) ? $posts : [];
+$currentPage = max(1, (int)($currentPage ?? 1));
+$totalPages  = max(1, (int)($totalPages ?? 1));
+$totalPosts  = (int)($totalPosts ?? count($posts));
+$isHome      = !empty($isHome);
+$isFirstPage = $currentPage === 1;
 
-$layoutService = new \FavoriteCMS\Themes\ThemeLayoutService(\FavoriteCMS\Core\Application::getInstance());
-$sections = $isHome ? $layoutService->getSections() : [];
+$enabledSections = [];
+if ($isHome) {
+    try {
+        $layoutService = new \FavoriteCMS\Themes\ThemeLayoutService(\FavoriteCMS\Core\Application::getInstance());
+        $enabledSections = array_values(array_filter($layoutService->getSections(), static fn(array $section): bool => !empty($section['enabled'])));
+    } catch (\Throwable) {
+        $enabledSections = [];
+    }
+}
+$enabledSectionIds = array_column($enabledSections, 'id');
+
+// Featured stories appear on the first page only, and the latest list never repeats them.
+$featuredPosts = ($isHome && $isFirstPage && in_array('featured-posts', $enabledSectionIds, true)) ? array_slice($posts, 0, 2) : [];
+$featuredIds   = array_map(static fn(object $post): int => (int)$post->id, $featuredPosts);
+$latestPosts   = array_values(array_filter($posts, static fn(object $post): bool => !in_array((int)$post->id, $featuredIds, true)));
+$heroVisible   = $isHome && $isFirstPage && in_array('hero', $enabledSectionIds, true);
 ?>
 
-<main class="main-content" role="main">
+<main class="site-main site-main--listing" id="main-content" tabindex="-1">
     <?php if (!empty($archiveTitle)): ?>
-        <!-- Archive Header -->
-        <header class="page-header-banner">
-            <div class="page-header-label">Browsing Archive</div>
-            <h1 class="page-header-title"><?php echo htmlspecialchars($archiveTitle, ENT_QUOTES, 'UTF-8'); ?></h1>
-            <?php if (!empty($archiveDescription)): ?>
-                <p class="page-header-desc"><?php echo htmlspecialchars($archiveDescription, ENT_QUOTES, 'UTF-8'); ?></p>
-            <?php endif; ?>
-        </header>
+        <?php fcd_partial('page-header', [
+            'eyebrow'     => 'Browsing Archive',
+            'title'       => $archiveTitle,
+            'description' => $archiveDescription ?? null,
+        ]); ?>
     <?php endif; ?>
 
-    <?php if ($isHome && !empty($sections)): ?>
-        <?php foreach ($sections as $section): ?>
-            <?php if (empty($section['enabled'])) continue; ?>
+    <?php if ($isHome && $enabledSections !== []): ?>
+        <?php if (!$heroVisible && empty($archiveTitle)): ?>
+            <?php if ($isFirstPage): ?>
+                <h1 class="visually-hidden"><?php echo fcd_e($siteTitle); ?></h1>
+            <?php else: ?>
+                <?php fcd_partial('page-header', [
+                    'eyebrow' => $siteTitle,
+                    'title'   => 'Latest Articles',
+                    'meta'    => 'Page ' . $currentPage . ' of ' . $totalPages,
+                ]); ?>
+            <?php endif; ?>
+        <?php endif; ?>
 
-            <?php if ($section['id'] === 'hero'): ?>
-                <!-- Homepage Welcome Hero -->
-                <section class="home-intro" aria-label="Welcome section">
-                    <span class="intro-badge">&#9679; Welcome</span>
-                    <h1 class="intro-title"><?php echo htmlspecialchars($siteTitle ?? 'Favorite CMS', ENT_QUOTES, 'UTF-8'); ?></h1>
-                    <p class="intro-tagline">
-                        <?php echo htmlspecialchars(!empty($siteTagline) ? $siteTagline : 'A fast, modern, and lightweight content management experience built for performance.', ENT_QUOTES, 'UTF-8'); ?>
-                    </p>
-                </section>
+        <?php foreach ($enabledSections as $section): ?>
+            <?php if ($section['id'] === 'hero' && $heroVisible): ?>
+                <?php fcd_partial('sections/hero', ['siteTitle' => $siteTitle, 'siteTagline' => $siteTagline]); ?>
             <?php elseif ($section['id'] === 'featured-posts'): ?>
-                <?php
-                // Display up to 2 featured posts if available
-                $featuredPosts = array_slice($posts ?? [], 0, 2);
-                if (!empty($featuredPosts)): ?>
-                    <section class="featured-section" aria-label="Featured Stories" style="margin-bottom: 2rem;">
-                        <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 1rem; color: var(--color-ink); display: flex; align-items: center; gap: 6px;">
-                            <span>⭐</span> Featured Stories
-                        </h3>
-                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.25rem;">
-                            <?php foreach ($featuredPosts as $fPost): ?>
-                                <div style="background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: 1.25rem; box-shadow: var(--shadow-xs);">
-                                    <h4 style="font-size: 1rem; font-weight: 700; margin-bottom: 0.5rem; line-height: 1.3;">
-                                        <a href="/post/<?php echo htmlspecialchars($fPost->slug, ENT_QUOTES, 'UTF-8'); ?>"><?php echo htmlspecialchars($fPost->title, ENT_QUOTES, 'UTF-8'); ?></a>
-                                    </h4>
-                                    <p style="font-size: 0.875rem; color: var(--color-muted); line-height: 1.5; margin-bottom: 0.75rem;">
-                                        <?php echo htmlspecialchars(mb_substr(strip_tags($fPost->content ?? ''), 0, 110)); ?>...
-                                    </p>
-                                    <a href="/post/<?php echo htmlspecialchars($fPost->slug, ENT_QUOTES, 'UTF-8'); ?>" style="font-size: 0.8125rem; font-weight: 600;">Read Story &rarr;</a>
-                                </div>
-                            <?php endforeach; ?>
-                        </div>
-                    </section>
-                <?php endif; ?>
+                <?php fcd_partial('sections/featured', ['posts' => $featuredPosts, 'headingLevel' => 3]); ?>
             <?php elseif ($section['id'] === 'latest-posts'): ?>
-                <!-- Posts Feed -->
-                <?php include __DIR__ . '/_posts_feed.php'; ?>
+                <?php fcd_partial('sections/latest', [
+                    'posts'        => $latestPosts,
+                    'currentPage'  => $currentPage,
+                    'totalPages'   => $totalPages,
+                    'hasAnyPosts'  => $totalPosts > 0,
+                    'showHeading'  => $isFirstPage,
+                    'headingLevel' => $isFirstPage ? 3 : 2,
+                    'eagerFirst'   => $featuredPosts === [] && !$heroVisible,
+                ]); ?>
             <?php endif; ?>
         <?php endforeach; ?>
+    <?php elseif ($isHome && empty($archiveTitle)): ?>
+        <?php // Every homepage section is disabled in the Customizer: nothing else is rendered (existing behavior). ?>
+        <h1 class="visually-hidden"><?php echo fcd_e($siteTitle); ?></h1>
     <?php else: ?>
-        <!-- Standard Archive / Single Feed -->
-        <?php include __DIR__ . '/_posts_feed.php'; ?>
+        <?php if (empty($archiveTitle)): ?>
+            <h1 class="visually-hidden"><?php echo fcd_e($siteTitle); ?></h1>
+        <?php endif; ?>
+        <?php fcd_partial('post-grid', [
+            'posts'      => $posts,
+            'eagerFirst' => true,
+            'emptyState' => [
+                'title'   => 'No Articles Published Yet',
+                'message' => 'Welcome to your new site! Once articles are published, they will automatically appear here.',
+                'actions' => !empty($_SESSION['auth_user_id']) ? [['label' => 'Write Your First Post', 'url' => '/admin/posts/new']] : [],
+            ],
+            'pagination' => ['currentPage' => $currentPage, 'totalPages' => $totalPages, 'label' => 'Posts pagination'],
+        ]); ?>
     <?php endif; ?>
 </main>
 

@@ -148,8 +148,10 @@ class PrimaryCurrencySettingTest extends TestCase
     public function testAdminSettingControllerUpdatesPrimaryCurrencySuccessfully(): void
     {
         $controller = new SettingController($this->app);
+        $_SESSION['_token'] = 'currency-settings-csrf';
 
         $request = new Request([], [
+            '_token'           => 'currency-settings-csrf',
             'site_name'        => 'Global Store',
             'site_url'         => 'http://example.com',
             'admin_email'      => 'admin@example.com',
@@ -166,8 +168,10 @@ class PrimaryCurrencySettingTest extends TestCase
     public function testAdminSettingControllerRejectsInvalidPrimaryCurrency(): void
     {
         $controller = new SettingController($this->app);
+        $_SESSION['_token'] = 'currency-settings-csrf';
 
         $request = new Request([], [
+            '_token'           => 'currency-settings-csrf',
             'site_name'        => 'Global Store',
             'primary_currency' => 'INVALID_CURRENCY',
         ], [], [], [], ['REQUEST_METHOD' => 'POST']);

@@ -59,17 +59,16 @@ class ImageWidget extends AbstractWidget
         $caption = htmlspecialchars((string)($settings['caption'] ?? ''), ENT_QUOTES, 'UTF-8');
         $link    = trim((string)($settings['link_url'] ?? ''));
 
-        $imgHtml = '<img src="' . htmlspecialchars($imageUrl, ENT_QUOTES, 'UTF-8') . '" alt="' . $alt . '" style="max-width: 100%; height: auto; border-radius: 4px; display: block;" loading="lazy">';
+        $imgHtml = '<img src="' . htmlspecialchars(site_path($imageUrl), ENT_QUOTES, 'UTF-8') . '" alt="' . $alt . '" class="widget-image" loading="lazy" decoding="async">';
 
         if ($link !== '') {
-            $imgHtml = '<a href="' . htmlspecialchars($link, ENT_QUOTES, 'UTF-8') . '">' . $imgHtml . '</a>';
+            $imgHtml = '<a href="' . htmlspecialchars(site_path($link), ENT_QUOTES, 'UTF-8') . '" class="widget-image-link">' . $imgHtml . '</a>';
         }
 
         if ($caption !== '') {
-            $imgHtml = '<figure class="widget-image-figure" style="margin: 0;">' . $imgHtml . '<figcaption style="font-size: 11px; color: #64748b; margin-top: 4px; text-align: center;">' . $caption . '</figcaption></figure>';
+            $imgHtml = '<figure class="widget-image-figure">' . $imgHtml . '<figcaption class="widget-image-caption">' . $caption . '</figcaption></figure>';
         }
 
         return $this->wrapOutput($imgHtml, $settings, $args);
     }
 }
-

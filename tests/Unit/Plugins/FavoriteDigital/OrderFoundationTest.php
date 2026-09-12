@@ -68,7 +68,7 @@ class OrderFoundationTest extends TestCase
 
         // Run migrations
         $migrator = new Migrator($this->sqliteDb);
-        $migrator->migrate(APP_ROOT . '/plugins/favorite-digital/database/migrations');
+        $migrator->migrate(test_plugin_directory('favorite-digital') . '/database/migrations');
 
         $this->app->singleton(Database::class, fn () => $this->sqliteDb);
 
@@ -892,7 +892,7 @@ class OrderFoundationTest extends TestCase
 
         $prefixedDb->registerPrefixableTables(FavoriteDigitalPlugin::TABLES);
         $migrator = new Migrator($prefixedDb);
-        $migrator->migrate(APP_ROOT . '/plugins/favorite-digital/database/migrations');
+        $migrator->migrate(test_plugin_directory('favorite-digital') . '/database/migrations');
 
         $prefixedProductRepo = new ProductRepository($prefixedDb);
         $prefixedOrderRepo   = new OrderRepository($prefixedDb);
@@ -942,7 +942,7 @@ class OrderFoundationTest extends TestCase
 
             $mysqlDb->registerPrefixableTables(FavoriteDigitalPlugin::TABLES);
             $mysqlMigrator = new Migrator($mysqlDb);
-            $mysqlMigrator->migrate(APP_ROOT . '/plugins/favorite-digital/database/migrations');
+            $mysqlMigrator->migrate(test_plugin_directory('favorite-digital') . '/database/migrations');
 
             $mysqlProductRepo = new ProductRepository($mysqlDb);
             $mysqlOrderRepo   = new OrderRepository($mysqlDb);

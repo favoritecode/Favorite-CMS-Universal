@@ -118,7 +118,7 @@ class FavoriteDigitalV101RegressionTest extends TestCase
 
         // Run all migrations (including 016)
         $migrator = new Migrator($this->sqliteDb);
-        $migrator->migrate(APP_ROOT . '/plugins/favorite-digital/database/migrations');
+        $migrator->migrate(test_plugin_directory('favorite-digital') . '/database/migrations');
 
         $this->app->singleton(Database::class, fn () => $this->sqliteDb);
 

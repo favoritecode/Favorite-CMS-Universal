@@ -12,6 +12,7 @@
     # Block access to specific directories' PHP files
     RewriteRule ^uploads/.*\.php$ - [F,NC]
     RewriteRule ^assets/.*\.php$ - [F,NC]
+    RewriteRule ^(themes|plugins)/.*\.(php[0-9]?|phtml|phar|inc)$ - [F,NC]
 
     # Send Requests To Front Controller
     RewriteCond %{REQUEST_FILENAME} !-d

@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace FavoriteCMS\Widgets\Core;
 
 use FavoriteCMS\Models\Comment;
-use FavoriteCMS\Models\Post;
 use FavoriteCMS\Widgets\AbstractWidget;
 
 class RecentCommentsWidget extends AbstractWidget
@@ -38,7 +37,8 @@ class RecentCommentsWidget extends AbstractWidget
         $limit    = max(1, min(20, (int)($settings['limit'] ?? 5)));
 
         try {
-            $comments = Comment::all(['status' => 'approved'], 'created_at DESC', $limit);
+            // One bounded query that already includes the parent post slug and title
+            $comments = Comment::recentApproved($limit);
         } catch (\Throwable) {
             $comments = [];
         }
@@ -49,14 +49,13 @@ class RecentCommentsWidget extends AbstractWidget
 
         $html = '<ul class="widget-list widget-recent-comments">';
         foreach ($comments as $c) {
-            $author = htmlspecialchars($c->author_name ?: 'Reader', ENT_QUOTES, 'UTF-8');
-            $post = Post::find($c->post_id);
-            $postTitle = $post ? htmlspecialchars($post->title, ENT_QUOTES, 'UTF-8') : 'an article';
-            $postUrl = $post ? '/post/' . htmlspecialchars($post->slug, ENT_QUOTES, 'UTF-8') . '#comment-' . $c->id : '#';
+            $author    = htmlspecialchars((string)($c->author_name ?: 'Reader'), ENT_QUOTES, 'UTF-8');
+            $postTitle = htmlspecialchars((string)($c->post_title ?: 'an article'), ENT_QUOTES, 'UTF-8');
+            $postUrl   = htmlspecialchars(site_path('/post/' . $c->post_slug) . '#comment-' . (int)$c->id, ENT_QUOTES, 'UTF-8');
 
-            $html .= '<li style="margin-bottom: 8px; font-size: 13px; line-height: 1.4;">' .
-                     '<strong>' . $author . '</strong> on ' .
-                     '<a href="' . $postUrl . '" style="text-decoration: none; color: inherit; font-weight: 500;">' . $postTitle . '</a>' .
+            $html .= '<li class="widget-recent-comments__item">' .
+                     '<strong class="widget-recent-comments__author">' . $author . '</strong> on ' .
+                     '<a href="' . $postUrl . '" class="widget-recent-comments__link">' . $postTitle . '</a>' .
                      '</li>';
         }
         $html .= '</ul>';
@@ -64,4 +63,3 @@ class RecentCommentsWidget extends AbstractWidget
         return $this->wrapOutput($html, $settings, $args);
     }
 }
-

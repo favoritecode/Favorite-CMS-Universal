@@ -90,7 +90,7 @@ class PostController
         }
 
         $categories = Taxonomy::getByTaxonomy('category');
-        $mediaItems = Media::all();
+        $mediaItems = Media::filtered('all', '', MediaController::PICKER_BATCH);
 
         $viewData = [
             'pageTitle'    => 'Add New Post',
@@ -100,6 +100,8 @@ class PostController
             'selectedCats' => [],
             'tagsString'   => '',
             'mediaItems'   => $mediaItems,
+            'mediaTotal'   => Media::countFiltered(),
+            'mediaBatchSize' => MediaController::PICKER_BATCH,
             'seo'          => null,
             'currentUser'  => $currentUser,
             'contentView'  => APP_ROOT . '/resources/views/admin/posts/edit.php',
@@ -215,7 +217,8 @@ class PostController
         }
 
         $categories = Taxonomy::getByTaxonomy('category');
-        $mediaItems = Media::all();
+        $mediaItems = Media::filtered('all', '', MediaController::PICKER_BATCH);
+        $mediaTotal = Media::countFiltered();
         $seo = $post->getSeoMeta();
 
         $selectedCats = array_map(fn($c) => (int)$c->id, $post->getTaxonomies('category'));
@@ -230,6 +233,8 @@ class PostController
             'selectedCats' => $selectedCats,
             'tagsString'   => $tagsString,
             'mediaItems'   => $mediaItems,
+            'mediaTotal'   => $mediaTotal,
+            'mediaBatchSize' => MediaController::PICKER_BATCH,
             'seo'          => $seo,
             'currentUser'  => $currentUser,
             'contentView'  => APP_ROOT . '/resources/views/admin/posts/edit.php',

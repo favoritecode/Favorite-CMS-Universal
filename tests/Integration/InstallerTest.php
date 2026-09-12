@@ -100,19 +100,17 @@ class InstallerTest extends TestCase
         $html = $ref->getValue($response);
 
         $this->assertStringContainsString('Favorite CMS', $html);
-        $this->assertStringContainsString('name="site_name"', $html);
-        $this->assertStringContainsString('name="admin_username"', $html);
-        $this->assertStringContainsString('name="admin_password"', $html);
-        $this->assertStringContainsString('name="admin_password_confirm"', $html);
-        $this->assertStringContainsString('name="admin_email"', $html);
+        $this->assertStringContainsString('id="database-prepare-form"', $html);
+        $this->assertStringContainsString('value="prepare_database"', $html);
+        $this->assertStringNotContainsString('name="site_name"', $html);
+        $this->assertStringNotContainsString('name="admin_password"', $html);
         $this->assertStringContainsString('Install Favorite CMS', $html);
         $this->assertStringContainsString('id="step-requirements"', $html);
         $this->assertStringContainsString('System requirements', $html);
-        $this->assertStringContainsString('id="step-database"', $html);
-        $this->assertStringContainsString('Database connection', $html);
-        $this->assertStringContainsString('id="step-restore"', $html);
-        $this->assertStringContainsString('name="backup_file"', $html);
-        $this->assertStringContainsString('Test Database Connection', $html);
+        $this->assertStringNotContainsString('id="step-database"', $html);
+        $this->assertStringContainsString('name="setup_mode" value="environment"', $html);
+        $this->assertStringContainsString('?mode=restore', $html);
+        $this->assertStringNotContainsString('name="db_username"', $html);
     }
 
     public function testValidationFailsWhenFieldsAreEmpty(): void

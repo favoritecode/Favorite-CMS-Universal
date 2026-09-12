@@ -115,6 +115,19 @@ class Kernel
         $path   = $request->path();
         $method = $request->method();
 
+        if (!empty($_SESSION['auth_user_id'])) {
+            $sessionUser = User::find((int)$_SESSION['auth_user_id']);
+            if ($sessionUser && (int)($_SESSION['auth_version'] ?? 0) !== (int)($sessionUser->auth_version ?? 0)) {
+                $_SESSION = [];
+                (new InstallerSession(new UrlResolver()))->regenerate();
+                return Response::redirect('/admin/login');
+            }
+        }
+
+        if (in_array($path, ['/forgot-password', '/reset-password'], true)) {
+            return $this->passwordRecovery($request, $path === '/reset-password');
+        }
+
         // Immediately invalidate session if authenticated user was banned
         if (!empty($_SESSION['auth_user_id'])) {
             $checkUser = User::find((int)$_SESSION['auth_user_id']);
@@ -298,6 +311,19 @@ class Kernel
         }
 
         // Module 1: Dashboard
+        $mutation = preg_match('#^/admin/(posts|pages|taxonomies|media|comments|users|menus|themes|widgets|customize|plugins|settings|seo|tools|updates)/(?:.*/)?(store|update|approve|reject|trash|restore|delete|bulk|quick-draft|unapprove|spam|create|add|location|activate|deactivate|upload|upload-ajax|reorder|move|duplicate|reset|save|delete-account|apply|rollback|cancel-upload|process|blogger)$#', $path) === 1
+            || in_array($path, ['/admin/users/status', '/admin/users/role'], true);
+        if ($mutation && $method !== 'POST') {
+            return Response::make('Method not allowed.', 405)->header('Allow', 'POST');
+        }
+        if ($method !== 'GET' && $method !== 'HEAD') {
+            $submitted = $request->post('_token', '');
+            $stored = $_SESSION['_token'] ?? '';
+            if (!is_string($submitted) || !is_string($stored) || $stored === '' || !hash_equals($stored, $submitted)) {
+                return Response::make('Invalid security token.', 403);
+            }
+        }
+
         if ($path === '/admin' || $path === '/admin/') {
             return (new DashboardController($this->app))->index($request);
         }
@@ -366,6 +392,7 @@ class Kernel
                 '/admin/media/upload'       => $ctrl->upload($request),
                 '/admin/media/upload-ajax'  => $ctrl->uploadAjax($request),
                 '/admin/media/capabilities' => $ctrl->capabilities($request),
+                '/admin/media/library'      => $ctrl->library($request),
                 '/admin/media/update'       => $ctrl->update($request),
                 '/admin/media/delete'       => $ctrl->delete($request),
                 default                     => Response::redirect('/admin/media'),
@@ -657,6 +684,13 @@ class Kernel
             return $this->showLogin($request, 'Please enter both your username/email and password.');
         }
 
+        $limiter = new \FavoriteCMS\Services\AuthRateLimiter();
+        $ip = (string)($request->server()['REMOTE_ADDR'] ?? 'unknown');
+        if (!$limiter->allow('login-ip:' . $ip, 300)
+            || !$limiter->allow('login:' . $ip . ':' . strtolower($login), 30)) {
+            return $this->showLogin($request, 'Too many login attempts. Please try again in 15 minutes.');
+        }
+
         try {
             $db = $this->app->make(Database::class);
             $user = $db->selectOne(
@@ -680,6 +714,8 @@ class Kernel
                 return $this->showLogin($request, 'Your email address is not yet verified. Please check your inbox or resend verification link.');
             }
 
+            (new InstallerSession(new UrlResolver()))->regenerate();
+            $_SESSION['auth_version']    = (int)($user->auth_version ?? 0);
             $_SESSION['auth_user_id']    = $user->id;
             $_SESSION['auth_user_name']  = $user->name ?? $user->username ?? 'User';
             $_SESSION['auth_user_email'] = $user->email;
@@ -694,7 +730,7 @@ class Kernel
             return Response::redirect($this->requestedRedirect($request) ?? '/admin');
 
         } catch (\Throwable $e) {
-            return $this->showLogin($request, 'Authentication error: ' . $e->getMessage());
+            return $this->showLogin($request, 'Authentication is temporarily unavailable. Please try again later.');
         }
     }
 
@@ -812,6 +848,8 @@ class Kernel
             }
 
             // Automatically authenticate user if email verification is not required
+            (new InstallerSession(new UrlResolver()))->regenerate();
+            $_SESSION['auth_version']    = 0;
             $_SESSION['auth_user_id']    = $userId;
             $_SESSION['auth_user_name']  = $name !== '' ? $name : $username;
             $_SESSION['auth_user_email'] = $email;
@@ -820,7 +858,7 @@ class Kernel
             return Response::redirect($this->requestedRedirect($request) ?? '/admin');
 
         } catch (\Throwable $e) {
-            return $this->showRegister($request, 'Registration error: ' . $e->getMessage(), $old);
+            return $this->showRegister($request, 'Registration is temporarily unavailable. Please try again later.', $old);
         }
     }
 
@@ -832,11 +870,81 @@ class Kernel
         return SafeRedirect::localPath($request->post('redirect', $request->get('redirect')));
     }
 
+    protected function passwordRecovery(Request $request, bool $reset): Response
+    {
+        $error = '';
+        $notice = '';
+        if (!in_array($request->method(), ['GET', 'POST'], true)) {
+            return Response::make('Method not allowed.', 405)->header('Allow', 'GET, POST');
+        }
+        if ($request->method() === 'POST') {
+            $submitted = $request->post('_token', '');
+            $stored = $_SESSION['_token'] ?? '';
+            if (!is_string($submitted) || !is_string($stored) || $stored === '' || !hash_equals($stored, $submitted)) {
+                $error = 'Invalid security token. Please try again.';
+            } else {
+                try {
+                    $service = new \FavoriteCMS\Services\PasswordResetService($this->app->make(Database::class));
+                    $limiter = new \FavoriteCMS\Services\AuthRateLimiter();
+                    $ip = (string)($request->server()['REMOTE_ADDR'] ?? 'unknown');
+                    if ($reset) {
+                        $raw = $request->post('reset_token', $_SESSION['_password_reset_token'] ?? '');
+                        $raw = is_string($raw) ? $raw : '';
+                        if (preg_match('/^[a-f0-9]{64}$/D', $raw)) {
+                            $_SESSION['_password_reset_token'] = $raw;
+                        }
+                        $password = (string)$request->post('password', '');
+                        if ($password !== (string)$request->post('password_confirm', '') || strlen($password) < 10
+                            || strlen($password) > 72 || !preg_match('/[A-Za-z]/', $password) || !preg_match('/[0-9]/', $password)) {
+                            $error = 'Use 10–72 characters including a letter and a number, and enter the same password twice.';
+                        } elseif (!$limiter->allow('reset:' . $ip, 30) || !$service->reset($raw, $password)) {
+                            unset($_SESSION['_password_reset_token']);
+                            $error = 'This reset link is invalid or expired, or too many attempts were made. Please request a new link.';
+                        } else {
+                            $_SESSION = ['login_flash' => 'Your password has been reset. Please log in.'];
+                            (new InstallerSession(new UrlResolver()))->regenerate();
+                            return Response::redirect('/admin/login')->header('Cache-Control', 'no-store')->header('Referrer-Policy', 'no-referrer');
+                        }
+                    } else {
+                        $email = strtolower(trim((string)$request->post('email', '')));
+                        $notice = 'If that address belongs to an eligible account, a password reset link will be sent. Please check your inbox.';
+                        if ($limiter->allow('recovery-ip:' . $ip, 30) && $limiter->allow('recovery-email:' . $email, 3, 3600)) {
+                            $service->request($email);
+                        }
+                    }
+                } catch (\Throwable) {
+                    if ($reset) {
+                        $error = 'Password reset is temporarily unavailable. Please try again later.';
+                    } else {
+                        $notice = 'If that address belongs to an eligible account, a password reset link will be sent. Please check your inbox.';
+                    }
+                }
+            }
+        }
+        return $this->renderAuthPage($request, 'password-recovery', [
+            'token' => csrf_token(), 'reset' => $reset, 'error' => $error, 'notice' => $notice,
+        ])->header('Cache-Control', 'no-store')->header('Referrer-Policy', 'no-referrer')->header('X-Robots-Tag', 'noindex, nofollow');
+    }
+
     protected function processLogout(Request $request): Response
     {
+        if ($request->method() === 'GET') {
+            return $this->renderAuthPage($request, 'logout', ['token' => csrf_token(),
+                'logoutAction' => $request->path(), 'redirect' => SafeRedirect::localPath($request->get('redirect'))])
+                ->header('Cache-Control', 'no-store');
+        }
+        if ($request->method() !== 'POST') {
+            return Response::make('Method not allowed.', 405)->header('Allow', 'GET, POST');
+        }
+        $token = $request->post('_token', '');
+        if (!is_string($token) || empty($_SESSION['_token']) || !hash_equals($_SESSION['_token'], $token)) {
+            return Response::make('Invalid security token.', 403);
+        }
+        unset($_SESSION['auth_version'], $_SESSION['auth_user_role'], $_SESSION['_maintenance_bypass_token']);
         unset($_SESSION['auth_user_id'], $_SESSION['auth_user_name'], $_SESSION['auth_user_email']);
+        (new InstallerSession(new UrlResolver()))->regenerate();
         $_SESSION['login_flash'] = 'You have been successfully logged out.';
-        $redirect = SafeRedirect::localPath($request->get('redirect'));
+        $redirect = SafeRedirect::localPath($request->input('redirect'));
         if ($redirect !== null) {
             return Response::redirect($redirect);
         }
@@ -991,6 +1099,11 @@ class Kernel
     {
         // Prevent directory traversal
         if (str_contains($path, '..')) {
+            return null;
+        }
+
+        // Never expose server-side source code or hidden files from theme/plugin directories
+        if (preg_match('#(^|/)\.#', $path) === 1 || preg_match('/\.(php\d?|phtml|phar|inc)$/i', $path) === 1) {
             return null;
         }
 

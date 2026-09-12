@@ -29,22 +29,39 @@ class TaxonomyController
         return $this->renderTaxonomy($request, 'tag', 'Tags', 'tags');
     }
 
+    /** Terms shown per list page. */
+    protected const PER_PAGE = 12;
+
     protected function renderTaxonomy(Request $request, string $taxonomyType, string $title, string $activeMenu): Response
     {
         $db = $this->app->make(Database::class);
-        $items = Taxonomy::getByTaxonomy($taxonomyType);
 
-        // Update post counts for accuracy
-        foreach ($items as $item) {
-            $item->updatePostCount();
+        $totalItems  = (int)($db->selectOne("SELECT COUNT(*) AS cnt FROM `taxonomies` WHERE `taxonomy` = ?", [$taxonomyType])->cnt ?? 0);
+        $totalPages  = max(1, (int)ceil($totalItems / self::PER_PAGE));
+        $currentPage = min(max(1, (int)$request->get('p', 1)), $totalPages);
+        $pageSql     = "SELECT * FROM `taxonomies` WHERE `taxonomy` = ? ORDER BY `id` ASC LIMIT ? OFFSET ?";
+        $pageParams  = [$taxonomyType, self::PER_PAGE, ($currentPage - 1) * self::PER_PAGE];
+
+        // Update post counts for accuracy (only for the displayed, bounded page of terms)
+        foreach ($db->select($pageSql, $pageParams) as $row) {
+            (new Taxonomy((array)$row))->updatePostCount();
         }
-        $items = Taxonomy::getByTaxonomy($taxonomyType);
+        $items = array_map(fn($row) => new Taxonomy((array)$row), $db->select($pageSql, $pageParams));
+
+        // Lightweight parent options (id and name only) for the "Parent Category" selector
+        $parentOptions = $taxonomyType === 'category'
+            ? array_map(fn($row) => new Taxonomy((array)$row), $db->select("SELECT `id`, `name` FROM `taxonomies` WHERE `taxonomy` = 'category' ORDER BY `name` ASC"))
+            : [];
 
         $viewData = [
             'pageTitle'    => $title,
             'activeMenu'   => $activeMenu,
             'taxonomyType' => $taxonomyType,
             'items'        => $items,
+            'parentOptions' => $parentOptions,
+            'currentPage'  => $currentPage,
+            'totalPages'   => $totalPages,
+            'totalItems'   => $totalItems,
             'contentView'  => APP_ROOT . '/resources/views/admin/taxonomies/index.php',
         ];
 

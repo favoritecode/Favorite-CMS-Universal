@@ -89,7 +89,7 @@ class FulfillmentEntitlementIntegrationTest extends TestCase
 
         // Run migrations
         $migrator = new Migrator($this->sqliteDb);
-        $migrator->migrate(APP_ROOT . '/plugins/favorite-digital/database/migrations');
+        $migrator->migrate(test_plugin_directory('favorite-digital') . '/database/migrations');
 
         $this->app->singleton(Database::class, fn () => $this->sqliteDb);
 
@@ -1175,7 +1175,7 @@ class FulfillmentEntitlementIntegrationTest extends TestCase
 
         $prefixDb->registerPrefixableTables(FavoriteDigitalPlugin::TABLES);
         $migrator = new Migrator($prefixDb);
-        $migrator->migrate(APP_ROOT . '/plugins/favorite-digital/database/migrations');
+        $migrator->migrate(test_plugin_directory('favorite-digital') . '/database/migrations');
 
         $repo = new EntitlementRepository($prefixDb);
         $entId = $repo->createEntitlement([

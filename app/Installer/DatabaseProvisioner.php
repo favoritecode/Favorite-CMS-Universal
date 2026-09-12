@@ -25,57 +25,92 @@ class DatabaseProvisioner
     {
         $detected = [];
 
-        // Check common hosting environment variables
-        $host = getenv('DB_HOST') ?: ($_ENV['DB_HOST'] ?? ($_SERVER['DB_HOST'] ?? ''));
-        if ($host !== '') {
-            $detected['host'] = (string)$host;
-        }
-
-        $port = getenv('DB_PORT') ?: ($_ENV['DB_PORT'] ?? ($_SERVER['DB_PORT'] ?? ''));
-        if ($port !== '') {
-            $detected['port'] = (string)$port;
-        }
-
-        $database = getenv('DB_DATABASE') ?: ($_ENV['DB_DATABASE'] ?? ($_SERVER['DB_DATABASE'] ?? (getenv('MYSQL_DATABASE') ?: '')));
-        if ($database !== '') {
-            $detected['database'] = (string)$database;
-        }
-
-        $username = getenv('DB_USERNAME') ?: ($_ENV['DB_USERNAME'] ?? ($_SERVER['DB_USERNAME'] ?? (getenv('MYSQL_USER') ?: '')));
-        if ($username !== '') {
-            $detected['username'] = (string)$username;
-        }
-
-        $password = getenv('DB_PASSWORD') ?: ($_ENV['DB_PASSWORD'] ?? ($_SERVER['DB_PASSWORD'] ?? ''));
-        if ($password !== '') {
-            $detected['password'] = (string)$password;
-        }
-
-        // Check standard 12-factor DATABASE_URL if present (overrides individual components)
-        $dbUrl = getenv('DATABASE_URL') ?: ($_ENV['DATABASE_URL'] ?? ($_SERVER['DATABASE_URL'] ?? ''));
-        if (is_string($dbUrl) && $dbUrl !== '' && str_starts_with($dbUrl, 'mysql://')) {
-            $parts = parse_url($dbUrl);
-            if ($parts !== false) {
-                if (!empty($parts['host'])) {
-                    $detected['host'] = $parts['host'];
+        // Preserve explicitly empty passwords; absence is not a passwordless account.
+        foreach ([
+            'host' => ['DB_HOST', 'MYSQL_HOST'],
+            'port' => ['DB_PORT', 'MYSQL_PORT'],
+            'database' => ['DB_DATABASE', 'MYSQL_DATABASE'],
+            'username' => ['DB_USERNAME', 'MYSQL_USER'],
+            'password' => ['DB_PASSWORD', 'MYSQL_PASSWORD'],
+            'prefix' => ['DB_PREFIX'],
+        ] as $key => $names) {
+            foreach ($names as $name) {
+                $value = $this->environmentValue($name);
+                if ($value !== null) {
+                    $detected[$key] = $value;
+                    break;
                 }
-                if (!empty($parts['port'])) {
-                    $detected['port'] = (string)$parts['port'];
-                }
-                if (!empty($parts['user'])) {
-                    $detected['username'] = urldecode($parts['user']);
-                }
-                if (isset($parts['pass'])) {
-                    $detected['password'] = urldecode($parts['pass']);
-                }
-                if (!empty($parts['path'])) {
-                    $detected['database'] = ltrim($parts['path'], '/');
+            }
+        }
+
+        $url = $this->environmentValue('DATABASE_URL');
+        if ($url !== null && $url !== '') {
+            try {
+                $parts = parse_url($url);
+            } catch (\ValueError) {
+                return [];
+            }
+            if ($parts === false || ($parts['scheme'] ?? '') !== 'mysql') {
+                return [];
+            }
+            // A URL is a complete source: never mix it with credentials for another server.
+            $detected = array_intersect_key($detected, ['prefix' => true]);
+            foreach (['host' => 'host', 'port' => 'port', 'user' => 'username', 'pass' => 'password', 'path' => 'database'] as $part => $key) {
+                if (isset($parts[$part])) {
+                    $detected[$key] = rawurldecode($part === 'path' ? ltrim($parts[$part], '/') : (string)$parts[$part]);
                 }
             }
         }
 
         return $detected;
     }
+
+    protected function environmentValue(string $key): ?string
+    {
+        $value = getenv($key);
+        if ($value === false) {
+            $value = $_ENV[$key] ?? $_SERVER[$key] ?? null;
+        }
+        return is_string($value) ? $value : null;
+    }
+
+    /** Resolve only operator-supplied configuration; no default account or guessed password. */
+    public function configureAutomatically(string $prefix): array
+    {
+        $unavailable = ['ok' => false, 'manual_required' => true,
+            'message' => 'This hosting environment does not provide usable automatic database setup. Use Advanced Database Setup with the credentials from your hosting control panel.'];
+        $supplied = $this->detectEnvironmentCredentials();
+        foreach (['host', 'database', 'username', 'password'] as $key) {
+            if (!array_key_exists($key, $supplied)) {
+                return $unavailable;
+            }
+        }
+        $config = $supplied + ['driver' => 'mysql', 'port' => '3306', 'prefix' => $prefix,
+            'charset' => 'utf8mb4', 'collation' => 'utf8mb4_unicode_ci'];
+        if ($this->validate($config) !== []) {
+            return $unavailable;
+        }
+        try {
+            $this->testConnection($config);
+            return ['ok' => true, 'config' => $config];
+        } catch (Throwable $e) {
+            // Only an explicitly missing database is eligible for creation.
+            // Core Database currently wraps PDO errors without retaining the previous exception.
+            $missing = false;
+            do {
+                if (($e instanceof \PDOException && (int)($e->errorInfo[1] ?? $e->getCode()) === 1049)
+                    || preg_match('/SQLSTATE\[[A-Z0-9]+\] \[1049\]/', $e->getMessage()) === 1) {
+                    $missing = true;
+                }
+            } while ($e = $e->getPrevious());
+            if (!$missing) {
+                return $unavailable;
+            }
+        }
+        $result = $this->createAutomatically($config, $config['username'], $config['password']);
+        return $result['ok'] ? ['ok' => true, 'config' => $result['config']] : $unavailable;
+    }
+
 
     public function defaultConfig(): array
     {
@@ -216,6 +251,9 @@ class DatabaseProvisioner
         try {
             $pdo = $this->connectServer($serverConfig);
             $database = (string)$serverConfig['database'];
+            if (!$this->canCreateDatabase($pdo, $database)) {
+                return ['ok' => false, 'manual_required' => true, 'message' => 'Database creation permission could not be verified. Please create the database in your hosting control panel.'];
+            }
             $pdo->exec('CREATE DATABASE IF NOT EXISTS ' . $this->quoteIdentifier($database) . ' CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci');
 
             if ($targetUsername !== '' && $targetUsername !== (string)$serverConfig['username']) {
@@ -237,9 +275,30 @@ class DatabaseProvisioner
                 'ok' => false,
                 'message' => $this->formatDatabaseError($e, $serverConfig),
                 'manual_required' => true,
-                'diagnostic' => $e->getMessage(),
             ];
         }
+    }
+
+    /** Fail closed for indirect/role grants that cannot be verified here. */
+    protected function canCreateDatabase(PDO $pdo, string $database): bool
+    {
+        $allowed = false;
+        foreach ($pdo->query('SHOW GRANTS FOR CURRENT_USER')->fetchAll(PDO::FETCH_COLUMN) as $grant) {
+            // MySQL partial revokes can restrict an otherwise global privilege.
+            if (str_starts_with($grant, 'REVOKE ')) {
+                return false;
+            }
+            if (!preg_match('/^GRANT (.+) ON (\*|`[^`]+`)\.\* TO /', $grant, $match)) {
+                continue;
+            }
+            $scope = str_replace(['`', '\\_','\\%'], ['', '_', '%'], $match[2]);
+            $privileges = explode(', ', $match[1]);
+            if (($scope === '*' || $scope === $database)
+                && (in_array('ALL PRIVILEGES', $privileges, true) || in_array('CREATE', $privileges, true))) {
+                $allowed = true;
+            }
+        }
+        return $allowed;
     }
 
     public function writeEnv(array $dbConfig, string $siteUrl): void

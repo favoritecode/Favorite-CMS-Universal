@@ -155,3 +155,5 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 
+<?php $paginationBase = '/admin/users'; include APP_ROOT . '/resources/views/admin/partials/pagination.php'; ?>
+

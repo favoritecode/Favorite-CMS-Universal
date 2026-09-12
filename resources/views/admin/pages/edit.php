@@ -139,7 +139,7 @@ $pageId = (int)($page->id ?? 0);
                 </div>
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 16px;">
                     <?php if ($isEdit): ?>
-                        <a href="/admin/pages/trash?id=<?php echo $pageId; ?>" style="color: var(--wp-danger); font-size: 12px;" onclick="return confirm('Move this page to trash?');">Move to Trash</a>
+                        <button type="submit" form="core-action-form" formmethod="POST" formnovalidate formaction="<?php echo htmlspecialchars(site_base_path(), ENT_QUOTES, 'UTF-8'); ?>/admin/pages/trash?id=<?php echo $pageId; ?>" class="core-action-link" style="color: var(--wp-danger); font-size: 12px;" onclick="return confirm('Move this page to trash?');">Move to Trash</button>
                     <?php else: ?>
                         <span></span>
                     <?php endif; ?>
@@ -176,14 +176,24 @@ $pageId = (int)($page->id ?? 0);
             <div class="form-card">
                 <h3 style="font-size: 14px; font-weight: 600; margin-bottom: 10px;">Featured Image</h3>
                 <div class="form-group">
-                    <select name="featured_image_id" class="form-control">
+                    <select name="featured_image_id" id="page-featured-image" class="form-control">
                         <option value="0">&mdash; None &mdash;</option>
+                        <?php $listedMediaIds = []; ?>
                         <?php foreach ($mediaItems as $media): ?>
+                            <?php $listedMediaIds[(int)$media->id] = true; ?>
                             <option value="<?php echo (int)$media->id; ?>" <?php echo ($page?->featured_image_id == $media->id) ? 'selected' : ''; ?>>
                                 <?php echo htmlspecialchars($media->filename, ENT_QUOTES, 'UTF-8'); ?>
                             </option>
                         <?php endforeach; ?>
+                        <?php if (!empty($selectedMedia) && !isset($listedMediaIds[(int)$selectedMedia->id])): ?>
+                            <option value="<?php echo (int)$selectedMedia->id; ?>" selected>
+                                <?php echo htmlspecialchars($selectedMedia->filename, ENT_QUOTES, 'UTF-8'); ?>
+                            </option>
+                        <?php endif; ?>
                     </select>
+                    <?php if (count($mediaItems) < (int)($mediaTotal ?? 0)): ?>
+                        <button type="button" id="page-media-more-btn" class="btn btn-secondary" style="margin-top: 8px; font-size: 12px;" data-next-page="2">Load more media</button>
+                    <?php endif; ?>
                 </div>
             </div>
         </div>
@@ -191,6 +201,49 @@ $pageId = (int)($page->id ?? 0);
 </form>
 
 <script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Featured image options load in bounded batches instead of listing the entire media library at once
+    var moreBtn = document.getElementById('page-media-more-btn');
+    var featuredSelect = document.getElementById('page-featured-image');
+    if (!moreBtn || !featuredSelect) return;
+
+    moreBtn.addEventListener('click', function() {
+        var nextPage = parseInt(moreBtn.getAttribute('data-next-page') || '2', 10);
+        moreBtn.disabled = true;
+        moreBtn.textContent = 'Loading...';
+
+        var xhr = new XMLHttpRequest();
+        xhr.open('GET', '/admin/media/library?page=' + nextPage + '&per_page=<?php echo (int)($mediaBatchSize ?? 24); ?>', true);
+        xhr.onload = function() {
+            var res = null;
+            try { res = JSON.parse(xhr.responseText); } catch (e) {}
+            moreBtn.disabled = false;
+            if (xhr.status !== 200 || !res || !res.success) {
+                moreBtn.textContent = 'Retry loading media';
+                return;
+            }
+            res.items.forEach(function(m) {
+                if (featuredSelect.querySelector('option[value="' + m.id + '"]')) return;
+                var option = document.createElement('option');
+                option.value = m.id;
+                option.textContent = m.filename;
+                featuredSelect.appendChild(option);
+            });
+            if (res.has_more) {
+                moreBtn.setAttribute('data-next-page', String(res.page + 1));
+                moreBtn.textContent = 'Load more media';
+            } else {
+                moreBtn.parentNode.removeChild(moreBtn);
+            }
+        };
+        xhr.onerror = function() {
+            moreBtn.disabled = false;
+            moreBtn.textContent = 'Retry loading media';
+        };
+        xhr.send();
+    });
+});
+
 document.addEventListener('DOMContentLoaded', function() {
     var titleIn     = document.getElementById('page-title');
     var slugIn      = document.getElementById('page-slug');

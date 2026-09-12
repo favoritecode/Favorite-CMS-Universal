@@ -316,18 +316,18 @@ $postId = (int)($post->id ?? 0);
 
                 <?php if ($isEdit && $post?->status === 'pending' && $currentUser && $currentUser->canModeratePosts()): ?>
                     <div style="display: flex; gap: 8px; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--wp-border);">
-                        <a href="/admin/posts/approve?id=<?php echo $postId; ?>" class="btn btn-primary" style="flex: 1; text-align: center; background: #00a32a; border-color: #00a32a; font-weight: 600;">&#10003; Approve Post</a>
-                        <a href="/admin/posts/reject?id=<?php echo $postId; ?>" class="btn btn-secondary" style="color: #d63638; font-weight: 600;">&#10007; Reject</a>
+                        <button type="submit" form="core-action-form" formmethod="POST" formnovalidate formaction="<?php echo htmlspecialchars(site_base_path(), ENT_QUOTES, 'UTF-8'); ?>/admin/posts/approve?id=<?php echo $postId; ?>" class="btn btn-primary" style="flex: 1; text-align: center; background: #00a32a; border-color: #00a32a; font-weight: 600;">&#10003; Approve Post</button>
+                        <button type="submit" form="core-action-form" formmethod="POST" formnovalidate formaction="<?php echo htmlspecialchars(site_base_path(), ENT_QUOTES, 'UTF-8'); ?>/admin/posts/reject?id=<?php echo $postId; ?>" class="btn btn-secondary" style="color: #d63638; font-weight: 600;">&#10007; Reject</button>
                     </div>
                 <?php endif; ?>
 
                 <?php if ($isEdit): ?>
                     <div style="margin-top: 14px; text-align: right;">
-                        <a href="/admin/posts/trash?id=<?php echo $postId; ?>" 
+                        <button type="submit" form="core-action-form" formmethod="POST" formnovalidate formaction="<?php echo htmlspecialchars(site_base_path(), ENT_QUOTES, 'UTF-8'); ?>/admin/posts/trash?id=<?php echo $postId; ?>" class="core-action-link"
                             onclick="return confirm('Move this post to trash?');" 
                             style="color: var(--wp-danger); font-size: 12px;">
                             Move to Trash
-                        </a>
+                        </button>
                     </div>
                 <?php endif; ?>
             </div>
@@ -473,6 +473,15 @@ $postId = (int)($post->id ?? 0);
                             <div class="card-name"><?php echo htmlspecialchars($m->filename, ENT_QUOTES, 'UTF-8'); ?></div>
                         </div>
                     <?php endforeach; ?>
+                </div>
+
+                <div id="modal-media-more-wrap" style="text-align: center; margin-top: 14px;">
+                    <button type="button" id="modal-media-more-btn" class="btn btn-secondary" style="font-size: 12px;<?php echo count($mediaItems ?? []) < (int)($mediaTotal ?? 0) ? '' : ' display: none;'; ?>">Load more media</button>
+                    <div id="modal-media-status" style="font-size: 12px; color: var(--wp-text-muted); margin-top: 6px;">
+                        <?php if ((int)($mediaTotal ?? 0) > 0): ?>
+                            Showing <?php echo count($mediaItems ?? []); ?> of <?php echo (int)$mediaTotal; ?>
+                        <?php endif; ?>
+                    </div>
                 </div>
             </div>
 
@@ -1138,30 +1147,113 @@ document.addEventListener('DOMContentLoaded', function() {
     closeMediaModalBtn.addEventListener('click', closeMediaModal);
     cancelMediaBtn.addEventListener('click', closeMediaModal);
 
+    // Media library browsing: bounded batches from the server for filters, search and "Load more"
+    var mediaGrid     = document.getElementById('modal-media-grid');
+    var mediaMoreBtn  = document.getElementById('modal-media-more-btn');
+    var mediaStatus   = document.getElementById('modal-media-status');
+    var mediaState    = {
+        page: 1,
+        perPage: <?php echo (int)($mediaBatchSize ?? 24); ?>,
+        category: 'all',
+        search: '',
+        hasMore: <?php echo count($mediaItems ?? []) < (int)($mediaTotal ?? 0) ? 'true' : 'false'; ?>,
+        loading: false,
+        requestId: 0
+    };
+
+    function escapeMediaHtml(value) {
+        return String(value === null || value === undefined ? '' : value).replace(/[&<>"']/g, function(ch) {
+            return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch];
+        });
+    }
+
+    function buildMediaCard(m) {
+        var card = document.createElement('div');
+        card.className = 'media-picker-card';
+        card.setAttribute('data-id', m.id);
+        card.setAttribute('data-url', m.url);
+        card.setAttribute('data-name', m.filename);
+        card.setAttribute('data-cat', m.category);
+        card.setAttribute('data-mime', m.mime_type || '');
+        card.setAttribute('data-size', m.formatted_size || '');
+
+        var inner;
+        if (m.is_image) {
+            inner = '<img src="' + escapeMediaHtml(m.url) + '" alt="' + escapeMediaHtml(m.filename) + '" loading="lazy">';
+        } else if (m.is_video) {
+            inner = '<div style="height: 80px; display: flex; align-items: center; justify-content: center; background: #0f172a; color: #ffffff; font-size: 24px;">&#127916;</div>';
+        } else if (m.is_audio) {
+            inner = '<div style="height: 80px; display: flex; align-items: center; justify-content: center; background: #0f172a; color: #ffffff; font-size: 24px;">&#127925;</div>';
+        } else {
+            inner = '<div style="height: 80px; display: flex; align-items: center; justify-content: center; background: #e2e8f0; font-size: 24px;">&#128196;</div>';
+        }
+        inner += '<div class="card-name">' + escapeMediaHtml(m.filename) + '</div>';
+        card.innerHTML = inner;
+        card.addEventListener('click', function() { selectCard(this); });
+        return card;
+    }
+
+    function loadMediaBatch(reset) {
+        if (mediaState.loading && !reset) return;
+        var requestId = ++mediaState.requestId;
+        var page = reset ? 1 : mediaState.page + 1;
+        mediaState.loading = true;
+        if (mediaStatus) mediaStatus.textContent = 'Loading media...';
+
+        var xhr = new XMLHttpRequest();
+        xhr.open('GET', '/admin/media/library?page=' + page + '&per_page=' + mediaState.perPage + '&category=' + encodeURIComponent(mediaState.category) + '&s=' + encodeURIComponent(mediaState.search), true);
+        xhr.onload = function() {
+            if (requestId !== mediaState.requestId) return;
+            mediaState.loading = false;
+            var res = null;
+            try { res = JSON.parse(xhr.responseText); } catch (e) {}
+            if (xhr.status !== 200 || !res || !res.success) {
+                if (mediaStatus) mediaStatus.textContent = 'Could not load media. Please try again.';
+                return;
+            }
+            if (reset) mediaGrid.innerHTML = '';
+            res.items.forEach(function(m) {
+                if (mediaGrid.querySelector('.media-picker-card[data-id="' + m.id + '"]')) return;
+                mediaGrid.appendChild(buildMediaCard(m));
+            });
+            mediaState.page = res.page;
+            mediaState.hasMore = !!res.has_more;
+            var shown = mediaGrid.querySelectorAll('.media-picker-card').length;
+            if (mediaStatus) mediaStatus.textContent = res.total === 0 ? 'No media files match this filter.' : 'Showing ' + shown + ' of ' + res.total;
+            if (mediaMoreBtn) mediaMoreBtn.style.display = mediaState.hasMore ? '' : 'none';
+        };
+        xhr.onerror = function() {
+            if (requestId !== mediaState.requestId) return;
+            mediaState.loading = false;
+            if (mediaStatus) mediaStatus.textContent = 'Network error while loading media.';
+        };
+        xhr.send();
+    }
+
     // Filter media items in modal
     document.querySelectorAll('.media-filter-btn').forEach(function(btn) {
         btn.addEventListener('click', function() {
             document.querySelectorAll('.media-filter-btn').forEach(function(b) { b.classList.remove('active'); });
             this.classList.add('active');
-            var cat = this.getAttribute('data-cat');
-            document.querySelectorAll('.media-picker-card').forEach(function(card) {
-                if (cat === 'all' || card.getAttribute('data-cat') === cat) {
-                    card.style.display = 'block';
-                } else {
-                    card.style.display = 'none';
-                }
-            });
+            mediaState.category = this.getAttribute('data-cat') || 'all';
+            loadMediaBatch(true);
         });
     });
 
     // Search media items in modal
+    var mediaSearchTimer = null;
     document.getElementById('modal-search-input').addEventListener('input', function() {
-        var query = this.value.toLowerCase();
-        document.querySelectorAll('.media-picker-card').forEach(function(card) {
-            var name = card.getAttribute('data-name').toLowerCase();
-            card.style.display = name.indexOf(query) !== -1 ? 'block' : 'none';
-        });
+        var value = this.value.trim();
+        clearTimeout(mediaSearchTimer);
+        mediaSearchTimer = setTimeout(function() {
+            mediaState.search = value;
+            loadMediaBatch(true);
+        }, 300);
     });
+
+    if (mediaMoreBtn) {
+        mediaMoreBtn.addEventListener('click', function() { loadMediaBatch(false); });
+    }
 
     // Card selection in modal
     function selectCard(card) {

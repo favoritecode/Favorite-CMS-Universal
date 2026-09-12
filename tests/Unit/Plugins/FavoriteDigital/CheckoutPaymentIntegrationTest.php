@@ -82,7 +82,7 @@ class CheckoutPaymentIntegrationTest extends TestCase
 
         // Run migrations
         $migrator = new Migrator($this->sqliteDb);
-        $migrator->migrate(APP_ROOT . '/plugins/favorite-digital/database/migrations');
+        $migrator->migrate(test_plugin_directory('favorite-digital') . '/database/migrations');
 
         $this->app->singleton(Database::class, fn () => $this->sqliteDb);
 
@@ -942,7 +942,7 @@ class CheckoutPaymentIntegrationTest extends TestCase
 
         $prefixedDb->registerPrefixableTables(FavoriteDigitalPlugin::TABLES);
         $migrator = new Migrator($prefixedDb);
-        $migrator->migrate(APP_ROOT . '/plugins/favorite-digital/database/migrations');
+        $migrator->migrate(test_plugin_directory('favorite-digital') . '/database/migrations');
 
         $prefixedWalletRepo = new WalletRepository($prefixedDb);
         $prefixedWalletService = new WalletService($prefixedWalletRepo, $prefixedDb);
@@ -988,7 +988,7 @@ class CheckoutPaymentIntegrationTest extends TestCase
 
             $mysqlDb->registerPrefixableTables(FavoriteDigitalPlugin::TABLES);
             $migrator = new Migrator($mysqlDb);
-            $migrator->migrate(APP_ROOT . '/plugins/favorite-digital/database/migrations');
+            $migrator->migrate(test_plugin_directory('favorite-digital') . '/database/migrations');
 
             $mysqlWalletRepo = new WalletRepository($mysqlDb);
             $mysqlWalletService = new WalletService($mysqlWalletRepo, $mysqlDb);

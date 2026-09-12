@@ -68,12 +68,12 @@
                                 </strong>
                                 <div class="row-actions">
                                     <?php if ($page->status === 'trash'): ?>
-                                        <a href="/admin/pages/restore?id=<?php echo (int)$page->id; ?>" style="color: var(--wp-blue);">Restore</a> |
-                                        <a href="/admin/pages/delete?id=<?php echo (int)$page->id; ?>" onclick="return confirm('Permanently delete this page?');" style="color: var(--wp-danger);">Delete Permanently</a>
+                                        <button type="submit" form="core-action-form" formmethod="POST" formnovalidate formaction="<?php echo htmlspecialchars(site_base_path(), ENT_QUOTES, 'UTF-8'); ?>/admin/pages/restore?id=<?php echo (int)$page->id; ?>" class="core-action-link" style="color: var(--wp-blue);">Restore</button> |
+                                        <button type="submit" form="core-action-form" formmethod="POST" formnovalidate formaction="<?php echo htmlspecialchars(site_base_path(), ENT_QUOTES, 'UTF-8'); ?>/admin/pages/delete?id=<?php echo (int)$page->id; ?>" class="core-action-link" onclick="return confirm('Permanently delete this page?');" style="color: var(--wp-danger);">Delete Permanently</button>
                                     <?php else: ?>
                                         <a href="/admin/pages/edit?id=<?php echo (int)$page->id; ?>">Edit</a> |
                                         <a href="/page/<?php echo htmlspecialchars($page->slug, ENT_QUOTES, 'UTF-8'); ?>" target="_blank">View</a> |
-                                        <a href="/admin/pages/trash?id=<?php echo (int)$page->id; ?>" style="color: var(--wp-danger);">Trash</a>
+                                        <button type="submit" form="core-action-form" formmethod="POST" formnovalidate formaction="<?php echo htmlspecialchars(site_base_path(), ENT_QUOTES, 'UTF-8'); ?>/admin/pages/trash?id=<?php echo (int)$page->id; ?>" class="core-action-link" style="color: var(--wp-danger);">Trash</button>
                                     <?php endif; ?>
                                 </div>
                             </td>
@@ -98,4 +98,6 @@ document.addEventListener('DOMContentLoaded', function() {
     initAdminMultiSelect('pages-bulk-form', { itemType: 'page' });
 });
 </script>
+
+<?php $paginationBase = '/admin/pages'; include APP_ROOT . '/resources/views/admin/partials/pagination.php'; ?>
 

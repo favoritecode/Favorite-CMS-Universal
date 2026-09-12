@@ -101,16 +101,16 @@
                             </strong>
                             <div class="row-actions">
                                 <?php if ($post->status === 'trash'): ?>
-                                    <a href="/admin/posts/restore?id=<?php echo (int)$post->id; ?>" style="color: var(--wp-blue);">Restore</a> |
-                                    <a href="/admin/posts/delete?id=<?php echo (int)$post->id; ?>" onclick="return confirm('Permanently delete this post?');" style="color: var(--wp-danger);">Delete Permanently</a>
+                                    <button type="submit" form="core-action-form" formmethod="POST" formnovalidate formaction="<?php echo htmlspecialchars(site_base_path(), ENT_QUOTES, 'UTF-8'); ?>/admin/posts/restore?id=<?php echo (int)$post->id; ?>" class="core-action-link" style="color: var(--wp-blue);">Restore</button> |
+                                    <button type="submit" form="core-action-form" formmethod="POST" formnovalidate formaction="<?php echo htmlspecialchars(site_base_path(), ENT_QUOTES, 'UTF-8'); ?>/admin/posts/delete?id=<?php echo (int)$post->id; ?>" class="core-action-link" onclick="return confirm('Permanently delete this post?');" style="color: var(--wp-danger);">Delete Permanently</button>
                                 <?php else: ?>
                                     <?php if ($post->status === 'pending' && $currentUser && $currentUser->canModeratePosts()): ?>
-                                        <a href="/admin/posts/approve?id=<?php echo (int)$post->id; ?>" style="color: #00a32a; font-weight: 700;">&#10003; Approve</a> |
-                                        <a href="/admin/posts/reject?id=<?php echo (int)$post->id; ?>" style="color: #d63638; font-weight: 600;">&#10007; Reject</a> |
+                                        <button type="submit" form="core-action-form" formmethod="POST" formnovalidate formaction="<?php echo htmlspecialchars(site_base_path(), ENT_QUOTES, 'UTF-8'); ?>/admin/posts/approve?id=<?php echo (int)$post->id; ?>" class="core-action-link" style="color: #00a32a; font-weight: 700;">&#10003; Approve</button> |
+                                        <button type="submit" form="core-action-form" formmethod="POST" formnovalidate formaction="<?php echo htmlspecialchars(site_base_path(), ENT_QUOTES, 'UTF-8'); ?>/admin/posts/reject?id=<?php echo (int)$post->id; ?>" class="core-action-link" style="color: #d63638; font-weight: 600;">&#10007; Reject</button> |
                                     <?php endif; ?>
                                     <a href="/admin/posts/edit?id=<?php echo (int)$post->id; ?>">Edit</a> |
                                     <a href="/post/<?php echo htmlspecialchars($post->slug, ENT_QUOTES, 'UTF-8'); ?>" target="_blank">View Post</a> |
-                                    <a href="/admin/posts/trash?id=<?php echo (int)$post->id; ?>" style="color: var(--wp-danger);">Trash</a>
+                                    <button type="submit" form="core-action-form" formmethod="POST" formnovalidate formaction="<?php echo htmlspecialchars(site_base_path(), ENT_QUOTES, 'UTF-8'); ?>/admin/posts/trash?id=<?php echo (int)$post->id; ?>" class="core-action-link" style="color: var(--wp-danger);">Trash</button>
                                 <?php endif; ?>
                             </div>
                         </td>

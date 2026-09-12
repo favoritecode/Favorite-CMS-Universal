@@ -44,34 +44,40 @@ class CategoriesWidget extends AbstractWidget
 
         try {
             $categories = Taxonomy::getByTaxonomy('category');
+            // One grouped query for accurate published-post counts of every category
+            $counts = ($showCount || $hideEmpty) ? Taxonomy::publishedPostCounts('category') : [];
         } catch (\Throwable) {
             $categories = [];
+            $counts = [];
         }
 
         if (empty($categories)) {
             return '';
         }
 
-        $html = '<ul class="widget-list widget-categories">';
+        $items = '';
         foreach ($categories as $cat) {
-            $count = (int)($cat->count ?? 0);
+            $count = $counts[(int)$cat->id] ?? 0;
             if ($hideEmpty && $count === 0) {
                 continue;
             }
 
-            $url  = '/category/' . htmlspecialchars($cat->slug, ENT_QUOTES, 'UTF-8');
-            $name = htmlspecialchars($cat->name, ENT_QUOTES, 'UTF-8');
+            $href = site_path('/category/' . $cat->slug);
+            $name = htmlspecialchars((string)$cat->name, ENT_QUOTES, 'UTF-8');
+            $current = is_current_url($href) ? ' aria-current="page"' : '';
 
-            $html .= '<li><a href="' . $url . '" class="category-row" style="display: flex; justify-content: space-between; align-items: center; padding: 4px 0; text-decoration: none; color: inherit;">';
-            $html .= '<span>' . $name . '</span>';
+            $items .= '<li class="widget-categories__item"><a href="' . htmlspecialchars($href, ENT_QUOTES, 'UTF-8') . '" class="category-row"' . $current . '>';
+            $items .= '<span class="category-row__name">' . $name . '</span>';
             if ($showCount) {
-                $html .= '<span class="category-badge-count" style="background: var(--color-border, #e2e8f0); color: var(--color-text, #334155); font-size: 11px; padding: 2px 7px; border-radius: 999px; font-weight: 600;">' . $count . '</span>';
+                $items .= '<span class="category-badge-count">' . $count . '</span>';
             }
-            $html .= '</a></li>';
+            $items .= '</a></li>';
         }
-        $html .= '</ul>';
 
-        return $this->wrapOutput($html, $settings, $args);
+        if ($items === '') {
+            return '';
+        }
+
+        return $this->wrapOutput('<ul class="widget-list widget-categories">' . $items . '</ul>', $settings, $args);
     }
 }
-

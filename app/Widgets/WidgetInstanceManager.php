@@ -271,11 +271,11 @@ class WidgetInstanceManager
             return true;
         }
 
-        $uri = $_SERVER['REQUEST_URI'] ?? '/';
-        $path = parse_url($uri, PHP_URL_PATH) ?: '/';
+        // Match against the site-relative path so subdirectory installs behave exactly like root installs
+        $path = site_request_path();
 
         if ($rule === 'home') {
-            return $path === '/' || $path === '';
+            return $path === '/';
         }
 
         if ($rule === 'posts') {

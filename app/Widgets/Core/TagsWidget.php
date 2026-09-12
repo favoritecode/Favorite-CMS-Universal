@@ -37,8 +37,8 @@ class TagsWidget extends AbstractWidget
         $limit    = max(1, min(50, (int)($settings['limit'] ?? 20)));
 
         try {
-            $tags = Taxonomy::getByTaxonomy('tag');
-            $tags = array_slice($tags, 0, $limit);
+            // Bounded query: most used tags first, never the whole taxonomy table
+            $tags = Taxonomy::getPopular('tag', $limit);
         } catch (\Throwable) {
             $tags = [];
         }
@@ -47,15 +47,16 @@ class TagsWidget extends AbstractWidget
             return '';
         }
 
-        $html = '<div class="widget-tag-cloud" style="display: flex; flex-wrap: wrap; gap: 6px; padding: 4px 0;">';
+        $html = '<div class="widget-tag-cloud">';
         foreach ($tags as $tag) {
-            $url  = '/tag/' . htmlspecialchars($tag->slug, ENT_QUOTES, 'UTF-8');
-            $name = htmlspecialchars($tag->name, ENT_QUOTES, 'UTF-8');
-            $html .= '<a href="' . $url . '" class="tag-cloud-item" style="font-size: 12px; background: #f1f5f9; padding: 3px 8px; border-radius: 4px; text-decoration: none; color: #475569; border: 1px solid #e2e8f0;">#' . $name . '</a>';
+            $href  = site_path('/tag/' . $tag->slug);
+            $name  = htmlspecialchars((string)$tag->name, ENT_QUOTES, 'UTF-8');
+            $count = (int)($tag->published_count ?? 0);
+            $current = is_current_url($href) ? ' aria-current="page"' : '';
+            $html .= '<a href="' . htmlspecialchars($href, ENT_QUOTES, 'UTF-8') . '" class="tag-cloud-item" data-count="' . $count . '"' . $current . '>#' . $name . '</a>';
         }
         $html .= '</div>';
 
         return $this->wrapOutput($html, $settings, $args);
     }
 }
-

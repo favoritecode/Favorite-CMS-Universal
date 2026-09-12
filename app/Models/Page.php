@@ -18,11 +18,36 @@ class Page extends BaseModel
         return $result ? new static((array)$result) : null;
     }
 
-    public static function published(): array
+    /**
+     * Published pages ordered by menu order and title. Pass $limit to fetch a bounded set.
+     */
+    public static function published(?int $limit = null): array
     {
         $db = Container::getInstance()->get(Database::class);
-        $results = $db->select("SELECT * FROM `pages` WHERE `status` = 'published' ORDER BY `menu_order` ASC, `title` ASC");
+        $sql = "SELECT * FROM `pages` WHERE `status` = 'published' ORDER BY `menu_order` ASC, `title` ASC";
+        $params = [];
+        if ($limit !== null) {
+            $sql .= ' LIMIT ?';
+            $params[] = max(1, $limit);
+        }
+        $results = $db->select($sql, $params);
         return array_map(fn($row) => new static((array)$row), $results);
+    }
+
+    /**
+     * Lightweight page rows (no content) for selectors such as parent-page or front-page dropdowns.
+     */
+    public static function summaries(?string $status = null): array
+    {
+        $db = Container::getInstance()->get(Database::class);
+        $sql = "SELECT `id`, `title`, `slug`, `status`, `parent_id`, `menu_order` FROM `pages`";
+        $params = [];
+        if ($status !== null) {
+            $sql .= " WHERE `status` = ?";
+            $params[] = $status;
+        }
+        $sql .= " ORDER BY `menu_order` ASC, `title` ASC";
+        return array_map(fn($row) => new static((array)$row), $db->select($sql, $params));
     }
 
     public static function countByStatus(): array

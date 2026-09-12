@@ -74,5 +74,66 @@ class Taxonomy extends BaseModel
         $rows = $this->db->select($sql, [$this->id, $limit, $offset]);
         return array_map(fn($row) => new Post((array)$row), $rows);
     }
+
+    /**
+     * Accurate number of published posts assigned to this term (for archive pagination).
+     */
+    public function countPublishedPosts(): int
+    {
+        $row = $this->db->selectOne(
+            "SELECT COUNT(DISTINCT p.id) AS cnt FROM `posts` p
+             JOIN `post_taxonomies` pt ON p.id = pt.post_id
+             WHERE pt.taxonomy_id = ? AND p.status = 'published' AND p.type = 'post'",
+            [$this->id]
+        );
+        return (int)($row->cnt ?? 0);
+    }
+
+    /**
+     * Published post counts for every term of a taxonomy, keyed by term ID, in a single query.
+     *
+     * @return array<int, int>
+     */
+    public static function publishedPostCounts(string $taxonomy): array
+    {
+        $db = \FavoriteCMS\Core\Container::getInstance()->get(\FavoriteCMS\Core\Database::class);
+        $rows = $db->select(
+            "SELECT pt.taxonomy_id, COUNT(DISTINCT p.id) AS cnt FROM `post_taxonomies` pt
+             JOIN `posts` p ON p.id = pt.post_id
+             JOIN `taxonomies` t ON t.id = pt.taxonomy_id
+             WHERE t.taxonomy = ? AND p.status = 'published' AND p.type = 'post'
+             GROUP BY pt.taxonomy_id",
+            [$taxonomy]
+        );
+
+        $counts = [];
+        foreach ($rows as $row) {
+            $counts[(int)$row->taxonomy_id] = (int)$row->cnt;
+        }
+        return $counts;
+    }
+
+    /**
+     * Most used terms of a taxonomy (by published post count), bounded by $limit.
+     * Each returned term carries a `published_count` attribute.
+     */
+    public static function getPopular(string $taxonomy, int $limit = 20): array
+    {
+        $db = \FavoriteCMS\Core\Container::getInstance()->get(\FavoriteCMS\Core\Database::class);
+        $rows = $db->select(
+            "SELECT t.*, COALESCE(c.cnt, 0) AS published_count FROM `taxonomies` t
+             LEFT JOIN (
+                 SELECT pt.taxonomy_id, COUNT(DISTINCT p.id) AS cnt FROM `post_taxonomies` pt
+                 JOIN `posts` p ON p.id = pt.post_id
+                 WHERE p.status = 'published' AND p.type = 'post'
+                 GROUP BY pt.taxonomy_id
+             ) c ON c.taxonomy_id = t.id
+             WHERE t.taxonomy = ?
+             ORDER BY published_count DESC, t.name ASC
+             LIMIT ?",
+            [$taxonomy, max(1, $limit)]
+        );
+        return array_map(fn($row) => new static((array)$row), $rows);
+    }
 }
 

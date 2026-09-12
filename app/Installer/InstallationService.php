@@ -136,7 +136,8 @@ class InstallationService
 
     public function publicMessage(\Throwable $e): string
     {
-        Logger::error('Installer failure', ['message' => $this->redact($e->getMessage())]);
+        // Driver exception messages can contain account names and connection details.
+        Logger::error('Installer failure', ['type' => get_class($e)]);
 
         $message = $e->getMessage();
         if (str_contains($message, 'SQLSTATE') || str_contains($message, 'Access denied')) {

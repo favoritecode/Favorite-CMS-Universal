@@ -1,77 +1,68 @@
-/**
- * Favorite CMS — Default Theme JavaScript
- * Lightweight, zero dependencies, accessible interactions.
- */
-document.addEventListener('DOMContentLoaded', function() {
-    // 1. Mobile Menu Toggle
-    const navBtn = document.getElementById('mobile-nav-btn');
-    const navWrap = document.getElementById('header-nav-wrap');
+/* Favorite CMS Default Theme: mobile navigation, account menu and image fallbacks. No dependencies. */
+(function () {
+    'use strict';
+    var doc = document;
 
-    if (navBtn && navWrap) {
-        navBtn.addEventListener('click', function() {
-            const isExpanded = navBtn.getAttribute('aria-expanded') === 'true';
-            navBtn.setAttribute('aria-expanded', !isExpanded);
-            navWrap.classList.toggle('is-open');
+    function init() {
+        var toggle = doc.getElementById('mobile-nav-btn');
+        var panel = doc.getElementById('header-nav-wrap');
+
+        if (toggle && panel) {
+            var setOpen = function (open, focusToggle) {
+                toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+                panel.classList.toggle('is-open', open);
+                if (!open && focusToggle) { toggle.focus(); }
+            };
+            toggle.addEventListener('click', function () {
+                setOpen(toggle.getAttribute('aria-expanded') !== 'true');
+            });
+            doc.addEventListener('keydown', function (e) {
+                if (e.key === 'Escape' && panel.classList.contains('is-open')) { setOpen(false, true); }
+            });
+            panel.addEventListener('click', function (e) {
+                if (e.target.closest && e.target.closest('a[href]') && panel.classList.contains('is-open')) { setOpen(false); }
+            });
+            if (window.matchMedia) {
+                var desktop = window.matchMedia('(min-width: 1024px)');
+                var onChange = function (q) { if (q.matches) { setOpen(false); } };
+                if (desktop.addEventListener) { desktop.addEventListener('change', onChange); } else if (desktop.addListener) { desktop.addListener(onChange); }
+            }
+        }
+
+        var wrappers = '.post-card__media, .entry-media, .featured-post-card__media, .widget-recent-posts__thumb';
+        doc.querySelectorAll('.post-card__media img, .entry-media img, .featured-post-card__media img, .widget-recent-posts__thumb img').forEach(function (img) {
+            var hide = function () { var w = img.closest(wrappers); if (w) { w.classList.add('is-broken'); } };
+            if (img.complete && img.getAttribute('src') && img.naturalWidth === 0) { hide(); }
+            img.addEventListener('error', hide);
         });
 
-        // Close on Escape key
-        document.addEventListener('keydown', function(e) {
-            if (e.key === 'Escape' && navWrap.classList.contains('is-open')) {
-                navBtn.setAttribute('aria-expanded', 'false');
-                navWrap.classList.remove('is-open');
-                navBtn.focus();
-            }
+        doc.querySelectorAll('.cms-account-menu').forEach(function (menu) {
+            var trigger = menu.querySelector('.cms-account-trigger');
+            if (!trigger || !menu.querySelector('.cms-account-dropdown')) { return; }
+            var setMenu = function (open, focusTrigger) {
+                menu.classList.toggle('is-open', open);
+                trigger.setAttribute('aria-expanded', String(open));
+                if (!open && focusTrigger) { trigger.focus(); }
+            };
+            trigger.addEventListener('click', function (e) {
+                e.stopPropagation();
+                var open = !menu.classList.contains('is-open');
+                doc.querySelectorAll('.cms-account-menu.is-open').forEach(function (other) {
+                    if (other === menu) { return; }
+                    other.classList.remove('is-open');
+                    var otherTrigger = other.querySelector('.cms-account-trigger');
+                    if (otherTrigger) { otherTrigger.setAttribute('aria-expanded', 'false'); }
+                });
+                setMenu(open);
+            });
+            doc.addEventListener('click', function (e) {
+                if (!menu.contains(e.target) && menu.classList.contains('is-open')) { setMenu(false); }
+            });
+            menu.addEventListener('keydown', function (e) {
+                if (e.key === 'Escape' && menu.classList.contains('is-open')) { e.stopPropagation(); setMenu(false, true); }
+            });
         });
     }
 
-    // 2. Safe image fallback if broken or missing
-    document.querySelectorAll('.post-card-thumb img, .single-featured-media img').forEach(function(img) {
-        img.addEventListener('error', function() {
-            const wrapper = img.closest('.post-card-thumb') || img.closest('.single-featured-media');
-            if (wrapper) {
-                wrapper.style.display = 'none';
-            }
-        });
-    });
-
-    // 3. User Account Dropdown Toggle
-    document.querySelectorAll('.cms-account-menu').forEach(function(menu) {
-        const trigger = menu.querySelector('.cms-account-trigger');
-        const dropdown = menu.querySelector('.cms-account-dropdown');
-        if (!trigger || !dropdown) return;
-
-        trigger.addEventListener('click', function(e) {
-            e.stopPropagation();
-            const isOpen = menu.classList.contains('is-open');
-
-            // Close any other open account menus
-            document.querySelectorAll('.cms-account-menu.is-open').forEach(function(other) {
-                if (other !== menu) {
-                    other.classList.remove('is-open');
-                    other.querySelector('.cms-account-trigger')?.setAttribute('aria-expanded', 'false');
-                }
-            });
-
-            menu.classList.toggle('is-open', !isOpen);
-            trigger.setAttribute('aria-expanded', String(!isOpen));
-        });
-
-        // Close when clicking outside
-        document.addEventListener('click', function(e) {
-            if (!menu.contains(e.target) && menu.classList.contains('is-open')) {
-                menu.classList.remove('is-open');
-                trigger.setAttribute('aria-expanded', 'false');
-            }
-        });
-
-        // Close on Escape key
-        menu.addEventListener('keydown', function(e) {
-            if (e.key === 'Escape' && menu.classList.contains('is-open')) {
-                menu.classList.remove('is-open');
-                trigger.setAttribute('aria-expanded', 'false');
-                trigger.focus();
-            }
-        });
-    });
-});
-
+    if (doc.readyState !== 'loading') { init(); } else { doc.addEventListener('DOMContentLoaded', init); }
+})();

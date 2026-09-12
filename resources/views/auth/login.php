@@ -39,6 +39,7 @@ $registerHref = $url('/register') . ($redirect !== null ? '?redirect=' . rawurle
     </form>
 
     <div class="fc-auth__alt">
+        <p><a href="<?php echo $e($url('/forgot-password')); ?>">Forgot password?</a></p>
         <?php if ($registrationEnabled): ?>
             <p>New here? <a href="<?php echo $e($registerHref); ?>">Create an account</a></p>
         <?php endif; ?>

@@ -1,25 +1,37 @@
 <?php
-$siteTitle = $siteTitle ?? \FavoriteCMS\Models\Setting::get('general', 'site_name', 'Favorite CMS');
-$siteTagline = $siteTagline ?? \FavoriteCMS\Models\Setting::get('general', 'site_description', '');
-$metaTitle = $metaTitle ?? $siteTitle;
-$metaDesc = $metaDescription ?? \FavoriteCMS\Models\Setting::get('seo', 'meta_description', '');
-$currentUri = $_SERVER['REQUEST_URI'] ?? '/';
+require_once __DIR__ . '/functions.php';
 
-$siteLogoUrl = function_exists('get_site_logo_url') ? get_site_logo_url() : get_theme_mod('site_logo_url');
+$siteTitle   = $siteTitle ?? \FavoriteCMS\Models\Setting::get('general', 'site_name', 'Favorite CMS');
+$siteTagline = $siteTagline ?? \FavoriteCMS\Models\Setting::get('general', 'site_description', '');
+$metaTitle   = $metaTitle ?? $siteTitle;
+$metaDesc    = $metaDescription ?? \FavoriteCMS\Models\Setting::get('seo', 'meta_description', '');
+
+$siteLogoUrl    = function_exists('get_site_logo_url') ? get_site_logo_url() : get_theme_mod('site_logo_url');
 $siteFaviconUrl = function_exists('get_site_favicon_url') ? get_site_favicon_url() : get_theme_mod('site_favicon_url');
-$accentColor = get_theme_mod('accent_color');
-$siteLayout  = get_theme_mod('site_layout', 'right');
+$accentColor    = fcd_accent_color();
+$siteLayout     = fcd_site_layout();
+$hasSidebar     = ($fcdHasSidebar ?? true) && $siteLayout !== 'none';
+$currentUser    = function_exists('current_user') ? current_user() : null;
+$primaryMenu    = fcd_menu_items('primary', 4);
+$headerWidgets  = has_region_widgets('header-right');
+$stylesheetUrl  = function_exists('theme_asset_url') ? theme_asset_url('assets/css/style.css') : fcd_url('/themes/default/assets/css/style.css');
+
+$bodyClasses = ['layout-' . $siteLayout, $hasSidebar ? 'has-sidebar' : 'no-sidebar'];
+if (!empty($bodyClass) && is_string($bodyClass)) {
+    $bodyClasses[] = $bodyClass;
+}
 ?>
 <!DOCTYPE html>
-<html lang="en">
+<html lang="<?php echo fcd_e(function_exists('site_language') ? site_language() : 'en'); ?>" class="no-js">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?php echo htmlspecialchars($metaTitle, ENT_QUOTES, 'UTF-8'); ?></title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title><?php echo htmlspecialchars((string)$metaTitle, ENT_QUOTES, 'UTF-8'); ?></title>
     <?php if (!empty($metaDesc)): ?>
-        <meta name="description" content="<?php echo htmlspecialchars($metaDesc, ENT_QUOTES, 'UTF-8'); ?>">
+        <meta name="description" content="<?php echo htmlspecialchars((string)$metaDesc, ENT_QUOTES, 'UTF-8'); ?>">
     <?php endif; ?>
-    <?php if (!empty($siteFaviconUrl)): ?>
+    <script>document.documentElement.className = document.documentElement.className.replace(/\bno-js\b/, 'js');</script>
+    <?php if (!empty($siteFaviconUrl) && is_string($siteFaviconUrl)): ?>
         <?php
         $favExt = strtolower(pathinfo(parse_url($siteFaviconUrl, PHP_URL_PATH) ?? '', PATHINFO_EXTENSION));
         $favType = match ($favExt) {
@@ -31,130 +43,92 @@ $siteLayout  = get_theme_mod('site_layout', 'right');
             default => 'image/x-icon',
         };
         ?>
-        <link rel="icon" type="<?php echo htmlspecialchars($favType, ENT_QUOTES, 'UTF-8'); ?>" href="<?php echo htmlspecialchars($siteFaviconUrl, ENT_QUOTES, 'UTF-8'); ?>">
+        <link rel="icon" type="<?php echo fcd_e($favType); ?>" href="<?php echo fcd_e(fcd_url($siteFaviconUrl)); ?>">
     <?php endif; ?>
-    <link rel="stylesheet" href="/themes/default/assets/css/style.css">
-    <?php if (!empty($accentColor)): ?>
-        <style>
-            :root {
-                --color-primary: <?php echo htmlspecialchars($accentColor, ENT_QUOTES, 'UTF-8'); ?>;
-                --color-primary-hover: <?php echo htmlspecialchars($accentColor, ENT_QUOTES, 'UTF-8'); ?>cc;
-            }
-        </style>
+    <link rel="stylesheet" href="<?php echo fcd_e($stylesheetUrl); ?>">
+    <?php if ($accentColor !== ''): ?>
+        <style>:root { --accent: <?php echo $accentColor; ?>; }</style>
     <?php endif; ?>
     <?php
-    // Inject centralized Frontend SEO, Social Meta, Schema, and Verification / Tracking tags
+    // Centralized Frontend SEO, social meta, schema, verification and tracking tags
     if (class_exists(\FavoriteCMS\Services\FrontendSeoService::class)) {
         echo \FavoriteCMS\Services\FrontendSeoService::renderHeadTags(get_defined_vars());
     }
     ?>
 </head>
-<body class="layout-<?php echo htmlspecialchars($siteLayout); ?>">
+<body class="<?php echo fcd_e(implode(' ', $bodyClasses)); ?>">
 <?php
-// Inject GTM noscript iframe or body tags immediately after <body> opening
+// GTM noscript iframe or body tags immediately after <body> opening
 if (class_exists(\FavoriteCMS\Services\FrontendSeoService::class)) {
     echo \FavoriteCMS\Services\FrontendSeoService::renderBodyTags();
 }
 ?>
+<a class="skip-link" href="#main-content">Skip to content</a>
 
 <header class="site-header" role="banner">
-    <div class="header-container">
-        <!-- Site Brand & Logo -->
-        <a href="/" class="site-branding" aria-label="<?php echo htmlspecialchars($siteTitle, ENT_QUOTES, 'UTF-8'); ?> Homepage">
-            <?php if (!empty($siteLogoUrl)): ?>
-                <img src="<?php echo htmlspecialchars($siteLogoUrl, ENT_QUOTES, 'UTF-8'); ?>" alt="<?php echo htmlspecialchars($siteTitle, ENT_QUOTES, 'UTF-8'); ?>" class="site-custom-logo" style="max-height: 38px; max-width: 180px; object-fit: contain;">
+    <div class="container header-bar">
+        <a href="<?php echo fcd_e(fcd_url('/')); ?>" class="site-branding" aria-label="<?php echo fcd_e($siteTitle); ?> Homepage">
+            <?php if (!empty($siteLogoUrl) && is_string($siteLogoUrl)): ?>
+                <img src="<?php echo fcd_e(fcd_url($siteLogoUrl)); ?>" alt="<?php echo fcd_e($siteTitle); ?>" class="site-custom-logo" decoding="async">
             <?php else: ?>
-                <div class="site-logo-icon" aria-hidden="true">&#9733;</div>
-                <div class="brand-text">
-                    <span class="site-title"><?php echo htmlspecialchars($siteTitle, ENT_QUOTES, 'UTF-8'); ?></span>
+                <span class="site-logo-icon" aria-hidden="true">&#9733;</span>
+                <span class="brand-text">
+                    <span class="site-title"><?php echo fcd_e($siteTitle); ?></span>
                     <?php if (!empty($siteTagline)): ?>
-                        <span class="site-tagline"><?php echo htmlspecialchars($siteTagline, ENT_QUOTES, 'UTF-8'); ?></span>
+                        <span class="site-tagline"><?php echo fcd_e($siteTagline); ?></span>
                     <?php endif; ?>
-                </div>
+                </span>
             <?php endif; ?>
         </a>
 
-        <!-- Mobile Menu Toggle Button -->
-        <button type="button" class="mobile-nav-toggle" id="mobile-nav-btn" aria-label="Toggle navigation menu" aria-expanded="false">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <line x1="3" y1="12" x2="21" y2="12"></line>
-                <line x1="3" y1="6" x2="21" y2="6"></line>
-                <line x1="3" y1="18" x2="21" y2="18"></line>
-            </svg>
+        <button type="button" class="mobile-nav-toggle" id="mobile-nav-btn" aria-controls="header-nav-wrap" aria-expanded="false">
+            <svg class="icon icon-menu" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false"><path d="M4 7h16M4 12h16M4 17h16"></path></svg>
+            <svg class="icon icon-close" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false"><path d="M6 6l12 12M18 6 6 18"></path></svg>
+            <span class="visually-hidden">Menu</span>
         </button>
 
-        <!-- Navigation & Search Menu Wrap -->
         <div class="header-nav-wrap" id="header-nav-wrap">
-            <nav class="main-nav" role="navigation" aria-label="Main Navigation">
-                <ul>
-                    <li>
-                        <a href="/" class="<?php echo ($currentUri === '/' || $currentUri === '') ? 'active' : ''; ?>">Home</a>
-                    </li>
-                    <?php
-                    // Dynamic navigation from primary menu if assigned, or published pages
-                    $primaryMenu = \FavoriteCMS\Models\Menu::findByLocation('primary');
-                    if ($primaryMenu) {
-                        foreach ($primaryMenu->getItems() as $item) {
-                            $itemUrl = $item->url ?? '#';
-                            $isActive = ($currentUri === $itemUrl) ? 'active' : '';
-                            echo '<li><a href="' . htmlspecialchars($itemUrl, ENT_QUOTES, 'UTF-8') . '" class="' . $isActive . '">' . htmlspecialchars($item->title, ENT_QUOTES, 'UTF-8') . '</a></li>';
-                        }
-                    } else {
-                        $navPages = \FavoriteCMS\Models\Page::published();
-                        foreach (array_slice($navPages, 0, 4) as $p) {
-                            $pageUrl = '/page/' . $p->slug;
-                            $isActive = ($currentUri === $pageUrl) ? 'active' : '';
-                            echo '<li><a href="' . htmlspecialchars($pageUrl, ENT_QUOTES, 'UTF-8') . '" class="' . $isActive . '">' . htmlspecialchars($p->title, ENT_QUOTES, 'UTF-8') . '</a></li>';
-                        }
-                    }
-                    ?>
-                    <?php if ($currentUser = (function_exists('current_user') ? current_user() : null)): ?>
-                        <?php if (function_exists('current_user_can') && current_user_can('publish_posts')): ?>
-                            <li>
-                                <a href="/admin/posts/new" style="color: var(--color-primary); font-weight: 600;">+ Create Post</a>
-                            </li>
-                        <?php endif; ?>
-                    <?php else: ?>
-                        <li>
-                            <a href="/admin/login" style="color: var(--color-muted); font-size: 0.875rem;">Log In</a>
-                        </li>
-                        <?php if ((int)\FavoriteCMS\Models\Setting::get('general', 'allow_registration', 1)): ?>
-                            <li>
-                                <a href="/register" style="color: var(--color-primary); font-size: 0.875rem; font-weight: 600;">Sign Up</a>
-                            </li>
-                        <?php endif; ?>
-                    <?php endif; ?>
-                </ul>
+            <nav class="main-nav" aria-label="Main navigation">
+                <?php fcd_partial('nav-menu', [
+                    'items'       => $primaryMenu['items'],
+                    'menuClass'   => 'menu main-menu',
+                    'prependHome' => !$primaryMenu['assigned'],
+                ]); ?>
             </nav>
 
-            <?php if (has_region_widgets('header-right')): ?>
+            <?php if ($headerWidgets): ?>
                 <div class="header-right-widgets">
                     <?php echo render_region('header-right'); ?>
                 </div>
             <?php else: ?>
-                <!-- Header Quick Search -->
-                <form method="GET" action="/search" class="header-search" role="search">
-                    <svg class="header-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                        <circle cx="11" cy="11" r="8"></circle>
-                        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-                    </svg>
-                    <input type="search" 
-                           name="q" 
-                           class="header-search-input" 
-                           placeholder="Search..." 
-                           value="<?php echo htmlspecialchars($_GET['q'] ?? '', ENT_QUOTES, 'UTF-8'); ?>"
-                           aria-label="Search posts">
-                </form>
+                <div class="header-search">
+                    <?php fcd_partial('search-form', ['inputId' => 'header-search-input', 'formClass' => 'search-form--header', 'placeholder' => 'Search…']); ?>
+                </div>
             <?php endif; ?>
 
             <?php if ($currentUser): ?>
-                <!-- Header Account / Profile Menu (Final / Rightmost Element) -->
+                <?php if (function_exists('current_user_can') && current_user_can('publish_posts')): ?>
+                    <div class="header-actions">
+                        <a class="button button--primary button--small" href="<?php echo fcd_e(fcd_url('/admin/posts/new')); ?>">+ Create Post</a>
+                    </div>
+                <?php endif; ?>
+            <?php else: ?>
+                <div class="header-actions">
+                    <a class="header-link" href="<?php echo fcd_e(fcd_url('/admin/login')); ?>">Log In</a>
+                    <?php if (fcd_registration_enabled()): ?>
+                        <a class="button button--primary button--small" href="<?php echo fcd_e(fcd_url('/register')); ?>">Sign Up</a>
+                    <?php endif; ?>
+                </div>
+            <?php endif; ?>
+
+            <?php if ($currentUser): ?>
                 <div class="header-account-wrap">
-                    <?php echo function_exists('render_account_menu') ? render_account_menu() : '<a href="/admin">Account</a>'; ?>
+                    <?php echo function_exists('render_account_menu') ? render_account_menu() : '<a href="' . fcd_e(fcd_url('/admin')) . '">Account</a>'; ?>
                 </div>
             <?php endif; ?>
         </div>
     </div>
 </header>
 
-<div class="site-content <?php echo ($siteLayout === 'left') ? 'site-content-sidebar-left' : ''; ?>">
+<div class="site-content<?php echo $siteLayout === 'left' ? ' site-content-sidebar-left' : ''; ?>">
+    <div class="container layout <?php echo $hasSidebar ? 'layout--with-sidebar' : 'layout--full'; ?>">

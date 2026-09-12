@@ -32,6 +32,7 @@ class Database
         'sessions',
         'plugin_settings',
         'comments',
+        'password_resets',
     ];
 
     public function __construct(array $config)

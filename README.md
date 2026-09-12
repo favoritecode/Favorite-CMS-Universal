@@ -252,7 +252,7 @@ OK (109 tests, 511 assertions)
 
 Pre-built production ZIP packages are released via the official [GitHub Releases](https://github.com/favoritecode/Favorite-CMS-Universal/releases) page. Production packages contain all application classes, vendor libraries, default themes, and starter plugins, ready for immediate unzipping and browser setup.
 
-- **Current Release Line**: `1.0.0-beta`
+- **Current Release Line**: `1.0.10`
 - **Release Package**: `Favorite-CMS-Universal.zip`
 
 ---

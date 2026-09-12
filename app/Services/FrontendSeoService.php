@@ -232,16 +232,43 @@ class FrontendSeoService
             return rtrim($baseSiteUrl, '/') . '/' . ltrim($path, '/');
         }
 
-        // 3. Current public request path (sanitized without query string/fragments for default canonical)
+        // 3. Current public request path (sanitized without query string/fragments for default canonical).
+        // Listing pages keep only their meaningful parameters: ?page=N (N > 1) and the search query.
         $uri = $_SERVER['REQUEST_URI'] ?? '/';
         $cleanPath = parse_url($uri, PHP_URL_PATH) ?: '/';
         $subPath = parse_url($baseSiteUrl, PHP_URL_PATH) ?: '';
         if ($subPath !== '' && ($cleanPath === $subPath || str_starts_with($cleanPath, $subPath . '/'))) {
             $rel = substr($cleanPath, strlen($subPath));
-            return rtrim($baseSiteUrl, '/') . ($rel === '' || $rel === '/' ? '/' : '/' . ltrim($rel, '/'));
+            $relPath = ($rel === '' || $rel === '/') ? '/' : '/' . ltrim($rel, '/');
+            return rtrim($baseSiteUrl, '/') . $relPath . self::canonicalListingQuery($context, $relPath);
         }
 
-        return rtrim($baseSiteUrl, '/') . ($cleanPath === '/' ? '/' : '/' . ltrim($cleanPath, '/'));
+        $relPath = $cleanPath === '/' ? '/' : '/' . ltrim($cleanPath, '/');
+        return rtrim($baseSiteUrl, '/') . $relPath . self::canonicalListingQuery($context, $relPath);
+    }
+
+    /**
+     * Canonical query string for paginated listings: search keeps its query, and pages after the first keep ?page=N.
+     */
+    protected static function canonicalListingQuery(array $context, string $relativePath): string
+    {
+        $params = [];
+
+        if (rtrim($relativePath, '/') === '/search') {
+            $query = $context['searchQuery'] ?? ($_GET['q'] ?? '');
+            $query = is_string($query) ? trim($query) : '';
+            if ($query !== '') {
+                $params['q'] = $query;
+            }
+        }
+
+        $page = $context['currentPage'] ?? ($_GET['page'] ?? 1);
+        $page = is_scalar($page) ? (int)$page : 1;
+        if ($page > 1) {
+            $params['page'] = $page;
+        }
+
+        return $params === [] ? '' : '?' . http_build_query($params, '', '&', PHP_QUERY_RFC3986);
     }
 
     protected static function resolveRobots(array $context, ?object $seoMeta): string

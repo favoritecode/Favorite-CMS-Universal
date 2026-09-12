@@ -49,17 +49,18 @@ class InstallerController
     protected function show(Request $request, array $errors = [], array $notices = [], array $old = [], array $errorGroups = [], ?string $focusStep = null): Response
     {
         $checks = $this->environment->check($request);
-        $dbStatus = $this->detectDatabaseStatus();
+        $dbStatus = in_array($old['setup_mode'] ?? '', ['advanced', 'recommended', 'automatic'], true)
+            ? $this->detectDatabaseStatus() : [];
         $detectedUrl = $this->urls->currentBaseUrl($request);
 
         $defaultConfig = $this->databases->defaultConfig();
         $dbDefaults = array_merge([
             'db_host' => $defaultConfig['host'] !== '' ? $defaultConfig['host'] : 'localhost',
             'db_port' => $defaultConfig['port'] !== '' ? $defaultConfig['port'] : '3306',
-            'db_name' => $defaultConfig['database'],
-            'db_username' => $defaultConfig['username'],
+            'db_name' => '',
+            'db_username' => '',
             'db_prefix' => $defaultConfig['prefix'] !== '' ? $defaultConfig['prefix'] : $this->databases->generateTablePrefix(),
-            'setup_mode' => 'recommended',
+            'setup_mode' => 'environment',
         ], $old);
 
         $content = $this->renderView('installer/install', [
@@ -76,7 +77,10 @@ class InstallerController
             'basePath' => $request->basePath(),
             'errorGroups' => $errorGroups,
             'focusStep' => $focusStep,
-            'formMode' => (string)$request->post('db_action', '') === 'restore' ? 'restore' : 'install',
+            'databasePrepared' => !empty($old['database_prepared'])
+                || in_array($old['setup_mode'] ?? '', ['advanced', 'recommended', 'automatic'], true)
+                || ($request->method() === 'POST' && $request->post('db_action', 'install') !== 'prepare_database'),
+            'formMode' => (string)$request->post('db_action', '') === 'restore' || $request->get('mode') === 'restore' ? 'restore' : 'install',
         ]);
 
         return $this->noCache(Response::make($content, 200));
@@ -84,7 +88,11 @@ class InstallerController
 
     protected function process(Request $request): Response
     {
+        $checkingDatabase = $request->post('db_action') === 'test_database' && $request->post('_response') === 'json';
         if (!$this->csrf->validate((string)$request->post('_token', ''))) {
+            if ($checkingDatabase) {
+                return $this->noCache(Response::json(['ok' => false, 'message' => 'Invalid or expired security token. Reload the installer and try again.'], 403));
+            }
             return $this->show($request, ['Invalid or expired security token. A fresh token has been created; please review the form and try again.'], [], $this->safeOld($request));
         }
 
@@ -96,8 +104,50 @@ class InstallerController
             return $this->processRestore($request, $old);
         }
 
-        $dbConfig = $this->databases->normalize($request->all());
-        $mode = (string)$request->post('setup_mode', 'recommended');
+        // Resolve hosting support before asking for site or administrator information.
+        if ($action === 'prepare_database') {
+            $checks = $this->environment->check($request);
+            if ($this->environment->hasFailures($checks)) {
+                return $this->show($request, ['Resolve the failed server requirements before continuing.'], [], [], [], 'requirements');
+            }
+            $_SESSION['_favorite_installer_db_prefix'] ??= $this->databases->generateTablePrefix();
+            $auto = $this->databases->configureAutomatically($_SESSION['_favorite_installer_db_prefix']);
+            if (!$auto['ok']) {
+                return $this->show($request, [], [], [
+                    'setup_mode' => 'advanced',
+                    'database_fallback_notice' => $auto['message'],
+                ], [], 'database');
+            }
+            return $this->show($request, [], [], ['setup_mode' => 'environment', 'database_prepared' => true], [], 'site');
+        }
+
+        // Accept existing explicit/manual submissions, but default new forms to environment setup.
+        $mode = (string)$request->post('setup_mode', $request->post('db_name', '') !== '' ? 'advanced' : 'environment');
+        $automatic = $mode === 'environment';
+        $old['setup_mode'] = $mode;
+        $site = $this->validateSite($request);
+        $admin = $this->validateAdmin($request);
+        if ($automatic && ($site['errors'] !== [] || $admin['errors'] !== [])) {
+            return $this->show($request, array_merge($site['errors'], $admin['errors']), [], $old,
+                ['site' => $site['errors'], 'admin' => $admin['errors']]);
+        }
+
+        if ($automatic) {
+            // Keep the generated prefix stable across retries without putting DB configuration in HTML.
+            $_SESSION['_favorite_installer_db_prefix'] ??= $this->databases->generateTablePrefix();
+            $auto = $this->databases->configureAutomatically($_SESSION['_favorite_installer_db_prefix']);
+            if (!$auto['ok']) {
+                $old['setup_mode'] = 'advanced';
+                foreach (['db_host', 'db_port', 'db_name', 'db_username', 'db_prefix'] as $key) {
+                    unset($old[$key]);
+                }
+                $old['database_fallback_notice'] = $auto['message'];
+                return $this->show($request, [], [], $old, [], 'database');
+            }
+            $dbConfig = $auto['config'];
+        } else {
+            $dbConfig = $this->databases->normalize($request->all());
+        }
 
         if ($mode === 'automatic') {
             $adminConfig = $dbConfig;
@@ -112,6 +162,9 @@ class InstallerController
 
             if (!$auto['ok']) {
                 $old['setup_mode'] = 'advanced';
+                if ($checkingDatabase) {
+                    return $this->noCache(Response::json(['ok' => false, 'message' => (string)$auto['message']], 422));
+                }
                 return $this->show($request, [(string)$auto['message']], ['Advanced Database Setup is available below to verify manual credentials.'], $old, ['database' => [(string)$auto['message']]]);
             }
 
@@ -121,15 +174,19 @@ class InstallerController
         if ($action === 'test_database') {
             try {
                 $this->databases->testConnection($dbConfig);
+                if ($checkingDatabase) {
+                    return $this->noCache(Response::json(['ok' => true, 'message' => 'Database connection verified successfully.']));
+                }
                 return $this->show($request, [], ['Database connection verified successfully! Everything is ready for installation.'], $old, [], 'database');
             } catch (Throwable $e) {
                 $databaseMessage = $this->databasePublicMessage($e, $dbConfig);
+                if ($checkingDatabase) {
+                    return $this->noCache(Response::json(['ok' => false, 'message' => $databaseMessage], 422));
+                }
                 return $this->show($request, [$databaseMessage], [], $old, ['database' => [$databaseMessage]]);
             }
         }
 
-        $site = $this->validateSite($request);
-        $admin = $this->validateAdmin($request);
         $databaseErrors = $this->databases->validate($dbConfig);
         $errors = array_merge($databaseErrors, $site['errors'], $admin['errors']);
 
@@ -143,9 +200,19 @@ class InstallerController
 
         try {
             $result = $this->installer->install($dbConfig, $site['data'], $admin['data']);
+            unset($_SESSION['_favorite_installer_db_prefix']);
             (new InstallerSession($this->urls))->regenerate();
         } catch (Throwable $e) {
-            $installMessage = $this->installer->publicMessage($e);
+            $installMessage = $automatic
+                ? 'Installation could not complete using automatic setup. Please check the hosting database configuration and try again, or use Advanced Database Setup.'
+                : $this->installer->publicMessage($e);
+            if ($automatic) {
+                $old['setup_mode'] = 'advanced';
+                foreach (['db_host', 'db_port', 'db_name', 'db_username', 'db_prefix'] as $key) {
+                    unset($old[$key]);
+                }
+                return $this->show($request, [$installMessage], [], $old, ['database' => [$installMessage]]);
+            }
             return $this->show($request, [$installMessage], [], $old, ['review' => [$installMessage]]);
         }
 

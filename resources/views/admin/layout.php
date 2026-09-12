@@ -595,6 +595,8 @@ $siteFaviconUrl = function_exists('get_site_favicon_url') ? get_site_favicon_url
     </style>
 </head>
 <body>
+<form id="core-action-form" method="POST" hidden><?php echo csrf_field(); ?></form>
+<style>.core-action-link { background: none; border: 0; padding: 0; font: inherit; color: inherit; cursor: pointer; text-align: inherit; }</style>
 
     <div class="wp-topbar">
         <div class="topbar-left">

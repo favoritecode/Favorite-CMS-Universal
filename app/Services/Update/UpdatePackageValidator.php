@@ -16,8 +16,7 @@ class UpdatePackageValidator
     protected const FORBIDDEN_PATTERNS = [
         '#(^|/)\.env($|/)#i',
         '#(^|/)installed\.lock$#i',
-        '#(^|/)plugins/favorite-pay\b#i',
-        '#(^|/)public/plugins/favorite-pay\b#i',
+        '#(^|/)(?:public/)?plugins/[^/]+/#i',
         '#(^|/)Favorite-CMS-Assets\b#i',
         '#(^|/)\.git\b#i',
         '#(^|/)tests\b#i',
@@ -268,4 +267,3 @@ class UpdatePackageValidator
         return $this->compareVersions($candidateVersion, $current) > 0;
     }
 }
-

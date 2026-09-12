@@ -34,7 +34,8 @@ class MenuController
         }
 
         $menuItems = $selectedMenu ? $selectedMenu->getItems() : [];
-        $pages = Page::published();
+        // Lightweight rows (title/slug only) instead of full page content for the "Add from Pages" list
+        $pages = Page::summaries('published');
 
         $viewData = [
             'pageTitle'    => 'Menus',

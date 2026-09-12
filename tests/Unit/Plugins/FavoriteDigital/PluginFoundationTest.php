@@ -135,7 +135,7 @@ class PluginFoundationTest extends TestCase
         $this->sqliteDb->registerPrefixableTables(FavoriteDigitalPlugin::TABLES);
 
         $migrator = new Migrator($this->sqliteDb);
-        $migrationsPath = APP_ROOT . '/plugins/favorite-digital/database/migrations';
+        $migrationsPath = test_plugin_directory('favorite-digital') . '/database/migrations';
         $applied = $migrator->migrate($migrationsPath);
 
         $this->assertCount(16, $applied, 'Migrator must execute all 16 migrations in sequence');
@@ -152,7 +152,7 @@ class PluginFoundationTest extends TestCase
     {
         $this->sqliteDb->registerPrefixableTables(FavoriteDigitalPlugin::TABLES);
         $migrator = new Migrator($this->sqliteDb);
-        $migrator->migrate(APP_ROOT . '/plugins/favorite-digital/database/migrations');
+        $migrator->migrate(test_plugin_directory('favorite-digital') . '/database/migrations');
 
         $expectedColumnsMap = [
             'favorite_digital_products' => [
@@ -237,7 +237,7 @@ class PluginFoundationTest extends TestCase
     {
         $this->sqliteDb->registerPrefixableTables(FavoriteDigitalPlugin::TABLES);
         $migrator = new Migrator($this->sqliteDb);
-        $migrator->migrate(APP_ROOT . '/plugins/favorite-digital/database/migrations');
+        $migrator->migrate(test_plugin_directory('favorite-digital') . '/database/migrations');
 
         // Test 1: Derivation rules
         $derived1 = ProductPricingCalculator::deriveFinalPrice(1000.00, 20.00);
@@ -373,7 +373,7 @@ class PluginFoundationTest extends TestCase
     {
         $this->sqliteDb->registerPrefixableTables(FavoriteDigitalPlugin::TABLES);
         $migrator = new Migrator($this->sqliteDb);
-        $migrator->migrate(APP_ROOT . '/plugins/favorite-digital/database/migrations');
+        $migrator->migrate(test_plugin_directory('favorite-digital') . '/database/migrations');
 
         // 1. Initial State: Pending Payment
         $this->sqliteDb->insert('favorite_digital_orders', [
@@ -451,9 +451,9 @@ class PluginFoundationTest extends TestCase
     {
         $this->sqliteDb->registerPrefixableTables(FavoriteDigitalPlugin::TABLES);
         $migrator = new Migrator($this->sqliteDb);
-        $migrator->migrate(APP_ROOT . '/plugins/favorite-digital/database/migrations');
+        $migrator->migrate(test_plugin_directory('favorite-digital') . '/database/migrations');
 
-        $migrationFiles = glob(APP_ROOT . '/plugins/favorite-digital/database/migrations/*.php');
+        $migrationFiles = glob(test_plugin_directory('favorite-digital') . '/database/migrations/*.php');
         sort($migrationFiles);
         $reversed = array_reverse($migrationFiles);
 
@@ -502,7 +502,7 @@ class PluginFoundationTest extends TestCase
 
         // Run migrations
         $migrator = new Migrator($mySqlDb);
-        $applied = $migrator->migrate(APP_ROOT . '/plugins/favorite-digital/database/migrations');
+        $applied = $migrator->migrate(test_plugin_directory('favorite-digital') . '/database/migrations');
         $this->assertCount(16, $applied);
 
         // Verify tables exist in MySQL with prefix
@@ -514,7 +514,7 @@ class PluginFoundationTest extends TestCase
         }
 
         // Cleanup MySQL test tables
-        $migrationFiles = glob(APP_ROOT . '/plugins/favorite-digital/database/migrations/*.php');
+        $migrationFiles = glob(test_plugin_directory('favorite-digital') . '/database/migrations/*.php');
         sort($migrationFiles);
         foreach (array_reverse($migrationFiles) as $file) {
             require_once $file;
