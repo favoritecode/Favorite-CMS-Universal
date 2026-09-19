@@ -122,11 +122,11 @@
                             ?>
                             <strong>
                                 <?php if ($canEditThisPost): ?>
-                                    <a href="/admin/posts/edit?id=<?php echo (int)$post->id; ?>" style="color: #1d2327; font-size: 14px; font-weight: 600;">
+                                    <a href="/admin/posts/edit?id=<?php echo (int)$post->id; ?>" class="row-title">
                                         <?php echo htmlspecialchars($post->title, ENT_QUOTES, 'UTF-8'); ?>
                                     </a>
                                 <?php else: ?>
-                                    <span style="color: #1d2327; font-size: 14px; font-weight: 600;">
+                                    <span class="row-title">
                                         <?php echo htmlspecialchars($post->title, ENT_QUOTES, 'UTF-8'); ?>
                                     </span>
                                 <?php endif; ?>

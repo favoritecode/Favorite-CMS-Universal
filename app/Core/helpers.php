@@ -975,3 +975,13 @@ if (!function_exists('format_date')) {
     }
 }
 
+if (!function_exists('cms_back_to_top')) {
+    /**
+     * Render the theme-agnostic, accessible Core Back-to-Top control.
+     */
+    function cms_back_to_top(): string
+    {
+        return \FavoriteCMS\Rendering\BackToTop::render();
+    }
+}
+

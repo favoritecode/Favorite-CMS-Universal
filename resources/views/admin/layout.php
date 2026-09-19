@@ -140,6 +140,8 @@ $_SESSION['admin_theme'] = $adminTheme;
             --admin-table-th-text: #334155;
             --admin-table-row-hover: #f8fafc;
             --admin-table-row-selected: #eff6ff;
+            --admin-link: #2563eb;
+            --admin-link-hover: #1d4ed8;
 
             /* Legacy --wp-* variable mappings for complete backward compatibility */
             --wp-dark: var(--admin-topbar-bg);
@@ -213,6 +215,8 @@ $_SESSION['admin_theme'] = $adminTheme;
             --admin-table-th-text: #cbd5e1;
             --admin-table-row-hover: #1e293b;
             --admin-table-row-selected: rgba(59, 130, 246, 0.2);
+            --admin-link: #60a5fa;
+            --admin-link-hover: #93c5fd;
 
             /* Legacy variable overrides in dark mode */
             --wp-dark: var(--admin-topbar-bg);
@@ -299,6 +303,25 @@ $_SESSION['admin_theme'] = $adminTheme;
             padding: 12px 0;
             display: flex;
             flex-direction: column;
+            position: -webkit-sticky;
+            position: sticky;
+            top: 42px;
+            height: calc(100vh - 42px);
+            max-height: calc(100vh - 42px);
+            overflow-y: auto;
+            overscroll-behavior: contain;
+            scrollbar-width: thin;
+            scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+        }
+        .wp-sidebar::-webkit-scrollbar {
+            width: 5px;
+        }
+        .wp-sidebar::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 4px;
+        }
+        .wp-sidebar::-webkit-scrollbar-track {
+            background: transparent;
         }
         .wp-menu { list-style: none; }
         .wp-menu-item { position: relative; }
@@ -648,6 +671,17 @@ $_SESSION['admin_theme'] = $adminTheme;
             background: var(--wp-blue);
             color: #ffffff;
             border-color: var(--wp-blue);
+        }
+        .row-title {
+            color: var(--admin-text-heading);
+            font-size: 14px;
+            font-weight: 600;
+            text-decoration: none;
+            transition: color 0.15s ease;
+        }
+        .row-title:hover {
+            color: var(--admin-primary);
+            text-decoration: underline;
         }
         .row-actions {
             font-size: 12px;
@@ -1029,25 +1063,65 @@ $_SESSION['admin_theme'] = $adminTheme;
             background: var(--admin-danger) !important;
             color: #ffffff !important;
         }
-        /* Fallback for inline-styled white/light containers across admin views */
-        [data-admin-theme="dark"] div[style*="background: #f8fafc"],
-        [data-admin-theme="dark"] div[style*="background:#f8fafc"] {
+        /* Fallback for inline-styled white/light containers and text across admin views */
+        [data-admin-theme="dark"] [style*="background: #f8fafc"],
+        [data-admin-theme="dark"] [style*="background:#f8fafc"],
+        [data-admin-theme="dark"] [style*="background: #f1f5f9"],
+        [data-admin-theme="dark"] [style*="background:#f1f5f9"] {
             background: var(--admin-surface-subtle) !important;
             border-color: var(--admin-border) !important;
         }
-        [data-admin-theme="dark"] div[style*="background: #ffffff"],
-        [data-admin-theme="dark"] div[style*="background:#ffffff"],
-        [data-admin-theme="dark"] div[style*="background: #fff"],
-        [data-admin-theme="dark"] div[style*="background:#fff"] {
+        [data-admin-theme="dark"] [style*="background: #ffffff"],
+        [data-admin-theme="dark"] [style*="background:#ffffff"],
+        [data-admin-theme="dark"] [style*="background: #fff"],
+        [data-admin-theme="dark"] [style*="background:#fff"] {
             background: var(--admin-surface) !important;
             border-color: var(--admin-border) !important;
         }
-        [data-admin-theme="dark"] div[style*="color: #0f172a"],
-        [data-admin-theme="dark"] div[style*="color: #1d2327"],
-        [data-admin-theme="dark"] div[style*="color: #1e293b"],
-        [data-admin-theme="dark"] span[style*="color: #0f172a"],
-        [data-admin-theme="dark"] strong[style*="color: #0f172a"] {
+        [data-admin-theme="dark"] [style*="color: #0f172a"],
+        [data-admin-theme="dark"] [style*="color: #1d2327"],
+        [data-admin-theme="dark"] [style*="color: #1e293b"] {
             color: var(--admin-text-heading) !important;
+        }
+        [data-admin-theme="dark"] [style*="color: #334155"] {
+            color: var(--admin-text) !important;
+        }
+        [data-admin-theme="dark"] [style*="color: #475569"] {
+            color: var(--admin-text-muted) !important;
+        }
+        [data-admin-theme="dark"] .row-title {
+            color: var(--admin-text-heading) !important;
+        }
+        [data-admin-theme="dark"] .row-title:hover {
+            color: var(--admin-primary) !important;
+        }
+        [data-admin-theme="dark"] .row-actions {
+            color: var(--admin-text-muted);
+        }
+        [data-admin-theme="dark"] .row-actions a {
+            color: var(--admin-link);
+        }
+        [data-admin-theme="dark"] .row-actions a:hover {
+            color: var(--admin-link-hover);
+        }
+        [data-admin-theme="dark"] ul.subsubsub a {
+            color: var(--admin-link);
+        }
+        [data-admin-theme="dark"] ul.subsubsub a:hover {
+            color: var(--admin-link-hover);
+        }
+        [data-admin-theme="dark"] ul.subsubsub a.current {
+            color: var(--admin-text-heading) !important;
+        }
+        [data-admin-theme="dark"] ::placeholder {
+            color: var(--admin-input-placeholder) !important;
+            opacity: 1;
+        }
+        [data-admin-theme="dark"] .wp-content a:not(.btn):not(.wp-menu-link):not(.nav-link):not(.badge):not(.row-title):not(.core-action-link) {
+            color: var(--admin-link);
+        }
+        [data-admin-theme="dark"] .wp-content a:not(.btn):not(.wp-menu-link):not(.nav-link):not(.badge):not(.row-title):not(.core-action-link):hover {
+            color: var(--admin-link-hover);
         }
         /* Editor wrapper and toolbars */
         [data-admin-theme="dark"] .editor-wrapper,

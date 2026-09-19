@@ -62,7 +62,7 @@
                             </td>
                             <td>
                                 <strong>
-                                    <a href="/admin/pages/edit?id=<?php echo (int)$page->id; ?>" style="color: #1d2327; font-size: 14px;">
+                                    <a href="/admin/pages/edit?id=<?php echo (int)$page->id; ?>" class="row-title">
                                         <?php echo htmlspecialchars($page->title, ENT_QUOTES, 'UTF-8'); ?>
                                     </a>
                                 </strong>

@@ -3,6 +3,35 @@
 All notable changes to **Favorite CMS Universal** are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.1] - 2026-09-19
+
+### UI / UX & Readability
+- **Admin Panel Dark Mode Contrast Fix**:
+  - Performed comprehensive contrast audit across all Core admin screens (Dashboard, Posts, Post editor, Pages, Media, Comments, Users, Menus, Widgets, Themes, Plugins, Settings, Updates, Tools).
+  - Extended centralized semantic design tokens (`--admin-link`, `--admin-link-hover`, `--admin-text-heading`, `--admin-text-muted`) and introduced universal element attribute overrides for dark mode surfaces.
+  - Enhanced `.row-title`, `.row-actions`, subsubsub filter tabs, status badges, form labels, inputs, and placeholders for clear readability on dark backgrounds without breaking Light Mode.
+
+### Navigation
+- **Sticky Admin Sidebar**:
+  - Implemented desktop and tablet sticky left sidebar (`position: sticky; top: 42px; height: calc(100vh - 42px); overflow-y: auto; overscroll-behavior: contain;`).
+  - Preserved mobile drawer navigation (`<= 782px`) and existing collapse behaviors.
+
+### Frontend Enhancements
+- **Frontend Theme Sticky Sidebar**:
+  - Added theme-aware desktop sticky sidebar behavior (`position: sticky; top: var(--cms-sidebar-top, 24px); max-height: calc(100vh - var(--cms-sidebar-top, 24px) - 24px); overflow-y: auto;`) with contained scrolling.
+  - Sidebar stacks naturally below content on mobile/tablet viewports (`< 1024px`).
+- **Generic Theme-Aware Back-to-Top Button**:
+  - Added reusable Core Back-to-Top component (`FavoriteCMS\Rendering\BackToTop`) automatically injected before `</body>` in `Engine::render()`.
+  - Accessible button (`aria-label="Back to top"`, visible focus ring, keyboard accessible, mobile safe-area insets).
+  - Dynamic palette adaptation to the active theme's light and dark tokens (`--surface`, `--card-bg`, `--text`, `--border`, `--accent`, `--primary`).
+  - Lightweight vanilla JavaScript scroll listener with `requestAnimationFrame` and native smooth scrolling.
+  - Fully respects `prefers-reduced-motion: reduce` with instant scroll fallback.
+  - Added `cms_back_to_top()` global helper function.
+
+### Architecture & Compatibility
+- Zero database migrations or database schema changes.
+- 100% backward compatibility with existing Core APIs and decoupled extensions.
+
 ## [1.0.0] - 2026-09-19
 
 ### Initial Stable Release

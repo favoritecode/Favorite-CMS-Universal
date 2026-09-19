@@ -56,12 +56,26 @@ class Engine
             // Fallback to 404 or basic error
             $fallback = $this->resolveTemplate('404');
             if ($fallback && file_exists($fallback)) {
-                return $this->evaluateTemplate($fallback, $data);
+                $html = $this->evaluateTemplate($fallback, $data);
+                return $this->injectBackToTop($html);
             }
             throw new \RuntimeException("Template not found: {$template}");
         }
 
-        return $this->evaluateTemplate($templatePath, $data);
+        $html = $this->evaluateTemplate($templatePath, $data);
+        return $this->injectBackToTop($html);
+    }
+
+    /**
+     * Inject generic Core Back-to-Top component and styles before </body> if not already present.
+     */
+    protected function injectBackToTop(string $html): string
+    {
+        if (stripos($html, 'cms-back-to-top') === false && stripos($html, '</body>') !== false) {
+            $btt = BackToTop::render();
+            $html = (string)preg_replace('/<\/body>/i', $btt . "\n</body>", $html, 1);
+        }
+        return $html;
     }
 
     /**

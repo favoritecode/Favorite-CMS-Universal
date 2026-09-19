@@ -182,7 +182,7 @@ $currentVersion = defined('APP_VERSION') ? APP_VERSION : '1.0.0';
         }
         .post-excerpt {
             font-size: 14px;
-            color: #334155;
+            color: var(--text);
             margin: 0 0 16px 0;
         }
         .empty-posts {

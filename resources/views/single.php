@@ -225,7 +225,7 @@ if (!empty($_SESSION['comment_error'])) {
                             <?php $commentObj = is_array($comment) ? (object)$comment : $comment; ?>
                             <div style="background: #f8fafc; border: 1px solid var(--border); border-radius: 6px; padding: 12px 16px; margin-bottom: 12px;">
                                 <strong style="font-size: 13.5px;"><?php echo htmlspecialchars((string)($commentObj->author_name ?? 'Anonymous')); ?>:</strong>
-                                <p style="margin: 4px 0 0; font-size: 13.5px; color: #334155;"><?php echo htmlspecialchars((string)($commentObj->content ?? '')); ?></p>
+                                <p style="margin: 4px 0 0; font-size: 13.5px; color: var(--text);"><?php echo htmlspecialchars((string)($commentObj->content ?? '')); ?></p>
                             </div>
                         <?php endforeach; ?>
                     </div>

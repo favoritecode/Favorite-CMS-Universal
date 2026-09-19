@@ -67,7 +67,7 @@
                         </td>
                         <td>
                             <strong>
-                                <a href="/admin/users/edit?id=<?php echo (int)$u->id; ?>" style="font-size: 13.5px; color: #1d2327;">
+                                <a href="/admin/users/edit?id=<?php echo (int)$u->id; ?>" class="row-title">
                                     <?php echo htmlspecialchars($u->username ?? $u->name, ENT_QUOTES, 'UTF-8'); ?>
                                 </a>
                             </strong>

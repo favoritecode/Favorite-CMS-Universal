@@ -16,7 +16,7 @@ $isAuthor = $currentUser && $currentUser->hasRole('author');
 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px;">
     <div class="form-card" style="padding: 16px;">
         <h3 style="color: var(--wp-text-muted); font-size: 13px; text-transform: uppercase;"><?php echo $isAuthor ? 'My Posts' : 'Posts'; ?></h3>
-        <div style="font-size: 26px; font-weight: 700; color: #1d2327; margin: 4px 0;"><?php echo $postsCount['all'] ?? 0; ?></div>
+        <div style="font-size: 26px; font-weight: 700; color: var(--admin-text-heading); margin: 4px 0;"><?php echo $postsCount['all'] ?? 0; ?></div>
         <div style="font-size: 12px; color: var(--wp-text-muted);">
             <?php echo $postsCount['published'] ?? 0; ?> published &bull; <?php echo $postsCount['draft'] ?? 0; ?> drafts
         </div>
@@ -26,7 +26,7 @@ $isAuthor = $currentUser && $currentUser->hasRole('author');
     <?php if ($canManagePages && $pagesCount !== null): ?>
     <div class="form-card" style="padding: 16px;">
         <h3 style="color: var(--wp-text-muted); font-size: 13px; text-transform: uppercase;">Pages</h3>
-        <div style="font-size: 26px; font-weight: 700; color: #1d2327; margin: 4px 0;"><?php echo $pagesCount['all'] ?? 0; ?></div>
+        <div style="font-size: 26px; font-weight: 700; color: var(--admin-text-heading); margin: 4px 0;"><?php echo $pagesCount['all'] ?? 0; ?></div>
         <div style="font-size: 12px; color: var(--wp-text-muted);">
             <?php echo $pagesCount['published'] ?? 0; ?> published
         </div>
@@ -37,7 +37,7 @@ $isAuthor = $currentUser && $currentUser->hasRole('author');
     <?php if ($canModerateComments && $commentsCount !== null): ?>
     <div class="form-card" style="padding: 16px;">
         <h3 style="color: var(--wp-text-muted); font-size: 13px; text-transform: uppercase;">Comments</h3>
-        <div style="font-size: 26px; font-weight: 700; color: #1d2327; margin: 4px 0;"><?php echo $commentsCount['all'] ?? 0; ?></div>
+        <div style="font-size: 26px; font-weight: 700; color: var(--admin-text-heading); margin: 4px 0;"><?php echo $commentsCount['all'] ?? 0; ?></div>
         <div style="font-size: 12px; color: var(--wp-text-muted);">
             <?php echo $commentsCount['pending'] ?? 0; ?> pending moderation
         </div>
@@ -48,7 +48,7 @@ $isAuthor = $currentUser && $currentUser->hasRole('author');
     <?php if ($canManageUsers && $userCount !== null): ?>
     <div class="form-card" style="padding: 16px;">
         <h3 style="color: var(--wp-text-muted); font-size: 13px; text-transform: uppercase;">Users & Media</h3>
-        <div style="font-size: 26px; font-weight: 700; color: #1d2327; margin: 4px 0;"><?php echo (int)$userCount; ?> Users</div>
+        <div style="font-size: 26px; font-weight: 700; color: var(--admin-text-heading); margin: 4px 0;"><?php echo (int)$userCount; ?> Users</div>
         <div style="font-size: 12px; color: var(--wp-text-muted);">
             <?php echo (int)$mediaCount; ?> media files
         </div>
@@ -57,7 +57,7 @@ $isAuthor = $currentUser && $currentUser->hasRole('author');
     <?php elseif ($canManageMedia): ?>
     <div class="form-card" style="padding: 16px;">
         <h3 style="color: var(--wp-text-muted); font-size: 13px; text-transform: uppercase;">Media</h3>
-        <div style="font-size: 26px; font-weight: 700; color: #1d2327; margin: 4px 0;"><?php echo (int)$mediaCount; ?> Files</div>
+        <div style="font-size: 26px; font-weight: 700; color: var(--admin-text-heading); margin: 4px 0;"><?php echo (int)$mediaCount; ?> Files</div>
         <div style="font-size: 12px; color: var(--wp-text-muted);">
             Media library files
         </div>
@@ -68,7 +68,7 @@ $isAuthor = $currentUser && $currentUser->hasRole('author');
     <?php if (!$canManagePages && !$canManageUsers && $currentUser): ?>
     <div class="form-card" style="padding: 16px;">
         <h3 style="color: var(--wp-text-muted); font-size: 13px; text-transform: uppercase;">My Account</h3>
-        <div style="font-size: 18px; font-weight: 700; color: #1d2327; margin: 8px 0 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+        <div style="font-size: 18px; font-weight: 700; color: var(--admin-text-heading); margin: 8px 0 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
             <?php echo htmlspecialchars($currentUser->name ?: $currentUser->username, ENT_QUOTES, 'UTF-8'); ?>
         </div>
         <div style="font-size: 12px; color: var(--wp-text-muted);">
