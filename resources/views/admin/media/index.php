@@ -14,19 +14,19 @@
     </div>
 </div>
 
-<!-- Upload Zone with AJAX Progress Bar & Drag-and-Drop -->
+<!-- Upload Zone with AJAX Progress Bar & Drag-and-Drop (Multi-File) -->
 <div class="form-card" style="margin-bottom: 24px; padding: 20px; border: 2px dashed #cbd5e1; background: #fafafa; border-radius: 8px;" id="drop-zone">
     <div style="display: flex; flex-direction: column; align-items: center; text-align: center;">
         <div style="font-size: 36px; color: var(--wp-blue); margin-bottom: 8px;">&#128229;</div>
-        <h2 style="font-size: 16px; font-weight: 600; margin-bottom: 4px; color: var(--wp-dark);">Drag & Drop Files Here to Upload</h2>
+        <h2 style="font-size: 16px; font-weight: 600; margin-bottom: 4px; color: var(--wp-dark);">Drag &amp; Drop Files Here to Upload</h2>
         <p style="font-size: 13px; color: var(--wp-text-muted); margin-bottom: 12px;">
-            Supports large video (MP4, WebM, MKV), audio (MP3, WAV), images, documents, and archives up to <strong><?php echo htmlspecialchars($capabilities['user']['max_upload_formatted']); ?></strong>.
+            Supports batch uploads for video (MP4, WebM, MKV), audio (MP3, WAV), images, documents, and archives up to <strong><?php echo htmlspecialchars($capabilities['user']['max_upload_formatted']); ?></strong> each.
         </p>
 
         <form id="media-upload-form" method="POST" action="/admin/media/upload" enctype="multipart/form-data" style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap; justify-content: center;">
             <input type="hidden" name="_token" value="<?php echo htmlspecialchars($_SESSION['_token'] ?? '', ENT_QUOTES, 'UTF-8'); ?>">
-            <input type="file" id="media-file-input" name="file" class="form-control" style="max-width: 320px; background: #ffffff;">
-            <button type="submit" id="start-upload-btn" class="btn btn-primary">&#128247; Upload File</button>
+            <input type="file" id="media-file-input" name="files[]" multiple class="form-control" style="max-width: 340px; background: #ffffff;">
+            <button type="submit" id="start-upload-btn" class="btn btn-primary">&#128247; Upload Files</button>
         </form>
 
         <!-- Progress Bar Container -->
@@ -39,12 +39,14 @@
                 <div id="upload-progress-bar" style="width: 0%; height: 100%; background: var(--wp-blue); transition: width 0.15s ease;"></div>
             </div>
             <div id="upload-status-msg" style="font-size: 12px; margin-top: 6px; text-align: center;"></div>
+            <!-- Per-file upload results panel -->
+            <div id="upload-results-list" class="upload-results-panel" style="display: none; margin-top: 12px; text-align: left;"></div>
         </div>
     </div>
 </div>
 
 <!-- Filters & Search Bar -->
-<div style="margin-bottom: 18px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+<div style="margin-bottom: 14px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
     <div style="display: flex; gap: 6px; flex-wrap: wrap;">
         <a href="/admin/media" class="btn <?php echo ($currentCat === 'all') ? 'btn-primary' : 'btn-secondary'; ?>" style="font-size: 12px; padding: 4px 10px;">All Media</a>
         <a href="/admin/media?category=image" class="btn <?php echo ($currentCat === 'image') ? 'btn-primary' : 'btn-secondary'; ?>" style="font-size: 12px; padding: 4px 10px;">&#128444; Images</a>
@@ -62,17 +64,35 @@
     </form>
 </div>
 
+<!-- Bulk Actions Toolbar -->
+<div class="media-bulk-bar" id="media-bulk-bar" style="margin-bottom: 16px;">
+    <div style="display: flex; align-items: center; gap: 12px;">
+        <label style="display: flex; align-items: center; gap: 6px; margin: 0; cursor: pointer; font-size: 13px; font-weight: 500;">
+            <input type="checkbox" id="bulk-select-all"> Select All
+        </label>
+        <span id="bulk-selected-count" style="color: var(--wp-text-muted); font-size: 12px;">0 selected</span>
+    </div>
+    <div style="display: flex; align-items: center; gap: 8px;">
+        <select id="bulk-action-select" class="form-control" style="font-size: 12px; padding: 4px 8px; width: 150px;">
+            <option value="">Bulk Actions</option>
+            <option value="delete">Delete Permanently</option>
+        </select>
+        <button type="button" id="bulk-apply-btn" class="btn btn-secondary" style="font-size: 12px; padding: 4px 12px;" disabled>Apply</button>
+    </div>
+</div>
+
 <!-- Media Grid -->
 <div id="media-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 16px;">
     <?php if (empty($mediaItems)): ?>
         <div class="form-card" style="grid-column: 1 / -1; text-align: center; color: var(--wp-text-muted); padding: 50px 20px;">
             <div style="font-size: 32px; margin-bottom: 8px;">&#128193;</div>
             <p style="font-size: 14px; margin-bottom: 4px;">No media files found matching the criteria.</p>
-            <span style="font-size: 12px;">Drag and drop or select a file above to add items to your library.</span>
+            <span style="font-size: 12px;">Drag and drop or select files above to add items to your library.</span>
         </div>
     <?php else: ?>
         <?php foreach ($mediaItems as $item): ?>
-            <div class="form-card" style="padding: 12px; display: flex; flex-direction: column; position: relative;">
+            <div class="form-card media-item-card" data-id="<?php echo (int)$item->id; ?>" style="padding: 12px; display: flex; flex-direction: column; position: relative;">
+                <input type="checkbox" class="media-select-checkbox" data-id="<?php echo (int)$item->id; ?>" title="Select this item">
                 <div style="height: 130px; background: #0f172a; border-radius: 4px; display: flex; align-items: center; justify-content: center; overflow: hidden; margin-bottom: 10px; position: relative;">
                     <?php if ($item->isImage()): ?>
                         <img src="<?php echo htmlspecialchars($item->url, ENT_QUOTES, 'UTF-8'); ?>" alt="<?php echo htmlspecialchars($item->filename, ENT_QUOTES, 'UTF-8'); ?>" style="max-width: 100%; max-height: 100%; object-fit: cover;" loading="lazy">
@@ -118,13 +138,15 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    var fileInput    = document.getElementById('media-file-input');
-    var uploadForm   = document.getElementById('media-upload-form');
-    var progressWrap = document.getElementById('upload-progress-wrap');
-    var progressBar  = document.getElementById('upload-progress-bar');
-    var percentText  = document.getElementById('upload-percent');
-    var statusMsg    = document.getElementById('upload-status-msg');
-    var dropZone     = document.getElementById('drop-zone');
+    var fileInput      = document.getElementById('media-file-input');
+    var uploadForm     = document.getElementById('media-upload-form');
+    var progressWrap   = document.getElementById('upload-progress-wrap');
+    var progressBar    = document.getElementById('upload-progress-bar');
+    var percentText    = document.getElementById('upload-percent');
+    var statusMsg      = document.getElementById('upload-status-msg');
+    var resultsList    = document.getElementById('upload-results-list');
+    var dropZone       = document.getElementById('drop-zone');
+    var startUploadBtn = document.getElementById('start-upload-btn');
 
     // Copy URL helper
     document.querySelectorAll('.copy-url-btn').forEach(function(btn) {
@@ -141,19 +163,37 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
-    // AJAX Upload with XMLHttpRequest for real progress reporting
-    function uploadFileViaAjax(file) {
-        if (!file) return;
+    function escapeHtml(str) {
+        return String(str || '').replace(/[&<>"']/g, function(ch) {
+            return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch];
+        });
+    }
+
+    // AJAX Multi-File Upload with XMLHttpRequest for real progress reporting
+    function uploadFilesViaAjax(files) {
+        if (!files || files.length === 0) return;
 
         var formData = new FormData();
-        formData.append('file', file);
         formData.append('_token', '<?php echo htmlspecialchars($_SESSION['_token'] ?? '', ENT_QUOTES, 'UTF-8'); ?>');
 
+        for (var i = 0; i < files.length; i++) {
+            formData.append('files[]', files[i]);
+        }
+        formData.append('file', files[0]);
+
         progressWrap.style.display = 'block';
+        if (resultsList) {
+            resultsList.style.display = 'none';
+            resultsList.innerHTML = '';
+        }
         progressBar.style.width = '0%';
+        progressBar.style.backgroundColor = 'var(--wp-blue)';
         percentText.textContent = '0%';
         statusMsg.style.color = '#334155';
-        statusMsg.textContent = 'Uploading ' + file.name + '...';
+        statusMsg.textContent = files.length === 1 
+            ? 'Uploading ' + files[0].name + '...' 
+            : 'Uploading ' + files.length + ' files...';
+        if (startUploadBtn) startUploadBtn.disabled = true;
 
         var xhr = new XMLHttpRequest();
         xhr.open('POST', '/admin/media/upload-ajax', true);
@@ -167,34 +207,48 @@ document.addEventListener('DOMContentLoaded', function() {
         };
 
         xhr.onload = function() {
-            if (xhr.status === 200) {
-                try {
-                    var resp = JSON.parse(xhr.responseText);
-                    if (resp.success) {
-                        progressBar.style.width = '100%';
-                        percentText.textContent = '100%';
-                        statusMsg.style.color = '#16a34a';
-                        statusMsg.textContent = 'Upload complete! Refreshing...';
-                        setTimeout(function() { window.location.reload(); }, 900);
-                        return;
-                    }
-                } catch(e) {}
+            if (startUploadBtn) startUploadBtn.disabled = false;
+            var resp = null;
+            try { resp = JSON.parse(xhr.responseText); } catch(e) {}
+
+            if (xhr.status === 200 && resp) {
+                progressBar.style.width = '100%';
+                percentText.textContent = '100%';
+
+                if (resp.results && resp.results.length > 0 && resultsList) {
+                    resultsList.style.display = 'block';
+                    var html = '';
+                    resp.results.forEach(function(r) {
+                        var statusCls = r.success ? 'upload-status-success' : 'upload-status-error';
+                        var statusText = r.success ? '&#10003; Uploaded' : '&#10007; ' + escapeHtml(r.message || 'Failed');
+                        html += '<div class="upload-result-item">'
+                            + '<span class="upload-result-name" title="' + escapeHtml(r.filename) + '">' + escapeHtml(r.filename) + '</span>'
+                            + '<span class="upload-result-status ' + statusCls + '">' + statusText + '</span>'
+                            + '</div>';
+                    });
+                    resultsList.innerHTML = html;
+                }
+
+                if (resp.success) {
+                    statusMsg.style.color = '#16a34a';
+                    statusMsg.textContent = 'Upload complete! ' + (resp.total_uploaded || 1) + ' file(s) saved.';
+                    setTimeout(function() { window.location.reload(); }, 1400);
+                    return;
+                }
             }
 
             var errMsg = 'Upload failed.';
-            try {
-                var errResp = JSON.parse(xhr.responseText);
-                if (errResp.message) errMsg = errResp.message;
-            } catch(e) {}
-
+            if (resp && resp.message) errMsg = resp.message;
             statusMsg.style.color = '#dc2626';
             statusMsg.textContent = errMsg;
             progressBar.style.backgroundColor = '#dc2626';
         };
 
         xhr.onerror = function() {
+            if (startUploadBtn) startUploadBtn.disabled = false;
             statusMsg.style.color = '#dc2626';
             statusMsg.textContent = 'Network error occurred during upload.';
+            progressBar.style.backgroundColor = '#dc2626';
         };
 
         xhr.send(formData);
@@ -203,7 +257,7 @@ document.addEventListener('DOMContentLoaded', function() {
     uploadForm.addEventListener('submit', function(e) {
         if (fileInput.files.length > 0) {
             e.preventDefault();
-            uploadFileViaAjax(fileInput.files[0]);
+            uploadFilesViaAjax(fileInput.files);
         }
     });
 
@@ -223,9 +277,124 @@ document.addEventListener('DOMContentLoaded', function() {
         e.preventDefault();
         dropZone.style.borderColor = '#cbd5e1';
         dropZone.style.background = '#fafafa';
-        if (e.dataTransfer.files.length > 0) {
-            uploadFileViaAjax(e.dataTransfer.files[0]);
+        if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+            uploadFilesViaAjax(e.dataTransfer.files);
         }
     });
+
+    // ==========================================
+    // Bulk Selection & Deletion
+    // ==========================================
+    var selectAllCb     = document.getElementById('bulk-select-all');
+    var selectedCountEl = document.getElementById('bulk-selected-count');
+    var actionSelect    = document.getElementById('bulk-action-select');
+    var applyBtn        = document.getElementById('bulk-apply-btn');
+    var itemCheckboxes  = document.querySelectorAll('.media-select-checkbox');
+
+    function updateBulkState() {
+        var checked = document.querySelectorAll('.media-select-checkbox:checked');
+        var count = checked.length;
+        var total = itemCheckboxes.length;
+
+        if (selectedCountEl) {
+            selectedCountEl.textContent = count + ' selected';
+        }
+
+        if (selectAllCb) {
+            selectAllCb.checked = (total > 0 && count === total);
+            selectAllCb.indeterminate = (count > 0 && count < total);
+        }
+
+        if (applyBtn) {
+            applyBtn.disabled = !(count > 0 && actionSelect && actionSelect.value !== '');
+        }
+
+        // Highlight cards
+        itemCheckboxes.forEach(function(cb) {
+            var card = cb.closest('.media-item-card');
+            if (card) {
+                if (cb.checked) {
+                    card.classList.add('media-card-selected');
+                } else {
+                    card.classList.remove('media-card-selected');
+                }
+            }
+        });
+    }
+
+    if (selectAllCb) {
+        selectAllCb.addEventListener('change', function() {
+            var shouldCheck = this.checked;
+            itemCheckboxes.forEach(function(cb) {
+                cb.checked = shouldCheck;
+            });
+            updateBulkState();
+        });
+    }
+
+    itemCheckboxes.forEach(function(cb) {
+        cb.addEventListener('change', updateBulkState);
+        cb.addEventListener('click', function(e) { e.stopPropagation(); });
+    });
+
+    if (actionSelect) {
+        actionSelect.addEventListener('change', updateBulkState);
+    }
+
+    if (applyBtn) {
+        applyBtn.addEventListener('click', function() {
+            var action = actionSelect ? actionSelect.value : '';
+            if (!action) return;
+
+            var checked = document.querySelectorAll('.media-select-checkbox:checked');
+            var ids = [];
+            checked.forEach(function(cb) {
+                var id = parseInt(cb.getAttribute('data-id'), 10);
+                if (id > 0) ids.push(id);
+            });
+
+            if (ids.length === 0) return;
+
+            if (action === 'delete') {
+                var msg = 'Are you sure you want to permanently delete ' + ids.length + ' media file(s)? This action cannot be undone.';
+                if (!confirm(msg)) return;
+
+                applyBtn.disabled = true;
+                applyBtn.textContent = 'Deleting...';
+
+                var formData = new FormData();
+                formData.append('_token', '<?php echo htmlspecialchars($_SESSION['_token'] ?? '', ENT_QUOTES, 'UTF-8'); ?>');
+                ids.forEach(function(id) {
+                    formData.append('ids[]', id);
+                });
+
+                var xhr = new XMLHttpRequest();
+                xhr.open('POST', '/admin/media/bulk-delete', true);
+                xhr.setRequestHeader('Accept', 'application/json');
+
+                xhr.onload = function() {
+                    applyBtn.disabled = false;
+                    applyBtn.textContent = 'Apply';
+                    var res = null;
+                    try { res = JSON.parse(xhr.responseText); } catch(e) {}
+
+                    if (xhr.status === 200 && res && res.success) {
+                        window.location.reload();
+                    } else {
+                        var err = (res && res.message) ? res.message : 'Bulk delete failed.';
+                        alert(err);
+                    }
+                };
+
+                xhr.onerror = function() {
+                    applyBtn.disabled = false;
+                    applyBtn.textContent = 'Apply';
+                    alert('Network error during bulk delete.');
+                };
+
+                xhr.send(formData);
+            }
+        });
+    }
 });
 </script>

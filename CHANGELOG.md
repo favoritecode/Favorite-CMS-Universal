@@ -3,6 +3,35 @@
 All notable changes to **Favorite CMS Universal** are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.1] - 2026-09-21
+
+### Improvements
+- **Editor Sticky Sidebar**:
+  - Sticky right sidebar positioning on desktop and tablet (`position: sticky; top: calc(42px + 20px); max-height: calc(100vh - 42px - 32px); overflow-y: auto; overscroll-behavior: contain;`).
+  - Smooth responsive collapse to single-column stack on mobile devices (`<= 900px`).
+  - Standardized across both Post and Page edit screens.
+- **Feature Image Dual Input & Modal Picker**:
+  - Direct local file upload via AJAX with instant preview and form binding.
+  - SSRF-safe remote image URL import directly to server storage.
+  - Reusable Media Library picker modal across Post and Page editors.
+  - One-click feature image replacement and removal.
+- **Media Library Batch Operations**:
+  - Multi-file drag-and-drop batch upload with independent per-file processing.
+  - Detailed per-file upload results panel reporting individual status and errors.
+  - Multi-select media cards with sticky bulk actions toolbar and "Select All" toggle.
+  - Transactional bulk deletion with safe automatic nullification of post/page `featured_image_id` references.
+
+### Security
+- **Strict SSRF Protection**:
+  - Protocol whitelist (`http`, `https`) and standard port whitelist (`80`, `443`, `8080`, `8443`).
+  - Comprehensive CIDR subnet blocking (IPv4 loopback, RFC 1918 private, carrier-grade NAT, cloud metadata `169.254.0.0/16`, multicast, reserved, and IPv6 loopback/link-local/ULA).
+  - Pre-request DNS resolution with validation across all resolved IP addresses.
+  - Manual redirect following (max 3 hops) with re-validation on every redirect target.
+  - Strict payload limits (10MB max), MIME verification via `finfo`, raster integrity via `getimagesize()`, and active SVG script rejection.
+- **Bulk Media Security**:
+  - CSRF token validation and role-based `canManageMedia()` authorization.
+  - Database transactions preventing partial deletions or orphaned database references.
+
 ## [1.0.0] - 2026-09-21
 
 ### Official Production Release

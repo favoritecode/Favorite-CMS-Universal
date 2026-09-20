@@ -432,7 +432,7 @@ class Kernel
 
         // Module 5: Media
         if (str_starts_with($path, '/admin/media')) {
-            $manageRoutes = ['/admin/media', '/admin/media/update', '/admin/media/delete'];
+            $manageRoutes = ['/admin/media', '/admin/media/update', '/admin/media/delete', '/admin/media/bulk-delete'];
             if (in_array($path, $manageRoutes, true)) {
                 if (!$currentUser->canManageMedia()) {
                     return Response::make('<h1>403 Access Denied</h1><p>You do not have permission to manage media.</p>', 403);
@@ -448,10 +448,12 @@ class Kernel
                 '/admin/media'              => $ctrl->index($request),
                 '/admin/media/upload'       => $ctrl->upload($request),
                 '/admin/media/upload-ajax'  => $ctrl->uploadAjax($request),
+                '/admin/media/import-url'   => $ctrl->importUrl($request),
                 '/admin/media/capabilities' => $ctrl->capabilities($request),
                 '/admin/media/library'      => $ctrl->library($request),
                 '/admin/media/update'       => $ctrl->update($request),
                 '/admin/media/delete'       => $ctrl->delete($request),
+                '/admin/media/bulk-delete'  => $ctrl->bulkDelete($request),
                 default                     => Response::redirect('/admin/media'),
             };
         }

@@ -37,7 +37,7 @@ $postId = (int)($post->id ?? 0);
         <input type="hidden" name="id" value="<?php echo $postId; ?>">
     <?php endif; ?>
 
-    <div style="display: grid; grid-template-columns: 1fr 320px; gap: 24px;">
+    <div class="editor-layout-grid">
         <!-- Left Main Column -->
         <div>
             <!-- Post Title -->
@@ -256,7 +256,7 @@ $postId = (int)($post->id ?? 0);
         </div>
 
         <!-- Right Sidebar Column -->
-        <div>
+        <div class="editor-sidebar-sticky">
             <!-- Publish Controls Card -->
             <div class="form-card" style="margin-bottom: 20px;">
                 <h3 style="font-size: 14px; font-weight: 600; margin-bottom: 14px; border-bottom: 1px solid var(--wp-border); padding-bottom: 8px;">
@@ -334,34 +334,58 @@ $postId = (int)($post->id ?? 0);
                 <?php endif; ?>
             </div>
 
-            <!-- Featured Image Card connected to Media Library -->
-            <div class="form-card" style="margin-bottom: 20px;">
+            <!-- Featured Image Card connected to Media Library, Local Upload & URL Import -->
+            <div class="form-card feat-img-card" style="margin-bottom: 20px;">
                 <h3 style="font-size: 14px; font-weight: 600; margin-bottom: 10px; border-bottom: 1px solid var(--wp-border); padding-bottom: 8px;">
                     Featured Image
                 </h3>
                 <input type="hidden" id="featured_image_id" name="featured_image_id" value="<?php echo (int)($post?->featured_image_id ?? 0); ?>">
 
+                <!-- Error Box -->
+                <div id="feat-img-error" class="feat-img-error" style="display: none;"></div>
+
                 <!-- Preview container -->
                 <div id="featured-image-preview" style="<?php echo $currentFeatImg ? '' : 'display: none;'; ?> margin-bottom: 12px;">
-                    <div style="border-radius: 4px; overflow: hidden; border: 1px solid var(--wp-border); background: #f8fafc;">
+                    <div class="feat-img-preview-box">
                         <img id="feat-img-display" 
                              src="<?php echo htmlspecialchars($currentFeatImg->url ?? '', ENT_QUOTES, 'UTF-8'); ?>" 
                              alt="Featured Image" 
                              style="width: 100%; max-height: 180px; object-fit: cover; display: block;">
                     </div>
-                    <div style="margin-top: 8px; display: flex; justify-content: space-between; align-items: center;">
+                    <div style="margin-top: 8px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px;">
                         <button type="button" id="change-feat-img-btn" class="btn btn-secondary" style="font-size: 11px; padding: 2px 8px;">Change Image</button>
                         <button type="button" id="remove-feat-img-btn" style="background: none; border: none; color: var(--wp-danger); font-size: 11px; cursor: pointer; text-decoration: underline;">Remove Image</button>
                     </div>
                 </div>
 
-                <!-- Empty state container -->
-                <div id="featured-image-empty" style="<?php echo $currentFeatImg ? 'display: none;' : ''; ?>">
-                    <button type="button" id="set-feat-img-btn" class="btn btn-secondary" style="width: 100%; padding: 10px; font-size: 13px;">
-                        &#128247; Set Featured Image
-                    </button>
+                <!-- Empty / Input state container -->
+                <div id="featured-image-actions" style="<?php echo $currentFeatImg ? 'display: none;' : ''; ?>">
+                    <div style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 8px;">
+                        <button type="button" id="set-feat-img-btn" class="btn btn-secondary" style="width: 100%; font-size: 12px; display: flex; align-items: center; justify-content: center; gap: 6px;">
+                            &#128193; Choose from Media Library
+                        </button>
+                        <div style="display: flex; gap: 6px;">
+                            <input type="file" id="feat-img-file-input" accept="image/*" style="display: none;">
+                            <button type="button" id="upload-feat-img-btn" class="btn btn-secondary" style="flex: 1; font-size: 12px; display: flex; align-items: center; justify-content: center; gap: 6px;">
+                                &#128229; Upload Image
+                            </button>
+                            <button type="button" id="toggle-url-import-btn" class="btn btn-secondary" style="flex: 1; font-size: 12px; display: flex; align-items: center; justify-content: center; gap: 6px;">
+                                &#127760; Import URL
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- URL Import Row (toggleable) -->
+                    <div id="feat-img-url-box" style="display: none; margin-top: 8px; padding: 10px; background: #f8fafc; border: 1px solid var(--wp-border); border-radius: 4px;">
+                        <label style="display: block; font-size: 11px; font-weight: 600; margin-bottom: 4px; color: var(--wp-dark);">Image URL (HTTP/HTTPS):</label>
+                        <div style="display: flex; gap: 6px;">
+                            <input type="url" id="feat-img-url-input" class="form-control" placeholder="https://example.com/image.jpg" style="font-size: 12px; padding: 4px 8px; flex: 1;">
+                            <button type="button" id="feat-img-url-submit-btn" class="btn btn-primary" style="font-size: 11px; padding: 4px 10px; white-space: nowrap;">Import</button>
+                        </div>
+                        <span id="feat-img-url-loading" style="display: none; font-size: 11px; color: var(--wp-blue); margin-top: 4px;">Downloading &amp; verifying...</span>
+                    </div>
                 </div>
-                <span class="description" style="margin-top: 8px; display: block;">Click to select from your media library or upload a new image.</span>
+                <span class="description" style="margin-top: 8px; display: block;">Upload directly, import from URL, or choose from your media library.</span>
             </div>
 
             <!-- Categories Card -->
@@ -415,152 +439,7 @@ $postId = (int)($post->id ?? 0);
 </div>
 
 <!-- Enhanced Media Library & Direct Upload Modal -->
-<div id="media-modal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 10000; align-items: center; justify-content: center;">
-    <div style="background: #ffffff; width: 92%; max-width: 900px; height: 85vh; border-radius: 8px; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.2);">
-        <!-- Modal Header with Tabs -->
-        <div style="padding: 12px 20px; border-bottom: 1px solid var(--wp-border); display: flex; justify-content: space-between; align-items: center; background: #f8fafc;">
-            <div style="display: flex; gap: 8px; align-items: center;">
-                <button type="button" id="tab-browse-media" class="modal-tab-btn active" style="padding: 6px 14px; font-size: 13px; font-weight: 600; border: 1px solid var(--wp-blue); background: #ffffff; color: var(--wp-blue); border-radius: 4px; cursor: pointer;">
-                    &#128193; Browse Media
-                </button>
-                <button type="button" id="tab-upload-media" class="modal-tab-btn" style="padding: 6px 14px; font-size: 13px; font-weight: 600; border: 1px solid var(--wp-border); background: #f8fafc; color: #64748b; border-radius: 4px; cursor: pointer;">
-                    &#128229; Upload New Media
-                </button>
-            </div>
-            <button type="button" id="close-media-modal" style="background: none; border: none; font-size: 22px; cursor: pointer; color: #64748b;">&times;</button>
-        </div>
-
-        <!-- Modal Body 1: Browse Media Library -->
-        <div id="modal-view-browse" style="display: flex; flex: 1; overflow: hidden;">
-            <!-- Left Grid: Media items -->
-            <div style="flex: 1; padding: 16px; overflow-y: auto; border-right: 1px solid var(--wp-border);">
-                <!-- Media Search & Category Filter -->
-                <div style="display: flex; justify-content: space-between; gap: 10px; margin-bottom: 14px; flex-wrap: wrap;">
-                    <div style="display: flex; gap: 4px;">
-                        <button type="button" class="media-filter-btn active" data-cat="all">All</button>
-                        <button type="button" class="media-filter-btn" data-cat="image">Images</button>
-                        <button type="button" class="media-filter-btn" data-cat="video">Videos</button>
-                        <button type="button" class="media-filter-btn" data-cat="document">Docs</button>
-                    </div>
-                    <input type="text" id="modal-search-input" placeholder="Search media..." style="padding: 4px 8px; font-size: 12px; border: 1px solid var(--wp-border); border-radius: 4px; width: 160px;">
-                </div>
-
-                <?php if (empty($mediaItems)): ?>
-                    <div id="modal-empty-state" style="text-align: center; padding: 50px 20px; color: var(--wp-text-muted);">
-                        <p style="font-size: 15px; margin-bottom: 8px;">No media files uploaded yet.</p>
-                        <button type="button" id="empty-go-upload-btn" class="btn btn-primary" style="font-size: 12px;">Upload Your First File</button>
-                    </div>
-                <?php endif; ?>
-
-                <div id="modal-media-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(115px, 1fr)); gap: 10px;">
-                    <?php foreach ($mediaItems ?? [] as $m): ?>
-                        <div class="media-picker-card" 
-                             data-id="<?php echo (int)$m->id; ?>" 
-                             data-url="<?php echo htmlspecialchars($m->url, ENT_QUOTES, 'UTF-8'); ?>"
-                             data-name="<?php echo htmlspecialchars($m->filename, ENT_QUOTES, 'UTF-8'); ?>"
-                             data-cat="<?php echo htmlspecialchars($m->getTypeCategory()); ?>"
-                             data-mime="<?php echo htmlspecialchars($m->mime_type ?? ''); ?>"
-                             data-size="<?php echo htmlspecialchars($m->getFormattedSize()); ?>">
-                            <?php if ($m->isImage()): ?>
-                                <img src="<?php echo htmlspecialchars($m->url, ENT_QUOTES, 'UTF-8'); ?>" 
-                                     alt="<?php echo htmlspecialchars($m->filename, ENT_QUOTES, 'UTF-8'); ?>" 
-                                     loading="lazy">
-                            <?php elseif ($m->isVideo()): ?>
-                                <div style="height: 80px; display: flex; align-items: center; justify-content: center; background: #0f172a; color: #ffffff; font-size: 24px;">&#127916;</div>
-                            <?php elseif ($m->isAudio()): ?>
-                                <div style="height: 80px; display: flex; align-items: center; justify-content: center; background: #0f172a; color: #ffffff; font-size: 24px;">&#127925;</div>
-                            <?php else: ?>
-                                <div style="height: 80px; display: flex; align-items: center; justify-content: center; background: #e2e8f0; font-size: 24px;">&#128196;</div>
-                            <?php endif; ?>
-                            <div class="card-name"><?php echo htmlspecialchars($m->filename, ENT_QUOTES, 'UTF-8'); ?></div>
-                        </div>
-                    <?php endforeach; ?>
-                </div>
-
-                <div id="modal-media-more-wrap" style="text-align: center; margin-top: 14px;">
-                    <button type="button" id="modal-media-more-btn" class="btn btn-secondary" style="font-size: 12px;<?php echo count($mediaItems ?? []) < (int)($mediaTotal ?? 0) ? '' : ' display: none;'; ?>">Load more media</button>
-                    <div id="modal-media-status" style="font-size: 12px; color: var(--wp-text-muted); margin-top: 6px;">
-                        <?php if ((int)($mediaTotal ?? 0) > 0): ?>
-                            Showing <?php echo count($mediaItems ?? []); ?> of <?php echo (int)$mediaTotal; ?>
-                        <?php endif; ?>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Right Sidebar: Item Details & Formatting Options -->
-            <div style="width: 260px; padding: 16px; background: #f8fafc; display: flex; flex-direction: column; overflow-y: auto;">
-                <h4 style="font-size: 13px; font-weight: 700; color: #334155; margin-bottom: 10px; border-bottom: 1px solid var(--wp-border); padding-bottom: 6px;">Attachment Details</h4>
-                <div id="attachment-details-empty" style="color: var(--wp-text-muted); font-size: 12px; font-style: italic;">
-                    Select an item from the library to view details and insert options.
-                </div>
-                <div id="attachment-details-wrap" style="display: none; font-size: 12px;">
-                    <div id="attachment-thumb" style="max-height: 120px; overflow: hidden; border-radius: 4px; margin-bottom: 10px; text-align: center; background: #ffffff; border: 1px solid var(--wp-border);"></div>
-                    <div style="font-weight: 600; word-break: break-all; margin-bottom: 4px;" id="attachment-filename"></div>
-                    <div style="color: #64748b; margin-bottom: 10px;" id="attachment-meta"></div>
-
-                    <!-- Insertion Options for Content Mode -->
-                    <div id="content-insert-options">
-                        <div class="form-group" style="margin-bottom: 8px;">
-                            <label style="font-size: 11px; font-weight: 600;">Alt Text</label>
-                            <input type="text" id="insert-alt-text" class="form-control" style="font-size: 12px; padding: 4px;">
-                        </div>
-                        <div class="form-group" style="margin-bottom: 8px;">
-                            <label style="font-size: 11px; font-weight: 600;">Alignment</label>
-                            <select id="insert-align-select" class="form-control" style="font-size: 12px; padding: 4px;">
-                                <option value="none">None (Inline)</option>
-                                <option value="center" selected>Center</option>
-                                <option value="left">Left</option>
-                                <option value="right">Right</option>
-                            </select>
-                        </div>
-                        <div class="form-group" style="margin-bottom: 8px;">
-                            <label style="font-size: 11px; font-weight: 600;">Size</label>
-                            <select id="insert-size-select" class="form-control" style="font-size: 12px; padding: 4px;">
-                                <option value="full" selected>Full Size</option>
-                                <option value="medium">Medium (600px)</option>
-                                <option value="thumbnail">Thumbnail (250px)</option>
-                            </select>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Modal Body 2: Upload New Media (Direct AJAX with Progress) -->
-        <div id="modal-view-upload" style="display: none; flex: 1; padding: 30px; overflow-y: auto; background: #f8fafc;">
-            <div id="modal-upload-zone" style="max-width: 500px; margin: 20px auto; border: 2px dashed #94a3b8; border-radius: 8px; padding: 40px 20px; text-align: center; background: #ffffff;">
-                <div style="font-size: 44px; color: var(--wp-blue); margin-bottom: 10px;">&#128229;</div>
-                <h3 style="font-size: 16px; font-weight: 600; margin-bottom: 6px;">Drop files to upload</h3>
-                <p style="font-size: 12px; color: var(--wp-text-muted); margin-bottom: 16px;">
-                    Supports large movies, web-series video, audio, images, documents, and archives.
-                </p>
-                <input type="file" id="modal-file-input" style="display: none;">
-                <button type="button" id="modal-select-file-btn" class="btn btn-primary" style="padding: 8px 20px; font-size: 13px;">Select File</button>
-
-                <!-- Upload Progress -->
-                <div id="modal-progress-wrap" style="display: none; margin-top: 20px; text-align: left;">
-                    <div style="display: flex; justify-content: space-between; font-size: 12px; font-weight: 600; color: #334155; margin-bottom: 4px;">
-                        <span id="modal-progress-filename">Uploading...</span>
-                        <span id="modal-progress-percent">0%</span>
-                    </div>
-                    <div style="background: #e2e8f0; border-radius: 999px; height: 10px; overflow: hidden;">
-                        <div id="modal-progress-bar" style="width: 0%; height: 100%; background: var(--wp-blue); transition: width 0.15s ease;"></div>
-                    </div>
-                    <div id="modal-upload-status" style="font-size: 12px; margin-top: 6px; text-align: center;"></div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Modal Footer -->
-        <div style="padding: 12px 20px; border-top: 1px solid var(--wp-border); background: #f8fafc; display: flex; justify-content: space-between; align-items: center;">
-            <span id="selected-media-summary" style="font-size: 12px; color: var(--wp-text-muted);">No media selected</span>
-            <div style="display: flex; gap: 8px;">
-                <button type="button" id="cancel-media-selection" class="btn btn-secondary">Cancel</button>
-                <button type="button" id="confirm-media-selection" class="btn btn-primary" disabled>Insert Into Post</button>
-            </div>
-        </div>
-    </div>
-</div>
+<?php include APP_ROOT . '/resources/views/admin/partials/media-modal.php'; ?>
 
 <style>
 .mode-tab-btn {
@@ -1093,8 +972,48 @@ document.addEventListener('DOMContentLoaded', function() {
 
     var featIdInput     = document.getElementById('featured_image_id');
     var featPreview     = document.getElementById('featured-image-preview');
-    var featEmpty       = document.getElementById('featured-image-empty');
+    var featActions     = document.getElementById('featured-image-actions');
     var featDisplay     = document.getElementById('feat-img-display');
+    var featFileInput   = document.getElementById('feat-img-file-input');
+    var uploadFeatBtn   = document.getElementById('upload-feat-img-btn');
+    var toggleUrlBtn    = document.getElementById('toggle-url-import-btn');
+    var featUrlBox      = document.getElementById('feat-img-url-box');
+    var featUrlInput    = document.getElementById('feat-img-url-input');
+    var featUrlSubmit   = document.getElementById('feat-img-url-submit-btn');
+    var featUrlLoading  = document.getElementById('feat-img-url-loading');
+    var featErrorBox    = document.getElementById('feat-img-error');
+
+    function showFeatImgError(msg) {
+        if (featErrorBox) {
+            featErrorBox.textContent = msg;
+            featErrorBox.style.display = 'block';
+        }
+    }
+
+    function clearFeatImgError() {
+        if (featErrorBox) {
+            featErrorBox.textContent = '';
+            featErrorBox.style.display = 'none';
+        }
+    }
+
+    function setFeaturedImage(id, url, name) {
+        clearFeatImgError();
+        featIdInput.value = id;
+        featDisplay.src   = url;
+        featPreview.style.display = 'block';
+        if (featActions) featActions.style.display = 'none';
+        if (featUrlBox) featUrlBox.style.display = 'none';
+        if (featUrlInput) featUrlInput.value = '';
+    }
+
+    function removeFeaturedImage() {
+        clearFeatImgError();
+        featIdInput.value = '0';
+        featDisplay.src   = '';
+        featPreview.style.display = 'none';
+        if (featActions) featActions.style.display = 'block';
+    }
 
     var selectedMedia   = null;
     var modalTarget     = 'content'; // 'content' or 'featured'
@@ -1419,10 +1338,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!selectedMedia) return;
 
         if (modalTarget === 'featured') {
-            featIdInput.value = selectedMedia.id;
-            featDisplay.src   = selectedMedia.url;
-            featPreview.style.display = 'block';
-            featEmpty.style.display   = 'none';
+            setFeaturedImage(selectedMedia.id, selectedMedia.url, selectedMedia.name);
         } else {
             // Build HTML for Content Insertion
             var align = document.getElementById('insert-align-select').value;
@@ -1464,11 +1380,114 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // Remove Featured Image
-    document.getElementById('remove-feat-img-btn').addEventListener('click', function() {
-        featIdInput.value = '0';
-        featDisplay.src   = '';
-        featPreview.style.display = 'none';
-        featEmpty.style.display   = 'block';
-    });
+    var removeFeatBtn = document.getElementById('remove-feat-img-btn');
+    if (removeFeatBtn) {
+        removeFeatBtn.addEventListener('click', function() {
+            removeFeaturedImage();
+        });
+    }
+
+    // Direct Upload Featured Image
+    if (uploadFeatBtn && featFileInput) {
+        uploadFeatBtn.addEventListener('click', function() {
+            featFileInput.click();
+        });
+
+        featFileInput.addEventListener('change', function() {
+            if (!this.files.length) return;
+            var file = this.files[0];
+            clearFeatImgError();
+
+            var formData = new FormData();
+            formData.append('file', file);
+            formData.append('_token', '<?php echo htmlspecialchars($_SESSION['_token'] ?? '', ENT_QUOTES, 'UTF-8'); ?>');
+
+            uploadFeatBtn.disabled = true;
+            uploadFeatBtn.textContent = 'Uploading...';
+
+            var xhr = new XMLHttpRequest();
+            xhr.open('POST', '/admin/media/upload-ajax', true);
+            xhr.onload = function() {
+                uploadFeatBtn.disabled = false;
+                uploadFeatBtn.innerHTML = '&#128229; Upload Image';
+                var res = null;
+                try { res = JSON.parse(xhr.responseText); } catch (e) {}
+                if (xhr.status === 200 && res && res.success && res.media) {
+                    if (!res.media.is_image) {
+                        showFeatImgError('The uploaded file is not an image.');
+                        return;
+                    }
+                    setFeaturedImage(res.media.id, res.media.url, res.media.filename);
+                } else {
+                    showFeatImgError((res && res.message) ? res.message : 'Failed to upload image.');
+                }
+            };
+            xhr.onerror = function() {
+                uploadFeatBtn.disabled = false;
+                uploadFeatBtn.innerHTML = '&#128229; Upload Image';
+                showFeatImgError('Network error uploading image.');
+            };
+            xhr.send(formData);
+            featFileInput.value = '';
+        });
+    }
+
+    // Toggle Image URL Import Box
+    if (toggleUrlBtn && featUrlBox) {
+        toggleUrlBtn.addEventListener('click', function() {
+            var isHidden = featUrlBox.style.display === 'none' || !featUrlBox.style.display;
+            featUrlBox.style.display = isHidden ? 'block' : 'none';
+            if (isHidden && featUrlInput) {
+                featUrlInput.focus();
+            }
+        });
+    }
+
+    // Submit Image URL Import
+    if (featUrlSubmit && featUrlInput) {
+        function executeUrlImport() {
+            var url = featUrlInput.value.trim();
+            if (!url) {
+                showFeatImgError('Please enter a valid image URL.');
+                return;
+            }
+            clearFeatImgError();
+            featUrlSubmit.disabled = true;
+            if (featUrlLoading) featUrlLoading.style.display = 'block';
+
+            var formData = new FormData();
+            formData.append('url', url);
+            formData.append('_token', '<?php echo htmlspecialchars($_SESSION['_token'] ?? '', ENT_QUOTES, 'UTF-8'); ?>');
+
+            var xhr = new XMLHttpRequest();
+            xhr.open('POST', '/admin/media/import-url', true);
+            xhr.onload = function() {
+                featUrlSubmit.disabled = false;
+                if (featUrlLoading) featUrlLoading.style.display = 'none';
+                var res = null;
+                try { res = JSON.parse(xhr.responseText); } catch (e) {}
+                if (xhr.status === 200 && res && res.success && res.media) {
+                    setFeaturedImage(res.media.id, res.media.url, res.media.filename);
+                } else {
+                    showFeatImgError((res && res.message) ? res.message : 'Failed to import image from URL.');
+                }
+            };
+            xhr.onerror = function() {
+                featUrlSubmit.disabled = false;
+                if (featUrlLoading) featUrlLoading.style.display = 'none';
+                showFeatImgError('Network error importing image.');
+            };
+            xhr.send(formData);
+        }
+
+        featUrlSubmit.addEventListener('click', executeUrlImport);
+
+        featUrlInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                executeUrlImport();
+            }
+        });
+    }
 });
 </script>
