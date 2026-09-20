@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace FavoriteCMS\Themes;
 
 use FavoriteCMS\Core\Application;
+use FavoriteCMS\Core\Exceptions\SecurityException;
 use FavoriteCMS\Models\Setting;
 use ZipArchive;
 
@@ -62,7 +63,11 @@ class ThemeManager
     {
         try {
             $active = Setting::get('theme', 'active_theme', 'default');
-            return is_string($active) && $active !== '' ? $active : 'default';
+            $activeTheme = is_string($active) && $active !== '' ? $active : 'default';
+            if (!is_dir($this->themesPath . '/' . $activeTheme) && is_dir($this->themesPath . '/default')) {
+                return 'default';
+            }
+            return $activeTheme;
         } catch (\Throwable) {
             return 'default';
         }
@@ -106,7 +111,7 @@ class ThemeManager
      */
     public function installFromZip(array $uploadedFile): array
     {
-        if (empty($uploadedFile['tmp_name']) || !is_uploaded_file($uploadedFile['tmp_name'])) {
+        if (empty($uploadedFile['tmp_name']) || (!is_uploaded_file($uploadedFile['tmp_name']) && (PHP_SAPI !== 'cli' || !is_file($uploadedFile['tmp_name'])))) {
             throw new \InvalidArgumentException("No valid file uploaded.");
         }
 
@@ -124,7 +129,7 @@ class ThemeManager
 
             if (str_contains($filename, '..') || str_starts_with($filename, '/') || str_starts_with($filename, '\\')) {
                 $zip->close();
-                throw new \SecurityException("Malicious path detected in ZIP archive: {$filename}");
+                throw new SecurityException("Malicious path detected in ZIP archive: {$filename}");
             }
 
             // Determine root folder in zip

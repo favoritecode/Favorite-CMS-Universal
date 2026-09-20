@@ -55,6 +55,7 @@ class CreateSettingsTable
             ['media',  'allowed_categories',        'images,videos,audio,documents,archives', 'string', 'Allowed Categories', 0],
             ['seo',    'meta_title_sep',        ' | ',               'string', 'Title Separator',   0],
             ['seo',    'robots_txt',            "User-agent: *\nAllow: /", 'text', 'Robots.txt',   0],
+            ['theme',  'active_theme',          'default',           'string', 'Active Theme',     1],
         ];
 
         foreach ($defaults as [$group, $key, $val, $type, $label, $public]) {

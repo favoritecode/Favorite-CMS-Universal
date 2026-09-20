@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace FavoriteCMS\Plugins;
 
 use FavoriteCMS\Core\Application;
+use FavoriteCMS\Core\Exceptions\SecurityException;
 use FavoriteCMS\Models\Setting;
 use ZipArchive;
 
@@ -317,7 +318,7 @@ class PluginManager
      */
     public function installFromZip(array $uploadedFile): array
     {
-        if (empty($uploadedFile['tmp_name']) || !is_uploaded_file($uploadedFile['tmp_name'])) {
+        if (empty($uploadedFile['tmp_name']) || (!is_uploaded_file($uploadedFile['tmp_name']) && (PHP_SAPI !== 'cli' || !is_file($uploadedFile['tmp_name'])))) {
             throw new \InvalidArgumentException("No valid upload file provided.");
         }
 
@@ -337,7 +338,7 @@ class PluginManager
             // Zip Slip protection
             if (str_contains($filename, '..') || str_starts_with($filename, '/') || str_starts_with($filename, '\\')) {
                 $zip->close();
-                throw new \RuntimeException("Malicious path detected in ZIP archive: {$filename}");
+                throw new SecurityException("Malicious path detected in ZIP archive: {$filename}");
             }
 
             // Read plugin ID directly from manifest if available

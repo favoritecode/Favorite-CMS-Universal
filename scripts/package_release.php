@@ -32,8 +32,10 @@ $dirsToCopy = [
     'app',
     'config',
     'database',
+    'plugins',
     'public',
     'resources',
+    'themes',
 ];
 
 $filesToCopy = [
@@ -46,31 +48,30 @@ $filesToCopy = [
     'LICENSE',
 ];
 
-// 2. Patterns to strictly exclude from release package
+// 2. Patterns to strictly exclude from release package (matched against normalized relative path with leading slash)
 $excludePatterns = [
-    '/\.git\b/',
-    '/\.github\b/',
-    '/\.idea\b/',
-    '/\.vscode\b/',
-    '/\.env\b/',
-    '/tests\b/',
-    '/phpunit\.xml/',
-    '/installed\.lock/',
-    '/\.log$/',
-    '/cache\//',
-    '/sessions\//',
-    '/release\//',
-    '/scratch\b/i',
-    '#/public/(plugins|themes|uploads)(/|$)#',
-    '#/plugins\b#',
-    '#/themes\b#',
-    '#/plugin-assets\b#',
-    '#/theme-assets\b#',
+    '#(?:^|/)\.git(?:/|$)#',
+    '#(?:^|/)\.github(?:/|$)#',
+    '#(?:^|/)\.idea(?:/|$)#',
+    '#(?:^|/)\.vscode(?:/|$)#',
+    '#(?:^|/)\.env(?:\.|$|/)#',
+    '#(?:^|/)tests(?:/|$)#',
+    '#/phpunit\.xml$#',
+    '#/installed\.lock$#',
+    '#\.log$#i',
+    '#(?:^|/)cache/#i',
+    '#(?:^|/)sessions/#i',
+    '#(?:^|/)release/#i',
+    '#(?:^|/)scratch(?:/|$)#i',
+    '#^/public/(plugins|themes)(/|$)#',
+    '#^/public/uploads/(?!\.gitkeep$)#',
+    '#^/plugins/(?!\.gitkeep$)#',
+    '#^/themes/(?!default(/|$)|\\.gitkeep$)#',
     '#\.(zip|sql|bak|backup|tmp|temp|log|map)$#i',
-    '/node_modules\b/',
-    '/dfre\b/',
-    '/claude\b/i',
-    '/codex\b/i',
+    '#(?:^|/)node_modules(?:/|$)#',
+    '#(?:^|/)dfre(?:/|$)#',
+    '#(?:^|/)claude(?:/|$)#i',
+    '#(?:^|/)codex(?:/|$)#i',
 ];
 
 // 3. Staging directory setup
@@ -89,7 +90,7 @@ foreach ($dirsToCopy as $dir) {
     $dst = $stageDir . '/' . $dir;
     if (is_dir($src)) {
         echo "Staging directory: {$dir}...\n";
-        copyDir($src, $dst, $excludePatterns);
+        copyDir($src, $dst, $excludePatterns, $sourceDir);
     }
 }
 
@@ -258,10 +259,12 @@ for ($i = 0; $i < $totalEntries; $i++) {
     $stat = $readZip->statIndex($i);
     $name = $stat['name'];
 
-    if (!str_starts_with($name, $rootPrefix . '/') || preg_match('#(?:^|/)(?:\.git|\.github|tests|phpunit|node_modules|claude|codex)(?:/|$)|(?:^|/)\.env(?:\.|$)|\.(?:sql|zip|bak|log|tmp)$#i', $name)
-        || preg_match('#^' . preg_quote($rootPrefix, '#') . '/(?:public/)?plugins/#', $name)
-        || preg_match('#^' . preg_quote($rootPrefix, '#') . '/(?:public/)?themes/#', $name)
-        || str_contains($name, '..')) {
+    if (!str_starts_with($name, $rootPrefix . '/')
+        || preg_match('#(?:^|/)(?:\.git|\.github|tests|phpunit|node_modules|claude|codex)(?:/|$)|(?:^|/)\.env(?:\.|$)|\.(?:sql|zip|bak|log|tmp)$#i', $name)
+        || str_contains($name, '..')
+        || preg_match('#^' . preg_quote($rootPrefix, '#') . '/public/(?:plugins|themes)/#', $name)
+        || (str_starts_with($name, $rootPrefix . '/plugins/') && $name !== $rootPrefix . '/plugins/' && $name !== $rootPrefix . '/plugins/.gitkeep')
+        || (str_starts_with($name, $rootPrefix . '/themes/') && $name !== $rootPrefix . '/themes/' && $name !== $rootPrefix . '/themes/.gitkeep' && !str_starts_with($name, $rootPrefix . '/themes/default/') && $name !== $rootPrefix . '/themes/default')) {
         throw new RuntimeException('Prohibited archive entry: ' . $name);
     }
     $readZip->getExternalAttributesIndex($i, $opsys, $attrs);
@@ -283,6 +286,57 @@ for ($i = 0; $i < $totalEntries; $i++) {
     }
     if ($name === "{$rootPrefix}/public/.htaccess") {
         $hasPubHtaccess = true;
+    }
+}
+
+// Strictly verify that all mandatory production release views and default theme files exist in archive
+$mandatoryFiles = [
+    "{$rootPrefix}/public/index.php",
+    "{$rootPrefix}/public/.htaccess",
+    "{$rootPrefix}/bootstrap.php",
+    "{$rootPrefix}/index.php",
+    "{$rootPrefix}/migrate.php",
+    "{$rootPrefix}/resources/views/admin/layout.php",
+    "{$rootPrefix}/resources/views/admin/dashboard.php",
+    "{$rootPrefix}/resources/views/admin/themes/index.php",
+    "{$rootPrefix}/resources/views/admin/plugins/index.php",
+    "{$rootPrefix}/resources/views/admin/posts/index.php",
+    "{$rootPrefix}/resources/views/admin/posts/edit.php",
+    "{$rootPrefix}/resources/views/admin/pages/index.php",
+    "{$rootPrefix}/resources/views/admin/pages/edit.php",
+    "{$rootPrefix}/resources/views/admin/settings/index.php",
+    "{$rootPrefix}/resources/views/admin/users/index.php",
+    "{$rootPrefix}/resources/views/admin/users/edit.php",
+    "{$rootPrefix}/resources/views/admin/users/profile.php",
+    "{$rootPrefix}/resources/views/admin/media/index.php",
+    "{$rootPrefix}/resources/views/admin/menus/index.php",
+    "{$rootPrefix}/resources/views/admin/taxonomies/index.php",
+    "{$rootPrefix}/resources/views/admin/comments/index.php",
+    "{$rootPrefix}/resources/views/admin/widgets/index.php",
+    "{$rootPrefix}/resources/views/admin/customize/index.php",
+    "{$rootPrefix}/resources/views/admin/customize/shell.php",
+    "{$rootPrefix}/resources/views/admin/tools/index.php",
+    "{$rootPrefix}/resources/views/admin/tools/import.php",
+    "{$rootPrefix}/resources/views/admin/updates/index.php",
+    "{$rootPrefix}/resources/views/admin/seo/index.php",
+    "{$rootPrefix}/resources/views/admin/partials/pagination.php",
+    "{$rootPrefix}/themes/default/index.php",
+    "{$rootPrefix}/themes/default/theme.json",
+    "{$rootPrefix}/themes/default/functions.php",
+    "{$rootPrefix}/themes/default/header.php",
+    "{$rootPrefix}/themes/default/footer.php",
+    "{$rootPrefix}/themes/default/single.php",
+    "{$rootPrefix}/themes/default/page.php",
+    "{$rootPrefix}/themes/default/archive.php",
+    "{$rootPrefix}/themes/default/search.php",
+    "{$rootPrefix}/themes/default/404.php",
+    "{$rootPrefix}/themes/default/sidebar.php",
+    "{$rootPrefix}/themes/default/assets/css/style.css",
+    "{$rootPrefix}/themes/default/assets/js/main.js",
+];
+foreach ($mandatoryFiles as $mandatory) {
+    if ($readZip->locateName($mandatory) === false) {
+        throw new RuntimeException("FAILED: Mandatory release entry missing from ZIP: {$mandatory}");
     }
 }
 
@@ -320,8 +374,11 @@ echo "SHA-256:          {$zipHash}\n";
 echo "==================================================\n";
 
 // Helper functions
-function copyDir(string $src, string $dst, array $excludes): void
+function copyDir(string $src, string $dst, array $excludes, string $rootDir = ''): void
 {
+    if ($rootDir === '') {
+        $rootDir = $src;
+    }
     @mkdir($dst, 0775, true);
     $dir = opendir($src);
     while (($file = readdir($dir)) !== false) {
@@ -335,9 +392,11 @@ function copyDir(string $src, string $dst, array $excludes): void
             throw new RuntimeException('Symlink is not allowed in a production package: ' . $srcPath);
         }
 
+        $relPath = '/' . ltrim(str_replace('\\', '/', substr($srcPath, strlen($rootDir))), '/');
+
         $skip = false;
         foreach ($excludes as $pattern) {
-            if (preg_match($pattern, '/' . $file) || preg_match($pattern, $srcPath)) {
+            if (preg_match($pattern, $relPath)) {
                 $skip = true;
                 break;
             }
@@ -347,7 +406,7 @@ function copyDir(string $src, string $dst, array $excludes): void
         }
 
         if (is_dir($srcPath)) {
-            copyDir($srcPath, $dstPath, $excludes);
+            copyDir($srcPath, $dstPath, $excludes, $rootDir);
         } else {
             copy($srcPath, $dstPath);
         }

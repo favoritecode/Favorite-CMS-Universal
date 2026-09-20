@@ -81,7 +81,7 @@ class AdminAppearanceTest extends TestCase
         $_SESSION['_token'] = bin2hex(random_bytes(16));
     }
 
-    public function testDefaultAdminAppearanceLoadsLightMode(): void
+    public function testDefaultAdminAppearanceLoadsDarkMode(): void
     {
         $admin = $this->createAdminUser();
         $this->authenticateAs($admin);
@@ -92,12 +92,29 @@ class AdminAppearanceTest extends TestCase
 
         $html = (string)$resp->getContent();
         $this->assertSame(200, $resp->getStatusCode());
-        $this->assertStringContainsString('data-admin-theme="light"', $html);
+        $this->assertStringContainsString('data-admin-theme="dark"', $html);
         $this->assertStringContainsString('id="admin-theme-toggle"', $html);
-        $this->assertStringContainsString('aria-label="Switch to Dark Mode"', $html);
-        $this->assertStringContainsString('aria-pressed="false"', $html);
+        $this->assertStringContainsString('aria-label="Switch to Light Mode"', $html);
+        $this->assertStringContainsString('aria-pressed="true"', $html);
         $this->assertStringContainsString('--admin-bg: #f8fafc;', $html);
         $this->assertStringContainsString(':root[data-admin-theme="dark"]', $html);
+    }
+
+    public function testLightModeRendersCorrectlyWhenPreferenceIsLight(): void
+    {
+        $admin = $this->createAdminUser();
+        Setting::set('admin_appearance', 'user_' . $admin->id, 'light');
+        $this->authenticateAs($admin);
+
+        $kernel = new Kernel(static::$app);
+        $req = Request::create('GET', '/admin');
+        $resp = $kernel->handle($req);
+
+        $html = (string)$resp->getContent();
+        $this->assertSame(200, $resp->getStatusCode());
+        $this->assertStringContainsString('data-admin-theme="light"', $html);
+        $this->assertStringContainsString('aria-label="Switch to Dark Mode"', $html);
+        $this->assertStringContainsString('aria-pressed="false"', $html);
     }
 
     public function testDarkModeRendersCorrectlyWhenPreferenceIsDark(): void
@@ -294,5 +311,56 @@ class AdminAppearanceTest extends TestCase
 
         $html = (string)$resp->getContent();
         $this->assertStringContainsString("localStorage.setItem('favorite_admin_theme'", $html);
+    }
+
+    public function testAdminThemesPageLoadsAndIsNotBlank(): void
+    {
+        $admin = $this->createAdminUser();
+        $this->authenticateAs($admin);
+
+        $kernel = new Kernel(static::$app);
+        $req = Request::create('GET', '/admin/themes');
+        $resp = $kernel->handle($req);
+
+        $html = (string)$resp->getContent();
+        $this->assertSame(200, $resp->getStatusCode());
+        $this->assertStringContainsString('Themes', $html);
+        $this->assertStringContainsString('Upload Theme', $html);
+        $this->assertStringContainsString('enctype="multipart/form-data"', $html);
+        $this->assertStringContainsString('Active Theme', $html);
+    }
+
+    public function testAdminPluginsPageLoadsAndIsNotBlank(): void
+    {
+        $admin = $this->createAdminUser();
+        $this->authenticateAs($admin);
+
+        $kernel = new Kernel(static::$app);
+        $req = Request::create('GET', '/admin/plugins');
+        $resp = $kernel->handle($req);
+
+        $html = (string)$resp->getContent();
+        $this->assertSame(200, $resp->getStatusCode());
+        $this->assertStringContainsString('Plugins', $html);
+        $this->assertStringContainsString('Upload Plugin', $html);
+        $this->assertStringContainsString('enctype="multipart/form-data"', $html);
+    }
+
+    public function testAdminLayoutHandlesMissingContentViewGracefully(): void
+    {
+        $admin = $this->createAdminUser();
+        $this->authenticateAs($admin);
+
+        $layoutFile = APP_ROOT . '/resources/views/admin/layout.php';
+        $pageTitle = 'Testing Fallback';
+        $activeMenu = 'dashboard';
+        $contentView = APP_ROOT . '/resources/views/admin/non_existent_view_test_123.php';
+
+        ob_start();
+        include $layoutFile;
+        $html = ob_get_clean();
+
+        $this->assertStringContainsString('The requested view template could not be loaded', $html);
+        $this->assertStringContainsString('notice notice-error', $html);
     }
 }

@@ -80,24 +80,24 @@ class AdminStickySidebarAndDarkModeTest extends TestCase
         $this->assertStringContainsString('color: var(--admin-text-heading);', $dashboard);
     }
 
-    public function testVersionMetadataIsSynchronizedTo101(): void
+    public function testVersionMetadataIsSynchronizedTo100(): void
     {
         $bootstrap = (string)file_get_contents(APP_ROOT . '/bootstrap.php');
-        $this->assertStringContainsString("define('APP_VERSION', '1.0.1');", $bootstrap);
+        $this->assertStringContainsString("define('APP_VERSION', '1.0.0');", $bootstrap);
 
         require_once APP_ROOT . '/bootstrap.php';
-        $this->assertSame('1.0.1', constant('APP_VERSION'));
+        $this->assertSame('1.0.0', constant('APP_VERSION'));
 
         $appConfig = require APP_ROOT . '/config/app.php';
-        $this->assertSame('1.0.1', $appConfig['version']);
+        $this->assertSame('1.0.0', $appConfig['version']);
 
         $composer = json_decode((string)file_get_contents(APP_ROOT . '/composer.json'), true);
-        $this->assertSame('1.0.1', $composer['version'] ?? null);
+        $this->assertSame('1.0.0', $composer['version'] ?? null);
 
         $readme = (string)file_get_contents(APP_ROOT . '/README.txt');
-        $this->assertStringContainsString('Favorite CMS Universal - Version 1.0.1', $readme);
+        $this->assertStringContainsString('Favorite CMS Universal - Version 1.0.0', $readme);
 
         $changelog = (string)file_get_contents(APP_ROOT . '/CHANGELOG.md');
-        $this->assertStringContainsString('## [1.0.1] - 2026-09-19', $changelog);
+        $this->assertStringContainsString('## [1.0.0] - 2026-09-21', $changelog);
     }
 }

@@ -73,6 +73,9 @@ class Kernel
             // Load active theme functions.php if available
             try {
                 $activeTheme = \FavoriteCMS\Models\Setting::get('theme', 'active_theme', 'default');
+                if (!is_dir(APP_ROOT . '/themes/' . $activeTheme) && is_dir(APP_ROOT . '/themes/default')) {
+                    $activeTheme = 'default';
+                }
                 $themeFunctions = APP_ROOT . '/themes/' . $activeTheme . '/functions.php';
                 if (file_exists($themeFunctions)) {
                     include_once $themeFunctions;

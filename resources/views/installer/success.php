@@ -6,7 +6,7 @@ $migrationCount = is_countable($migrations ?? null) ? count($migrations) : 0;
 $pageTitle = $isRestore ? 'Site restored - Favorite CMS' : 'Favorite CMS installed';
 ?>
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-admin-theme="<?php echo (isset($_COOKIE['favorite_admin_theme']) && $_COOKIE['favorite_admin_theme'] === 'light') ? 'light' : 'dark'; ?>">
 <head>
 <?php include __DIR__ . '/../partials/standalone/head.php'; ?>
 </head>
@@ -15,6 +15,10 @@ $pageTitle = $isRestore ? 'Site restored - Favorite CMS' : 'Favorite CMS install
     <div class="fc-auth__inner fc-auth__inner--wide">
         <header class="fc-auth__header">
             <span class="fc-brand"><span class="fc-brand__mark" aria-hidden="true">&#9733;</span><span class="fc-brand__name">Favorite CMS</span></span>
+            <button type="button" class="fc-theme-toggle" id="fc-theme-toggle" aria-label="Toggle dark mode" title="Toggle dark mode">
+                <span class="fc-theme-icon-sun" aria-hidden="true">☀️</span>
+                <span class="fc-theme-icon-moon" aria-hidden="true">🌙</span>
+            </button>
         </header>
 
         <section class="fc-auth__card" aria-labelledby="success-title">
@@ -54,5 +58,6 @@ $pageTitle = $isRestore ? 'Site restored - Favorite CMS' : 'Favorite CMS install
         </section>
     </div>
 </main>
+<?php include __DIR__ . '/../partials/standalone/scripts.php'; ?>
 </body>
 </html>

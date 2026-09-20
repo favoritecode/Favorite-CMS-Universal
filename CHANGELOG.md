@@ -3,45 +3,28 @@
 All notable changes to **Favorite CMS Universal** are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.0.1] - 2026-09-19
+## [1.0.0] - 2026-09-21
 
-### UI / UX & Readability
-- **Admin Panel Dark Mode Contrast Fix**:
-  - Performed comprehensive contrast audit across all Core admin screens (Dashboard, Posts, Post editor, Pages, Media, Comments, Users, Menus, Widgets, Themes, Plugins, Settings, Updates, Tools).
-  - Extended centralized semantic design tokens (`--admin-link`, `--admin-link-hover`, `--admin-text-heading`, `--admin-text-muted`) and introduced universal element attribute overrides for dark mode surfaces.
-  - Enhanced `.row-title`, `.row-actions`, subsubsub filter tabs, status badges, form labels, inputs, and placeholders for clear readability on dark backgrounds without breaking Light Mode.
-
-### Navigation
-- **Sticky Admin Sidebar**:
-  - Implemented desktop and tablet sticky left sidebar (`position: sticky; top: 42px; height: calc(100vh - 42px); overflow-y: auto; overscroll-behavior: contain;`).
-  - Preserved mobile drawer navigation (`<= 782px`) and existing collapse behaviors.
-
-### Frontend Enhancements
-- **Frontend Theme Sticky Sidebar**:
-  - Added theme-aware desktop sticky sidebar behavior (`position: sticky; top: var(--cms-sidebar-top, 24px); max-height: calc(100vh - var(--cms-sidebar-top, 24px) - 24px); overflow-y: auto;`) with contained scrolling.
-  - Sidebar stacks naturally below content on mobile/tablet viewports (`< 1024px`).
-- **Generic Theme-Aware Back-to-Top Button**:
-  - Added reusable Core Back-to-Top component (`FavoriteCMS\Rendering\BackToTop`) automatically injected before `</body>` in `Engine::render()`.
-  - Accessible button (`aria-label="Back to top"`, visible focus ring, keyboard accessible, mobile safe-area insets).
-  - Dynamic palette adaptation to the active theme's light and dark tokens (`--surface`, `--card-bg`, `--text`, `--border`, `--accent`, `--primary`).
-  - Lightweight vanilla JavaScript scroll listener with `requestAnimationFrame` and native smooth scrolling.
-  - Fully respects `prefers-reduced-motion: reduce` with instant scroll fallback.
-  - Added `cms_back_to_top()` global helper function.
-
-### Architecture & Compatibility
-- Zero database migrations or database schema changes.
-- 100% backward compatibility with existing Core APIs and decoupled extensions.
-
-## [1.0.0] - 2026-09-19
-
-### Initial Stable Release
+### Official Production Release
 - **Official Production Core Baseline**:
-  - Established clean permanent official repository at `favoritecode/Favorite-CMS-Universal`.
-  - Version reset to **1.0.0 Stable** retaining 100% complete functionality and frozen public contracts from the final locked Core v1.0.18 implementation.
-  - Complete architectural separation of concerns: Core contains framework, security, user/roles management, posts, pages, comments, media library, widgets, and customizer engine. Official themes and plugins are decoupled and distributed independently via `favoritecode/Favorite-CMS-Assets`.
-  - Standalone pure Core frontend fallback views (`resources/views/index.php` and `404.php`) enabling out-of-the-box operation on fresh installations without pre-installed themes.
-  - Generic extension update discovery (`ExtensionReleaseDiscovery`) connecting installed plugins and themes to the official Assets repository via semantic tags (`v{version}-{id}`), strictly showing updates only for installed extensions.
-  - Automatic pre-update backups, SHA-256 package verification, maintenance mode orchestration, and zero-downtime rollback capabilities.
+  - Clean permanent official repository at `favoritecode/Favorite-CMS-Universal`.
+  - Retaining 100% complete functionality and frozen public contracts across all Core modules (Application, Router, Database, Auth, Themes, Plugins, Roles, Posts, Pages, Media, Menus, Widgets, Settings, Tools).
+  - Complete architectural separation of concerns: Core contains framework, security, user/roles management, posts, pages, comments, media library, widgets, and customizer engine.
+  - Official default theme (`themes/default`) bundled out of the box with responsive layouts and Dark Mode support.
+  - Global Dark Mode default across Installer, Admin Dashboard, Standalone Auth, and Default Theme with flicker-free rendering and instant toggle.
+  - Standalone pure Core frontend fallback views (`resources/views/index.php` and `404.php`) enabling robust operation across all environments.
+  - Generic extension update discovery (`ExtensionReleaseDiscovery`) connecting installed plugins and themes to the official Assets repository.
+  - Production POSIX release packager ensuring normalized Unix paths, attributes, and complete integrity verification.
+
+### UI / UX & Navigation
+- **Universal Dark Mode**:
+  - First-class Dark Mode support across Admin panel, Installer wizard, Standalone Auth screens, and Default frontend theme.
+  - Semantic CSS design tokens and high-contrast styling for labels, tables, forms, and badges.
+- **Sticky Admin Sidebar**:
+  - Desktop and tablet sticky left navigation (`top: 42px; height: calc(100vh - 42px); overflow-y: auto; overscroll-behavior: contain;`).
+  - Preserved mobile drawer navigation (`<= 782px`).
+- **Frontend Enhancements**:
+  - Theme-aware sticky sidebar and reusable Core Back-to-Top component (`FavoriteCMS\Rendering\BackToTop`).
 
 ## [1.0.15] - 2026-09-18
 

@@ -30,8 +30,10 @@ $siteFaviconUrl = function_exists('get_site_favicon_url') ? get_site_favicon_url
 // Resolve Admin Appearance Preference with deterministic precedence:
 // 1. Authoritative Core Setting (for authenticated user)
 // 2. Session cache
-// 3. Client localStorage / default 'light'
-$adminTheme = 'light';
+// 3. Cookie preference ('favorite_admin_theme')
+// 4. Default: 'dark' (Global Dark Mode default across the CMS)
+$adminTheme = 'dark';
+$cookieTheme = $_COOKIE['favorite_admin_theme'] ?? null;
 if ($currentAdminUser) {
     try {
         $savedTheme = class_exists(\FavoriteCMS\Models\Setting::class)
@@ -41,15 +43,19 @@ if ($currentAdminUser) {
             $adminTheme = $savedTheme;
         } elseif (!empty($_SESSION['admin_theme']) && in_array($_SESSION['admin_theme'], ['dark', 'light'], true)) {
             $adminTheme = $_SESSION['admin_theme'];
+        } elseif ($cookieTheme === 'dark' || $cookieTheme === 'light') {
+            $adminTheme = $cookieTheme;
         }
     } catch (\Throwable $e) {
-        $adminTheme = $_SESSION['admin_theme'] ?? 'light';
+        $adminTheme = $_SESSION['admin_theme'] ?? (($cookieTheme === 'light') ? 'light' : 'dark');
     }
 } elseif (!empty($_SESSION['admin_theme']) && in_array($_SESSION['admin_theme'], ['dark', 'light'], true)) {
     $adminTheme = $_SESSION['admin_theme'];
+} elseif ($cookieTheme === 'dark' || $cookieTheme === 'light') {
+    $adminTheme = $cookieTheme;
 }
-if ($adminTheme !== 'dark') {
-    $adminTheme = 'light';
+if ($adminTheme !== 'light') {
+    $adminTheme = 'dark';
 }
 $_SESSION['admin_theme'] = $adminTheme;
 ?>
@@ -66,6 +72,7 @@ $_SESSION['admin_theme'] = $adminTheme;
             var isAuth = <?php echo $currentAdminUser ? 'true' : 'false'; ?>;
             if (isAuth) {
                 localStorage.setItem('favorite_admin_theme', serverTheme);
+                document.cookie = 'favorite_admin_theme=' + serverTheme + ';path=/;max-age=31536000;SameSite=Lax';
             } else {
                 var localTheme = localStorage.getItem('favorite_admin_theme');
                 if (localTheme === 'dark' || localTheme === 'light') {
@@ -1421,9 +1428,18 @@ $_SESSION['admin_theme'] = $adminTheme;
 
             <?php
             // Evaluate child view content
-            if (isset($contentView) && is_string($contentView) && file_exists($contentView)) {
-                extract($viewData ?? [], EXTR_SKIP);
-                include $contentView;
+            if (isset($contentView) && is_string($contentView)) {
+                if (file_exists($contentView)) {
+                    extract($viewData ?? [], EXTR_SKIP);
+                    include $contentView;
+                } else {
+                    error_log("Admin view file not found: {$contentView}");
+                    ?>
+                    <div class="notice notice-error">
+                        <p><strong>Error:</strong> The requested view template could not be loaded.</p>
+                    </div>
+                    <?php
+                }
             } elseif (isset($customHtml)) {
                 echo $customHtml;
             } elseif (isset($htmlBody)) {
@@ -1622,7 +1638,7 @@ $_SESSION['admin_theme'] = $adminTheme;
         var themeToggleBtn = document.getElementById('admin-theme-toggle');
         if (themeToggleBtn) {
             themeToggleBtn.addEventListener('click', function() {
-                var currentTheme = document.documentElement.getAttribute('data-admin-theme') || 'light';
+                var currentTheme = document.documentElement.getAttribute('data-admin-theme') || 'dark';
                 var nextTheme = currentTheme === 'dark' ? 'light' : 'dark';
                 var isDark = nextTheme === 'dark';
 
@@ -1639,9 +1655,10 @@ $_SESSION['admin_theme'] = $adminTheme;
                 if (sunIcon) sunIcon.style.display = isDark ? 'inline-flex' : 'none';
                 if (moonIcon) moonIcon.style.display = isDark ? 'none' : 'inline-flex';
 
-                // 3. Save to localStorage for early flash-free client bootstrap
+                // 3. Save to localStorage and cookie for early flash-free client bootstrap & cross-page persistence
                 try {
                     localStorage.setItem('favorite_admin_theme', nextTheme);
+                    document.cookie = 'favorite_admin_theme=' + nextTheme + ';path=/;max-age=31536000;SameSite=Lax';
                 } catch (e) {}
 
                 // 4. Send background POST to persist in authoritative Core Setting for authenticated user

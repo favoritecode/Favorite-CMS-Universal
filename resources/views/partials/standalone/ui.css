@@ -78,14 +78,77 @@
     --fc-focus: 0 0 0 3px rgba(96, 165, 250, 0.35);
 }
 
-[data-admin-theme="dark"] .fc-field__input {
+[data-admin-theme="dark"] .fc-field__input,
+[data-admin-theme="dark"] .fc-auth__frame .fc-input {
     background: #0f172a !important;
     color: #f8fafc !important;
+    border-color: #334155 !important;
+}
+
+[data-admin-theme="dark"] .fc-auth__frame .fc-input:focus {
+    background: #1e293b !important;
+    border-color: #3b82f6 !important;
 }
 
 [data-admin-theme="dark"] .fc-auth__frame {
     background: var(--fc-surface) !important;
+    border-color: #334155 !important;
 }
+
+[data-admin-theme="dark"] .fc-auth__card {
+    background: var(--fc-surface) !important;
+}
+
+[data-admin-theme="dark"] .fc-alert--info { background: rgba(59, 130, 246, 0.15); border-color: #1e40af; color: #93c5fd; }
+[data-admin-theme="dark"] .fc-alert--success { background: rgba(34, 197, 94, 0.15); border-color: #166534; color: #86efac; }
+[data-admin-theme="dark"] .fc-alert--warning { background: rgba(245, 158, 11, 0.15); border-color: #92400e; color: #fde047; }
+[data-admin-theme="dark"] .fc-alert--error { background: rgba(239, 68, 68, 0.15); border-color: #991b1b; color: #fca5a5; }
+
+[data-admin-theme="dark"] .fc-pill--pass { background: rgba(34, 197, 94, 0.15); border-color: #166534; color: #86efac; }
+[data-admin-theme="dark"] .fc-pill--warn { background: rgba(245, 158, 11, 0.15); border-color: #92400e; color: #fde047; }
+[data-admin-theme="dark"] .fc-pill--fail { background: rgba(239, 68, 68, 0.15); border-color: #991b1b; color: #fca5a5; }
+
+[data-admin-theme="dark"] .fc-req--fail { background: rgba(239, 68, 68, 0.15); border-color: #991b1b; }
+[data-admin-theme="dark"] .fc-req--warn { background: rgba(245, 158, 11, 0.15); border-color: #92400e; }
+
+/* Theme Toggle Button */
+.fc-theme-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: var(--fc-radius-md);
+    border: 1px solid var(--fc-border);
+    background: var(--fc-surface);
+    color: var(--fc-text);
+    cursor: pointer;
+    padding: 0;
+    transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+    user-select: none;
+    flex-shrink: 0;
+}
+.fc-theme-toggle:hover {
+    background: var(--fc-surface-muted);
+    border-color: var(--fc-border-strong);
+    transform: scale(1.05);
+}
+.fc-theme-toggle:focus-visible {
+    outline: none;
+    box-shadow: var(--fc-focus);
+}
+.fc-theme-icon-sun, .fc-theme-icon-moon {
+    font-size: 14px;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+[data-admin-theme="dark"] .fc-theme-toggle .fc-theme-icon-sun { display: inline-flex; }
+[data-admin-theme="dark"] .fc-theme-toggle .fc-theme-icon-moon { display: none; }
+:root:not([data-admin-theme="dark"]) .fc-theme-toggle .fc-theme-icon-sun { display: none; }
+:root:not([data-admin-theme="dark"]) .fc-theme-toggle .fc-theme-icon-moon { display: inline-flex; }
+
 
 *, *::before, *::after { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }
@@ -220,6 +283,8 @@ code { font-family: var(--fc-font-mono); font-size: 0.85em; background: var(--fc
 /* Account pages only: the installer keeps its existing standalone layout. */
 .fc-auth__inner--account { max-width: 980px; gap: 24px; }
 .fc-auth__inner--account .fc-auth__header { justify-content: space-between; align-items: center; gap: 20px; padding: 0 4px; }
+.fc-auth__header-actions { display: flex; align-items: center; gap: 12px; }
+.fc-rail__brand-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .fc-auth__header-label { color: var(--fc-muted); font-size: .75rem; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; }
 .fc-auth__frame { display: grid; grid-template-columns: minmax(0, .85fr) minmax(0, 1.15fr); overflow: hidden; background: #fff; border: 1px solid #dce3ee; border-radius: 24px; box-shadow: 0 24px 70px -30px rgba(24, 39, 75, .25); }
 .fc-auth__intro { position: relative; isolation: isolate; overflow: hidden; display: flex; flex-direction: column; justify-content: space-between; padding: 48px 40px 32px; color: #cbd7f0; background: radial-gradient(ellipse at 0 100%, #324e89, transparent 75%), #14254a; }

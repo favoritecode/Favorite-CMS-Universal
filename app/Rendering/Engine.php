@@ -17,7 +17,11 @@ class Engine
         $this->app = $app;
         try {
             $theme = Setting::get('theme', 'active_theme', 'default');
-            $this->activeTheme = is_string($theme) && $theme !== '' ? $theme : 'default';
+            $activeTheme = is_string($theme) && $theme !== '' ? $theme : 'default';
+            if (!is_dir(APP_ROOT . '/themes/' . $activeTheme) && is_dir(APP_ROOT . '/themes/default')) {
+                $activeTheme = 'default';
+            }
+            $this->activeTheme = $activeTheme;
         } catch (\Throwable) {
             $this->activeTheme = 'default';
         }

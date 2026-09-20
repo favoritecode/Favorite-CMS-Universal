@@ -132,6 +132,7 @@ class InstallationService
         Setting::set('general', 'site_name', $site['name']);
         Setting::set('general', 'site_url', $site['url']);
         Setting::set('general', 'admin_email', $admin['email']);
+        Setting::set('theme', 'active_theme', 'default');
     }
 
     public function publicMessage(\Throwable $e): string

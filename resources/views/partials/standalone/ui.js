@@ -89,6 +89,21 @@
     }
 
     // ------------------------------------------------------------------
+    // Dark / Light Mode Toggle (Installer & Standalone Auth)
+    // ------------------------------------------------------------------
+    all('.fc-theme-toggle').forEach(function (button) {
+        button.addEventListener('click', function () {
+            var current = doc.documentElement.getAttribute('data-admin-theme') || 'dark';
+            var next = current === 'dark' ? 'light' : 'dark';
+            doc.documentElement.setAttribute('data-admin-theme', next);
+            try {
+                localStorage.setItem('favorite_admin_theme', next);
+                doc.cookie = 'favorite_admin_theme=' + next + ';path=/;max-age=31536000;SameSite=Lax';
+            } catch (e) {}
+        });
+    });
+
+    // ------------------------------------------------------------------
     // Password visibility toggles and requirement checklists
     // ------------------------------------------------------------------
     all('[data-toggle-password]').forEach(function (button) {
