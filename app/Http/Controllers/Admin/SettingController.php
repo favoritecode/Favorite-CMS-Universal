@@ -41,6 +41,16 @@ class SettingController
             'site_favicon_url'          => (string)Setting::get('general', 'site_favicon_url', ''),
             'site_favicon_upload_path'  => (string)Setting::get('general', 'site_favicon_upload_path', ''),
             'admin_email'               => Setting::get('general', 'admin_email', 'admin@example.com'),
+            'email_transport'           => (string)Setting::get('email', 'transport', 'auto'),
+            'sender_name'               => Setting::get('email', 'sender_name', ''),
+            'sender_email'              => Setting::get('email', 'sender_email', ''),
+            'smtp_host'                 => (string)Setting::get('email', 'smtp_host', ''),
+            'smtp_port'                 => (int)Setting::get('email', 'smtp_port', 587),
+            'smtp_encryption'           => (string)Setting::get('email', 'smtp_encryption', 'tls'),
+            'smtp_username'             => (string)Setting::get('email', 'smtp_username', ''),
+            'smtp_password_set'         => !empty(Setting::get('email', 'smtp_password', '')),
+            'smtp_timeout'              => (int)Setting::get('email', 'smtp_timeout', 15),
+            'mail_diagnostics'          => \FavoriteCMS\Services\MailService::getTransportDiagnostics(),
             'timezone'                  => Setting::get('general', 'timezone', 'UTC'),
             'primary_currency'          => Currency::getPrimaryCurrency(),
             'allow_registration'        => (int)Setting::get('general', 'allow_registration', 1),
@@ -172,6 +182,79 @@ class SettingController
         }
         Setting::set('general', 'admin_email', trim((string)$request->post('admin_email', 'admin@example.com')));
 
+        // Email & Notification Settings
+        $transport = strtolower(trim((string)$request->post('email_transport', 'auto')));
+        if (!in_array($transport, ['auto', 'mail', 'smtp'], true)) {
+            $transport = 'auto';
+        }
+        Setting::set('email', 'transport', $transport);
+
+        $senderName = trim((string)$request->post('sender_name', ''));
+        $senderName = str_replace(["\r", "\n"], '', $senderName);
+        Setting::set('email', 'sender_name', $senderName);
+
+        $senderEmail = trim((string)$request->post('sender_email', ''));
+        if ($senderEmail !== '') {
+            if (!filter_var($senderEmail, FILTER_VALIDATE_EMAIL) || strpbrk($senderEmail, "\r\n\t") !== false) {
+                $_SESSION['flash_error'] = 'Invalid Sender Email address. Please enter a valid email address or leave blank to use the administration email.';
+                return Response::redirect('/admin/settings');
+            }
+            Setting::set('email', 'sender_email', $senderEmail);
+        } else {
+            Setting::set('email', 'sender_email', '');
+        }
+
+        // SMTP Settings
+        $smtpHost = trim((string)$request->post('smtp_host', ''));
+        if (strpbrk($smtpHost, "\r\n\t") !== false) {
+            $_SESSION['flash_error'] = 'Invalid SMTP host (CRLF characters not allowed).';
+            return Response::redirect('/admin/settings');
+        }
+        Setting::set('email', 'smtp_host', $smtpHost);
+
+        $smtpPort = (int)$request->post('smtp_port', 587);
+        if ($smtpPort < 1 || $smtpPort > 65535) {
+            $_SESSION['flash_error'] = 'Invalid SMTP port. Must be between 1 and 65535.';
+            return Response::redirect('/admin/settings');
+        }
+        Setting::set('email', 'smtp_port', $smtpPort, 'int');
+
+        $smtpEncryption = strtolower(trim((string)$request->post('smtp_encryption', 'tls')));
+        if ($smtpEncryption === 'starttls') {
+            $smtpEncryption = 'tls';
+        }
+        if (!in_array($smtpEncryption, ['none', 'ssl', 'tls'], true)) {
+            $_SESSION['flash_error'] = 'Invalid SMTP encryption. Allowed: none, ssl, tls.';
+            return Response::redirect('/admin/settings');
+        }
+        Setting::set('email', 'smtp_encryption', $smtpEncryption);
+
+        $smtpUsername = trim((string)$request->post('smtp_username', ''));
+        if (strpbrk($smtpUsername, "\r\n\t") !== false) {
+            $_SESSION['flash_error'] = 'Invalid SMTP username (CRLF characters not allowed).';
+            return Response::redirect('/admin/settings');
+        }
+        Setting::set('email', 'smtp_username', $smtpUsername);
+
+        if ($request->post('clear_smtp_password') || $request->post('smtp_password_clear')) {
+            Setting::set('email', 'smtp_password', '');
+        } else {
+            $submittedPass = (string)$request->post('smtp_password', '');
+            if ($submittedPass !== '' && $submittedPass !== '********') {
+                if (strpbrk($submittedPass, "\r\n") !== false) {
+                    $_SESSION['flash_error'] = 'Invalid SMTP password (CRLF characters not allowed).';
+                    return Response::redirect('/admin/settings');
+                }
+                Setting::set('email', 'smtp_password', $submittedPass);
+            }
+        }
+
+        $smtpTimeout = (int)$request->post('smtp_timeout', 15);
+        if ($smtpTimeout < 1 || $smtpTimeout > 120) {
+            $smtpTimeout = 15;
+        }
+        Setting::set('email', 'smtp_timeout', $smtpTimeout, 'int');
+
         // Validate and save site timezone
         $submittedTimezone = trim((string)$request->post('timezone', 'UTC'));
         if (!\FavoriteCMS\Core\DateTime::isValidTimezone($submittedTimezone)) {
@@ -228,4 +311,106 @@ class SettingController
         $_SESSION['flash_success'] = 'Settings saved successfully.';
         return Response::redirect('/admin/settings');
     }
+
+    public function sendTestEmail(Request $request): Response
+    {
+        $token = (string)$request->post('_token', '');
+        if (empty($_SESSION['_token']) || !hash_equals($_SESSION['_token'], $token)) {
+            $_SESSION['flash_error'] = 'Security verification failed (invalid CSRF token).';
+            return Response::redirect('/admin/settings');
+        }
+
+        $userId = isset($_SESSION['auth_user_id']) ? (int)$_SESSION['auth_user_id'] : null;
+        $currentUser = $userId ? User::find($userId) : null;
+        if (!$currentUser || !$currentUser->canManageSettings()) {
+            return Response::make('<h1>403 Access Denied</h1><p>You do not have permission to test email settings.</p>', 403);
+        }
+
+        $recipient = trim((string)$request->post('test_email', ''));
+        if (!filter_var($recipient, FILTER_VALIDATE_EMAIL) || strpbrk($recipient, "\r\n\t") !== false) {
+            $_SESSION['flash_error'] = 'Please enter a valid recipient email address for the test email.';
+            return Response::redirect('/admin/settings');
+        }
+
+        $siteName = (string)Setting::get('general', 'site_name', 'Favorite CMS');
+        $senderName = \FavoriteCMS\Services\MailService::resolveFromName();
+        $senderEmail = \FavoriteCMS\Services\MailService::resolveFromEmail();
+
+        $subject = "Test Email from {$senderName}";
+        $message = "Hello,\n\n"
+            . "This is a diagnostic test email sent from {$siteName}.\n\n"
+            . "Timestamp: " . date('Y-m-d H:i:s T') . "\n"
+            . "Resolved Sender Name: {$senderName}\n"
+            . "Resolved Sender Email: {$senderEmail}\n"
+            . "Recipient: {$recipient}\n\n"
+            . "If you are reading this email in your inbox, your server's outgoing mail transport is operating correctly.\n\n"
+            . "Regards,\nThe {$siteName} Team";
+
+        $accepted = \FavoriteCMS\Services\MailService::send($recipient, $subject, $message);
+
+        if ($accepted) {
+            $_SESSION['flash_success'] = "Mail transport accepted the test message. Check the recipient inbox/spam folder.";
+        } else {
+            $diagError = \FavoriteCMS\Services\MailService::getLastTransportError();
+            $serverDetail = $diagError ? " (Server diagnostic: {$diagError})" : "";
+            $_SESSION['flash_error'] = "Mail transport failed to send the test message. Please verify the configured mail settings.{$serverDetail}";
+        }
+
+        return Response::redirect('/admin/settings');
+    }
+
+    public function testSmtpConnection(Request $request): Response
+    {
+        $token = (string)$request->post('_token', '');
+        if (empty($_SESSION['_token']) || !hash_equals($_SESSION['_token'], $token)) {
+            $_SESSION['flash_error'] = 'Security verification failed (invalid CSRF token).';
+            return Response::redirect('/admin/settings');
+        }
+
+        $userId = isset($_SESSION['auth_user_id']) ? (int)$_SESSION['auth_user_id'] : null;
+        $currentUser = $userId ? User::find($userId) : null;
+        if (!$currentUser || !$currentUser->canManageSettings()) {
+            return Response::make('<h1>403 Access Denied</h1><p>You do not have permission to test email settings.</p>', 403);
+        }
+
+        $host = trim((string)$request->post('smtp_host', Setting::get('email', 'smtp_host', '')));
+        $port = (int)$request->post('smtp_port', Setting::get('email', 'smtp_port', 587));
+        $encryption = (string)$request->post('smtp_encryption', Setting::get('email', 'smtp_encryption', 'tls'));
+        $username = trim((string)$request->post('smtp_username', Setting::get('email', 'smtp_username', '')));
+        $timeout = (int)$request->post('smtp_timeout', Setting::get('email', 'smtp_timeout', 15));
+
+        $submittedPass = (string)$request->post('smtp_password', '');
+        $password = ($submittedPass !== '' && $submittedPass !== '********')
+            ? $submittedPass
+            : (string)Setting::get('email', 'smtp_password', '');
+
+        if ($host === '') {
+            $_SESSION['flash_error'] = 'Please specify an SMTP Host before testing the connection.';
+            return Response::redirect('/admin/settings');
+        }
+
+        try {
+            $smtp = new \FavoriteCMS\Services\Mail\SmtpTransport(
+                host: $host,
+                port: $port > 0 ? $port : 587,
+                encryption: $encryption,
+                username: $username,
+                password: $password,
+                timeout: $timeout > 0 ? $timeout : 15
+            );
+
+            $result = $smtp->testConnection();
+            if ($result['success']) {
+                $authMsg = ($username !== '' && $password !== '') ? 'Authentication confirmed.' : 'Connected (unauthenticated).';
+                $_SESSION['flash_success'] = "✓ SMTP connection successful to {$host}:{$port} ({$encryption}). Handshake verified. {$authMsg}";
+            } else {
+                $_SESSION['flash_error'] = "✗ SMTP connection failed: " . htmlspecialchars($result['message'], ENT_QUOTES, 'UTF-8');
+            }
+        } catch (\Throwable $e) {
+            $_SESSION['flash_error'] = "✗ SMTP configuration error: " . htmlspecialchars($e->getMessage(), ENT_QUOTES, 'UTF-8');
+        }
+
+        return Response::redirect('/admin/settings');
+    }
 }
+

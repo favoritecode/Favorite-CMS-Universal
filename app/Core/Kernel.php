@@ -28,7 +28,10 @@ use FavoriteCMS\Http\Controllers\Admin\UpdateController;
 use FavoriteCMS\Models\Setting;
 use FavoriteCMS\Models\User;
 use FavoriteCMS\Rendering\Engine;
+use FavoriteCMS\Services\AuthRateLimiter;
 use FavoriteCMS\Services\EmailVerificationService;
+use FavoriteCMS\Services\PasswordHasher;
+use FavoriteCMS\Services\PasswordResetService;
 use FavoriteCMS\Services\Update\MaintenanceMode;
 
 class Kernel
@@ -317,8 +320,8 @@ class Kernel
         }
 
         // Module 1: Dashboard
-        $mutation = preg_match('#^/admin/(posts|pages|taxonomies|media|comments|users|menus|themes|widgets|customize|plugins|settings|seo|tools|updates)/(?:.*/)?(store|update|approve|reject|trash|restore|delete|bulk|quick-draft|unapprove|spam|create|add|location|activate|deactivate|upload|upload-ajax|reorder|move|duplicate|reset|save|delete-account|apply|rollback|cancel-upload|process|blogger)$#', $path) === 1
-            || in_array($path, ['/admin/users/status', '/admin/users/role'], true);
+        $mutation = preg_match('#^/admin/(posts|pages|taxonomies|media|comments|users|menus|themes|widgets|customize|plugins|settings|seo|tools|updates)/(?:.*/)?(store|update|approve|reject|trash|restore|delete|bulk|quick-draft|unapprove|spam|create|add|location|activate|deactivate|upload|upload-ajax|reorder|move|duplicate|reset|save|delete-account|apply|rollback|cancel-upload|process|blogger|verify|test-email)$#', $path) === 1
+            || in_array($path, ['/admin/users/status', '/admin/users/role', '/admin/users/verify', '/admin/settings/test-email', '/admin/settings/test-smtp'], true);
         if ($mutation && $method !== 'POST') {
             return Response::make('Method not allowed.', 405)->header('Allow', 'POST');
         }
@@ -502,6 +505,7 @@ class Kernel
                 '/admin/users/update'         => $ctrl->update($request),
                 '/admin/users/status'         => $ctrl->changeStatus($request),
                 '/admin/users/role'           => $ctrl->changeRole($request),
+                '/admin/users/verify'         => $ctrl->verifyUser($request),
                 '/admin/users/delete'         => $ctrl->delete($request),
                 '/admin/users/bulk'           => $ctrl->bulkAction($request),
                 default                       => Response::redirect('/admin/users'),
@@ -600,14 +604,16 @@ class Kernel
 
         // Module 11: Settings
         if (str_starts_with($path, '/admin/settings')) {
-            if (!$isAdmin) {
+            if (!$currentUser->canManageSettings()) {
                 return Response::make('<h1>403 Access Denied</h1><p>You do not have permission to access settings.</p>', 403);
             }
             $ctrl = new SettingController($this->app);
             return match ($path) {
-                '/admin/settings'        => $ctrl->index($request),
-                '/admin/settings/update' => $ctrl->update($request),
-                default                  => Response::redirect('/admin/settings'),
+                '/admin/settings'            => $ctrl->index($request),
+                '/admin/settings/update'     => $ctrl->update($request),
+                '/admin/settings/test-email' => $ctrl->sendTestEmail($request),
+                '/admin/settings/test-smtp'  => $ctrl->testSmtpConnection($request),
+                default                      => Response::redirect('/admin/settings'),
             };
         }
 
@@ -765,8 +771,19 @@ class Kernel
                 [$login, $login]
             );
 
-            if (!$user || !password_verify($password, $user->password)) {
+            if (!$user || !PasswordHasher::verify($password, (string)$user->password)) {
                 return $this->showLogin($request, 'Error: The password you entered for the username or email is incorrect.');
+            }
+
+            // Transparent rehash if needed (e.g. migrating from bcrypt to argon2id or upgraded cost)
+            if (PasswordHasher::needsRehash((string)$user->password)) {
+                $newHash = PasswordHasher::hash($password);
+                $db->execute("UPDATE `users` SET `password` = ?, `updated_at` = ? WHERE `id` = ?", [
+                    $newHash,
+                    date('Y-m-d H:i:s'),
+                    $user->id,
+                ]);
+                $user->password = $newHash;
             }
 
             if ($user->status === 'banned') {
@@ -854,6 +871,12 @@ class Kernel
 
         $old = ['username' => $username, 'name' => $name, 'email' => $email];
 
+        $limiter = new AuthRateLimiter();
+        $ip = (string)($request->server()['REMOTE_ADDR'] ?? 'unknown');
+        if (!$limiter->allow('register-ip:' . $ip, 20, 3600)) {
+            return $this->showRegister($request, 'Too many registration attempts. Please try again later.', $old);
+        }
+
         if ($username === '' || $email === '' || $password === '') {
             return $this->showRegister($request, 'Please complete all required fields.', $old);
         }
@@ -891,7 +914,7 @@ class Kernel
             }
 
             $now = date('Y-m-d H:i:s');
-            $hash = password_hash($password, PASSWORD_DEFAULT);
+            $hash = PasswordHasher::hash($password);
             $requiresVerification = EmailVerificationService::isRequired();
 
             $userId = $db->insert('users', [
@@ -955,6 +978,24 @@ class Kernel
         if (!in_array($request->method(), ['GET', 'POST'], true)) {
             return Response::make('Method not allowed.', 405)->header('Allow', 'GET, POST');
         }
+
+        if ($request->method() === 'GET' && $reset) {
+            $raw = $request->get('token', '');
+            if (is_string($raw) && preg_match('/^[a-f0-9]{64}$/D', $raw)) {
+                $db = $this->app->make(Database::class);
+                $tokenHash = hash('sha256', $raw);
+                $record = $db->selectOne(
+                    'SELECT * FROM `password_resets` WHERE `token_hash` = ? AND `expires_at` > ? LIMIT 1',
+                    [$tokenHash, gmdate('Y-m-d H:i:s')]
+                );
+                if ($record) {
+                    $_SESSION['_password_reset_token'] = $raw;
+                } else {
+                    $error = 'This reset link is invalid or expired. Please request a new link.';
+                }
+            }
+        }
+
         if ($request->method() === 'POST') {
             $submitted = $request->post('_token', '');
             $stored = $_SESSION['_token'] ?? '';
@@ -962,8 +1003,8 @@ class Kernel
                 $error = 'Invalid security token. Please try again.';
             } else {
                 try {
-                    $service = new \FavoriteCMS\Services\PasswordResetService($this->app->make(Database::class));
-                    $limiter = new \FavoriteCMS\Services\AuthRateLimiter();
+                    $service = new PasswordResetService($this->app->make(Database::class));
+                    $limiter = new AuthRateLimiter();
                     $ip = (string)($request->server()['REMOTE_ADDR'] ?? 'unknown');
                     if ($reset) {
                         $raw = $request->post('reset_token', $_SESSION['_password_reset_token'] ?? '');
@@ -975,19 +1016,20 @@ class Kernel
                         if ($password !== (string)$request->post('password_confirm', '') || strlen($password) < 10
                             || strlen($password) > 72 || !preg_match('/[A-Za-z]/', $password) || !preg_match('/[0-9]/', $password)) {
                             $error = 'Use 10–72 characters including a letter and a number, and enter the same password twice.';
-                        } elseif (!$limiter->allow('reset:' . $ip, 30) || !$service->reset($raw, $password)) {
+                        } elseif (!$limiter->allow('reset:' . $ip, 5, 900) || !$service->reset($raw, $password)) {
                             unset($_SESSION['_password_reset_token']);
                             $error = 'This reset link is invalid or expired, or too many attempts were made. Please request a new link.';
                         } else {
+                            unset($_SESSION['_password_reset_token']);
                             $_SESSION = ['login_flash' => 'Your password has been reset. Please log in.'];
                             (new InstallerSession(new UrlResolver()))->regenerate();
                             return Response::redirect('/admin/login')->header('Cache-Control', 'no-store')->header('Referrer-Policy', 'no-referrer');
                         }
                     } else {
-                        $email = strtolower(trim((string)$request->post('email', '')));
+                        $identity = strtolower(trim((string)$request->post('email', '')));
                         $notice = 'If that address belongs to an eligible account, a password reset link will be sent. Please check your inbox.';
-                        if ($limiter->allow('recovery-ip:' . $ip, 30) && $limiter->allow('recovery-email:' . $email, 3, 3600)) {
-                            $service->request($email);
+                        if ($identity !== '' && $limiter->allow('recovery-ip:' . $ip, 5, 900) && $limiter->allow('recovery-email:' . $identity, 5, 900)) {
+                            $service->request($identity);
                         }
                     }
                 } catch (\Throwable) {
@@ -1094,6 +1136,12 @@ class Kernel
             return $this->showResendVerification($request, 'Please enter a valid email address.');
         }
 
+        $limiter = new AuthRateLimiter();
+        $ip = (string)($request->server()['REMOTE_ADDR'] ?? 'unknown');
+        if (!$limiter->allow('resend-ip:' . $ip, 15, 900) || !$limiter->allow('resend-email:' . strtolower($email), 5, 3600)) {
+            return $this->showResendVerification($request, 'Too many verification email requests. Please try again later.');
+        }
+
         $db = $this->app->make(Database::class);
         $service = new EmailVerificationService($db);
 
@@ -1107,7 +1155,7 @@ class Kernel
         $genericMsg = 'If an unverified account associated with this email exists, a new verification link has been sent. Please check your inbox.';
 
         $user = User::findByEmail($email);
-        if ($user && !$user->isEmailVerified() && $user->status !== 'banned') {
+        if ($user && !$user->isEmailVerified() && !in_array($user->status, ['banned', 'suspended'], true)) {
             $newToken = $service->createVerificationToken($user, $email);
             $service->sendVerificationEmail($user, $email, $newToken, false);
         }

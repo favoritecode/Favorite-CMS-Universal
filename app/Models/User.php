@@ -34,12 +34,12 @@ class User extends BaseModel
 
     public function verifyPassword(string $password): bool
     {
-        return password_verify($password, $this->password ?? '');
+        return \FavoriteCMS\Services\PasswordHasher::verify($password, (string)($this->password ?? ''));
     }
 
     public function setPassword(string $plain): void
     {
-        $this->password = password_hash($plain, PASSWORD_DEFAULT);
+        $this->password = \FavoriteCMS\Services\PasswordHasher::hash($plain);
     }
 
     public function toArray(): array
@@ -816,6 +816,22 @@ class User extends BaseModel
         return $this->hasRole('super-admin')
             || $this->hasRole('admin')
             || $this->hasPermission('manage_plugins');
+    }
+
+    public function canManageSettings(): bool
+    {
+        if (!$this->isActive()) {
+            return false;
+        }
+
+        if ($this->hasRole('subscriber') || $this->hasRole('author') || $this->hasRole('moderator') || $this->hasRole('editor')) {
+            return false;
+        }
+
+        return $this->hasRole('super-admin')
+            || $this->hasRole('admin')
+            || $this->isSuperAdmin()
+            || $this->hasPermission('manage_settings');
     }
 
     public function getPostCount(): int

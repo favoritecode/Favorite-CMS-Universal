@@ -3,6 +3,25 @@
 All notable changes to **Favorite CMS Universal** are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.2] - 2026-09-21
+
+### Security & Hardening
+- **Authentication & Account Security Hardening**:
+  - Replaced fragment-based and non-canonical verification and password recovery URLs with absolute canonical query URLs (`?token=`).
+  - Added hierarchical `Url` canonical resolver (`Setting` -> `config` -> `UrlResolver` -> fallback).
+  - Modernized password hashing to `Argon2id` (with bcrypt fallback at cost 12) and transparent automatic rehash on login.
+  - Hardened single-use tokens with 256-bit entropy, SHA-256 storage hashing, and constant-time verification.
+  - Strengthened session lifecycle: session regeneration on authentication, reset, and role change; immediate multi-session invalidation via `auth_version`.
+  - Enforced strict rate limiting across login, registration, password recovery, reset, and email verification endpoints.
+  - Implemented anti-enumeration protection on recovery and verification resend flows.
+- **Universal Mail & User Management System**:
+  - Centralized mail handling in `MailService` with dynamic sender name and email resolution, strict CRLF header injection protection, envelope sender (`-f`) alignment, and safe SHA-256 diagnostic logging.
+  - Architectural separation between Installation Admin Recovery Email (`general.admin_email`) and Configurable Sender Email (`email.sender_email`).
+  - Support for dual-identity password recovery lookup (username or email).
+  - Added manual single-user and bulk email verification with automatic token invalidation without email dispatch.
+  - Added transactional bulk user deletion with self-delete, super-admin, and last-admin protections.
+  - Added Email & Notification Settings management and Send Test Email diagnostic tool.
+
 ## [1.0.1] - 2026-09-21
 
 ### Improvements

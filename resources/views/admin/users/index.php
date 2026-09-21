@@ -12,6 +12,8 @@
             <option value="activate">Activate / Restore</option>
             <option value="suspend">Suspend</option>
             <option value="ban">Ban</option>
+            <option value="verify">Mark as Verified</option>
+            <option value="delete">Delete Selected</option>
         </select>
         <button type="submit" class="btn btn-secondary">Apply</button>
         <span class="bulk-count-badge">0 selected</span>
@@ -76,8 +78,11 @@
                             <?php endif; ?>
                             <div class="row-actions">
                                 <a href="/admin/users/edit?id=<?php echo (int)$u->id; ?>">Edit Profile</a>
+                                <?php if (!$u->isEmailVerified()): ?>
+                                    | <button type="submit" form="core-action-form" formmethod="POST" formnovalidate formaction="<?php echo htmlspecialchars(site_base_path(), ENT_QUOTES, 'UTF-8'); ?>/admin/users/verify?id=<?php echo (int)$u->id; ?>" class="core-action-link" style="color: #15803d;">Verify</button>
+                                <?php endif; ?>
                                 <?php if (!$isSelf && !$isSoleActiveSuperAdmin): ?>
-                                    | <a href="/admin/users/delete?id=<?php echo (int)$u->id; ?>" onclick="return confirm('Permanently delete user &quot;<?php echo htmlspecialchars($u->username); ?>&quot;?');" style="color: var(--wp-danger);">Delete</a>
+                                    | <button type="submit" form="core-action-form" formmethod="POST" formnovalidate formaction="<?php echo htmlspecialchars(site_base_path(), ENT_QUOTES, 'UTF-8'); ?>/admin/users/delete?id=<?php echo (int)$u->id; ?>" class="core-action-link" onclick="return confirm('Permanently delete user &quot;<?php echo htmlspecialchars($u->username); ?>&quot;?');" style="color: var(--wp-danger);">Delete</button>
                                 <?php elseif (!$isSelf && $isSoleActiveSuperAdmin): ?>
                                     | <span style="color: var(--wp-text-muted); font-size: 11.5px;" title="Sole active Super Admin cannot be deleted">Protected</span>
                                 <?php endif; ?>
@@ -115,9 +120,12 @@
                                     Verified
                                 </span>
                             <?php else: ?>
-                                <span style="display: inline-block; padding: 2px 8px; border-radius: 3px; font-size: 11px; font-weight: 600; background: #fef3c7; color: #b45309;" title="Email verification pending">
-                                    Unverified
-                                </span>
+                                <div style="display: inline-flex; align-items: center; gap: 5px;">
+                                    <span style="display: inline-block; padding: 2px 8px; border-radius: 3px; font-size: 11px; font-weight: 600; background: #fef3c7; color: #b45309;" title="Email verification pending">
+                                        Unverified
+                                    </span>
+                                    <button type="submit" form="core-action-form" formmethod="POST" formnovalidate formaction="<?php echo htmlspecialchars(site_base_path(), ENT_QUOTES, 'UTF-8'); ?>/admin/users/verify?id=<?php echo (int)$u->id; ?>" class="btn btn-secondary" style="padding: 1px 6px; font-size: 11px; line-height: 1.2;" title="Manually verify this user">Verify</button>
+                                </div>
                             <?php endif; ?>
                         </td>
                         <td style="text-align: center;">

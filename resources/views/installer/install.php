@@ -306,6 +306,10 @@ $pageTitle = 'Install Favorite CMS';
                         <?php echo $field(['id' => 'site_url', 'label' => 'Site URL', 'value' => $value('site_url', (string)$detectedUrl), 'required' => true, 'hint' => 'Detected from the address you used to open this installer, including any subdirectory.', 'attrs' => ['inputmode' => 'url', 'data-error' => 'Enter the full site address, for example https://example.com/.']]); ?>
                     </div>
 
+                    <div class="fc-alert fc-alert--info" style="margin-top: 12px; font-size: 13px;">
+                        <p><strong>Mail Delivery Auto-Configuration:</strong> Outgoing system emails will be configured in Auto mode using a suggested sender address (e.g. <code>noreply@<?php echo htmlspecialchars(\FavoriteCMS\Services\Mail\MailDetector::extractDomain((string)$detectedUrl) ?: 'yourdomain.com', ENT_QUOTES, 'UTF-8'); ?></code>). Sender address is suggested automatically. Your hosting provider may require a real mailbox.</p>
+                    </div>
+
                     <div class="fc-panel__actions" data-js-only hidden>
                         <button type="button" class="fc-btn fc-btn--secondary" data-goto="<?php echo $manualDatabase ? 'database' : 'requirements'; ?>">Back</button>
                         <div class="fc-panel__actions-end">

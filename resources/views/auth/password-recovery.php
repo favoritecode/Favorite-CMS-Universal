@@ -11,11 +11,11 @@
         <input type="hidden" name="_token" value="<?php echo $e($token); ?>">
         <?php if ($reset): ?>
             <input type="hidden" name="reset_token" id="reset-token" value="" disabled>
-            <noscript><p>Paste the code after “#token=” in your reset link.</p><input name="reset_token" aria-label="Reset code" autocomplete="off" required></noscript>
+            <noscript><p>Paste the code from your reset link if prompted.</p><input name="reset_token" aria-label="Reset code" autocomplete="off"></noscript>
             <?php echo $field(['id' => 'password', 'type' => 'password', 'label' => 'New password', 'required' => true, 'autocomplete' => 'new-password', 'toggle' => true, 'hint' => '10–72 characters, including a letter and a number.', 'attrs' => ['minlength' => '10', 'maxlength' => '72']]); ?>
             <?php echo $field(['id' => 'password_confirm', 'type' => 'password', 'label' => 'Confirm new password', 'required' => true, 'autocomplete' => 'new-password', 'toggle' => true, 'attrs' => ['data-match' => 'password', 'data-match-message' => 'The passwords do not match.']]); ?>
         <?php else: ?>
-            <?php echo $field(['id' => 'email', 'type' => 'email', 'label' => 'Email address', 'required' => true, 'autocomplete' => 'email']); ?>
+            <?php echo $field(['id' => 'email', 'type' => 'text', 'label' => 'Email address or username', 'required' => true, 'autocomplete' => 'username email']); ?>
         <?php endif; ?>
         <button class="fc-btn fc-btn--primary fc-btn--block" type="submit" data-busy-label="<?php echo $reset ? 'Updating password...' : 'Sending reset link...'; ?>"><?php echo $reset ? 'Reset password' : 'Send reset link'; ?></button>
     </form>
@@ -24,11 +24,28 @@
 <?php if ($reset): ?>
 <script>
 (function () {
-    var match = /^#token=([a-f0-9]{64})$/.exec(window.location.hash);
-    if (match) {
+    var token = null;
+    try {
+        var params = new URLSearchParams(window.location.search);
+        if (params.has('token') && /^[a-f0-9]{64}$/.test(params.get('token'))) {
+            token = params.get('token');
+        }
+    } catch (e) {}
+    if (!token && window.location.hash) {
+        var match = /^[#?]token=([a-f0-9]{64})$/.exec(window.location.hash);
+        if (match) {
+            token = match[1];
+        }
+    }
+    if (token) {
         var field = document.getElementById('reset-token');
-        field.value = match[1]; field.disabled = false;
-        window.history.replaceState(null, '', window.location.pathname);
+        if (field) {
+            field.value = token;
+            field.disabled = false;
+        }
+        if (window.history && window.history.replaceState) {
+            window.history.replaceState(null, '', window.location.pathname);
+        }
     }
 })();
 </script>

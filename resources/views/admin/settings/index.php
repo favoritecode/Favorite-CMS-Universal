@@ -3,7 +3,7 @@
 </div>
 
 <div class="form-card" style="max-width: 760px;">
-    <form method="POST" action="/admin/settings/update" enctype="multipart/form-data">
+    <form method="POST" action="<?php echo htmlspecialchars(app_url('/admin/settings/update'), ENT_QUOTES, 'UTF-8'); ?>" enctype="multipart/form-data">
         <input type="hidden" name="_token" value="<?php echo htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8'); ?>">
 
         <h2 style="font-size: 16px; font-weight: 600; margin-bottom: 16px; border-bottom: 1px solid var(--wp-border); padding-bottom: 8px;">
@@ -141,7 +141,7 @@
         <div class="form-group">
             <label for="admin_email">Administration Email Address</label>
             <input type="email" id="admin_email" name="admin_email" class="form-control" value="<?php echo htmlspecialchars($settings['admin_email'], ENT_QUOTES, 'UTF-8'); ?>" required>
-            <span class="description">This address is used for admin purposes.</span>
+            <span class="description">This address is used for admin purposes and is the authoritative recovery email for the administrator.</span>
         </div>
 
         <div class="form-group">
@@ -185,6 +185,151 @@
                 Anyone can register for a normal user account
             </label>
             <span class="description">Allow visitors to register accounts from /register or /signup.</span>
+        </div>
+
+        <h2 id="email-settings" style="font-size: 16px; font-weight: 600; margin: 28px 0 16px; border-bottom: 1px solid var(--wp-border); padding-bottom: 8px;">
+            Email & Notification Settings
+        </h2>
+
+        <?php
+        $diag = $settings['mail_diagnostics'] ?? [];
+        $activeTransport = $settings['email_transport'] ?? 'auto';
+        $smtpConfigured = !empty($diag['smtp_configured']);
+        $mailAvailable = !empty($diag['mail_function_exists']) && empty($diag['mail_disabled']);
+        $resolved = $diag['resolved_transport'] ?? ($smtpConfigured ? 'smtp' : 'mail');
+        ?>
+
+        <!-- Transport Status Badge -->
+        <div style="border: 1px solid var(--wp-border); border-radius: 6px; padding: 14px 16px; margin-bottom: 18px; display: flex; flex-direction: column; gap: 8px;">
+            <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+                <span style="font-weight: 600; font-size: 13px;">Mail Delivery Status:</span>
+                <?php if ($smtpConfigured): ?>
+                    <span style="font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 9999px; background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3);">
+                        &#10003; Mail system configured (SMTP active: <?php echo htmlspecialchars((string)($diag['smtp_host'] ?? 'configured'), ENT_QUOTES, 'UTF-8'); ?>:<?php echo (int)($diag['smtp_port_configured'] ?? 587); ?>)
+                    </span>
+                <?php elseif ($mailAvailable): ?>
+                    <span style="font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 9999px; background: rgba(59, 130, 246, 0.15); color: #3b82f6; border: 1px solid rgba(59, 130, 246, 0.3);">
+                        &#10003; Mail system configured (PHP Mail active)
+                    </span>
+                <?php else: ?>
+                    <span style="font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 9999px; background: rgba(239, 68, 68, 0.15); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3);">
+                        &#9888; PHP mail transport unavailable
+                    </span>
+                <?php endif; ?>
+            </div>
+
+            <?php if (!$smtpConfigured && $activeTransport !== 'mail'): ?>
+                <div style="font-size: 12px; color: #f59e0b; display: flex; align-items: center; gap: 6px;">
+                    <span>&#9888;</span> <span>SMTP credentials required for authenticated delivery. On shared/cloud hosting (such as Hostinger), SMTP is recommended.</span>
+                </div>
+            <?php endif; ?>
+
+            <div style="font-size: 12px; color: var(--wp-text-muted, #94a3b8); line-height: 1.5; margin-top: 4px;">
+                &bull; <strong>Administration Email:</strong> <code><?php echo htmlspecialchars((string)$settings['admin_email'], ENT_QUOTES, 'UTF-8'); ?></code> (Configured in General Settings; used strictly as the recovery destination).<br>
+                &bull; <strong>Sender Email:</strong> Outgoing <code>FROM</code> address for verification, password resets, and notifications.
+            </div>
+        </div>
+
+        <!-- Sender Fields -->
+        <div class="form-group">
+            <label for="sender_name">Sender Name</label>
+            <input type="text" id="sender_name" name="sender_name" class="form-control" value="<?php echo htmlspecialchars($settings['sender_name'] ?? '', ENT_QUOTES, 'UTF-8'); ?>" placeholder="<?php echo htmlspecialchars($settings['site_name'] ?? 'Favorite CMS', ENT_QUOTES, 'UTF-8'); ?>">
+            <span class="description">The display name appearing in the "From" header of outgoing emails. Leave blank to use the Site Title.</span>
+        </div>
+
+        <div class="form-group">
+            <label for="sender_email">Sender Email Address</label>
+            <input type="email" id="sender_email" name="sender_email" class="form-control" value="<?php echo htmlspecialchars($settings['sender_email'] ?? '', ENT_QUOTES, 'UTF-8'); ?>" placeholder="<?php echo htmlspecialchars($settings['admin_email'] ?? 'admin@example.com', ENT_QUOTES, 'UTF-8'); ?>">
+            <span class="description">The email address appearing in the "From" header of outgoing emails. Leave blank to use the Administration Email Address.</span>
+        </div>
+
+        <!-- Mail Transport Selection -->
+        <div class="form-group" style="border-top: 1px solid var(--wp-border); padding-top: 14px; margin-top: 16px;">
+            <label style="font-weight: 600; font-size: 14px; margin-bottom: 8px; display: block;">Mail Transport</label>
+            <div style="display: flex; flex-direction: column; gap: 8px; font-size: 13px;">
+                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                    <input type="radio" name="email_transport" value="auto" <?php echo ($activeTransport === 'auto') ? 'checked' : ''; ?>>
+                    <strong>Auto (Recommended)</strong> &mdash; Automatically uses SMTP if configured, otherwise falls back to PHP mail().
+                </label>
+                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                    <input type="radio" name="email_transport" value="smtp" <?php echo ($activeTransport === 'smtp') ? 'checked' : ''; ?>>
+                    <strong>SMTP</strong> &mdash; Exclusively route all emails through the configured SMTP server.
+                </label>
+                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                    <input type="radio" name="email_transport" value="mail" <?php echo ($activeTransport === 'mail') ? 'checked' : ''; ?>>
+                    <strong>PHP Mail</strong> &mdash; Exclusively use native PHP mail() / local server MTA.
+                </label>
+            </div>
+        </div>
+
+        <!-- SMTP Configuration Panel -->
+        <div style="border: 1px solid var(--wp-border); border-radius: 6px; padding: 16px; margin: 16px 0; background: var(--wp-surface, transparent);">
+            <div style="font-size: 14px; font-weight: 600; margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between;">
+                <span>SMTP Server Settings</span>
+                <?php if (!empty($settings['smtp_password_set'])): ?>
+                    <span style="font-size: 11px; font-weight: 500; color: #10b981; background: rgba(16, 185, 129, 0.12); padding: 2px 8px; border-radius: 4px;">Password Stored</span>
+                <?php endif; ?>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 12px; margin-bottom: 12px;">
+                <div>
+                    <label for="smtp_host" style="font-size: 12px; font-weight: 600;">SMTP Host</label>
+                    <input type="text" id="smtp_host" name="smtp_host" class="form-control" value="<?php echo htmlspecialchars($settings['smtp_host'] ?? '', ENT_QUOTES, 'UTF-8'); ?>" placeholder="e.g. smtp.example.com or smtp.hostinger.com">
+                </div>
+                <div>
+                    <label for="smtp_port" style="font-size: 12px; font-weight: 600;">SMTP Port</label>
+                    <input type="number" id="smtp_port" name="smtp_port" class="form-control" value="<?php echo (int)($settings['smtp_port'] ?? 587); ?>" min="1" max="65535" placeholder="587">
+                </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+                <div>
+                    <label for="smtp_encryption" style="font-size: 12px; font-weight: 600;">Encryption</label>
+                    <select id="smtp_encryption" name="smtp_encryption" class="form-control">
+                        <option value="tls" <?php echo (($settings['smtp_encryption'] ?? 'tls') === 'tls') ? 'selected' : ''; ?>>STARTTLS / TLS (Port 587)</option>
+                        <option value="ssl" <?php echo (($settings['smtp_encryption'] ?? 'tls') === 'ssl') ? 'selected' : ''; ?>>SSL / TLS (Port 465)</option>
+                        <option value="none" <?php echo (($settings['smtp_encryption'] ?? 'tls') === 'none') ? 'selected' : ''; ?>>None (Plain TCP / Local port 25 or 1025)</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="smtp_timeout" style="font-size: 12px; font-weight: 600;">Connection Timeout (seconds)</label>
+                    <input type="number" id="smtp_timeout" name="smtp_timeout" class="form-control" value="<?php echo (int)($settings['smtp_timeout'] ?? 15); ?>" min="1" max="120" placeholder="15">
+                </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+                <div>
+                    <label for="smtp_username" style="font-size: 12px; font-weight: 600;">SMTP Username</label>
+                    <input type="text" id="smtp_username" name="smtp_username" class="form-control" value="<?php echo htmlspecialchars($settings['smtp_username'] ?? '', ENT_QUOTES, 'UTF-8'); ?>" placeholder="e.g. user@example.com" autocomplete="off">
+                </div>
+                <div>
+                    <label for="smtp_password" style="font-size: 12px; font-weight: 600;">SMTP Password</label>
+                    <input type="password" id="smtp_password" name="smtp_password" class="form-control" value="<?php echo !empty($settings['smtp_password_set']) ? '********' : ''; ?>" placeholder="<?php echo !empty($settings['smtp_password_set']) ? '********' : 'Enter password'; ?>" autocomplete="new-password">
+                </div>
+            </div>
+
+            <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 10px;">
+                <button type="submit" formmethod="POST" formaction="<?php echo htmlspecialchars(app_url('/admin/settings/test-smtp'), ENT_QUOTES, 'UTF-8'); ?>" class="btn btn-secondary">Test SMTP Connection</button>
+                <?php if (!empty($settings['smtp_password_set'])): ?>
+                    <button type="submit" name="clear_smtp_password" value="1" class="btn btn-secondary" style="color: #ef4444; border-color: rgba(239, 68, 68, 0.3);" onclick="return confirm('Clear the saved SMTP password?');">Clear SMTP Password</button>
+                <?php endif; ?>
+            </div>
+            <span class="description" style="margin-top: 6px; display: block; font-size: 11px;">
+                "Test SMTP Connection" verifies DNS, network socket connection, TLS certificate negotiation, and authentication credentials without dispatching an email.
+            </span>
+        </div>
+
+        <!-- Send Test Email Panel -->
+        <div style="border: 1px solid var(--wp-border); border-radius: 6px; padding: 14px 16px; margin: 16px 0 24px; background: var(--wp-surface, transparent);">
+            <div style="font-size: 13px; font-weight: 600; margin-bottom: 4px;">Send Test Email</div>
+            <p style="font-size: 12px; color: var(--wp-text-muted, #94a3b8); margin-bottom: 10px;">Send a diagnostic test message through the currently selected transport (<?php echo strtoupper($resolved); ?>) to verify outgoing delivery.</p>
+            <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
+                <input type="email" id="test_email" name="test_email" class="form-control" style="max-width: 320px;" placeholder="recipient@example.com">
+                <button type="submit" formmethod="POST" formaction="<?php echo htmlspecialchars(app_url('/admin/settings/test-email'), ENT_QUOTES, 'UTF-8'); ?>" class="btn btn-secondary">Send Test Email</button>
+            </div>
+            <span class="description" style="margin-top: 6px; display: block; font-size: 11px;">
+                Note: Transport acceptance confirms the message was handed to the mail transport. Actual inbox delivery depends on recipient server policies, SPF/DKIM/DMARC records, and spam filtering.
+            </span>
         </div>
 
         <h2 style="font-size: 16px; font-weight: 600; margin: 24px 0 16px; border-bottom: 1px solid var(--wp-border); padding-bottom: 8px;">

@@ -30,7 +30,7 @@ class InstallerSession
         session_name('fcms_' . substr(sha1(APP_ROOT), 0, 16));
         session_set_cookie_params([
             'lifetime' => 0,
-            'path' => $basePath === '' ? '/' : $basePath . '/',
+            'path' => $basePath === '' ? '/' : $basePath,
             'secure' => $this->urls->isHttps($request),
             'httponly' => true,
             'samesite' => 'Lax',

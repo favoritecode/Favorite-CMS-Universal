@@ -7,46 +7,117 @@ namespace FavoriteCMS\Services;
 use FavoriteCMS\Core\Database;
 use FavoriteCMS\Core\Hook;
 use FavoriteCMS\Models\Setting;
+use FavoriteCMS\Models\User;
 
 class PasswordResetService
 {
     public function __construct(private Database $db) {}
 
-    /** Never disclose whether an address exists or delivery succeeded. */
-    public function request(string $email): void
+    /**
+     * Request a password reset for an account identified by email or username.
+     * Never discloses whether an account exists or delivery succeeded.
+     *
+     * @param string $identity Email address or username
+     * @return bool True if mail dispatch succeeded or was processed, false otherwise
+     */
+    public function request(string $identity): bool
     {
-        $email = strtolower(trim($email));
-        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-            return;
+        $identity = trim($identity);
+        if ($identity === '') {
+            return false;
         }
-        $user = $this->db->selectOne("SELECT * FROM `users` WHERE `email` = ? AND `status` = 'active' LIMIT 1", [$email]);
-        if (!$user) {
-            return;
+
+        $userRow = null;
+        if (filter_var($identity, FILTER_VALIDATE_EMAIL)) {
+            $email = strtolower($identity);
+            $userRow = $this->db->selectOne(
+                "SELECT * FROM `users` WHERE `email` = ? AND `status` = 'active' LIMIT 1",
+                [$email]
+            );
+
+            // If not found by direct email, check if email matches installation general.admin_email
+            if (!$userRow) {
+                $adminEmail = strtolower(trim((string)Setting::get('general', 'admin_email', '')));
+                if ($adminEmail !== '' && $adminEmail === $email) {
+                    $userRow = $this->db->selectOne(
+                        "SELECT u.* FROM `users` u
+                         JOIN `user_roles` ur ON u.id = ur.user_id
+                         JOIN `roles` r ON ur.role_id = r.id
+                         WHERE r.slug IN ('admin', 'super-admin') AND u.status = 'active'
+                         ORDER BY u.id ASC LIMIT 1"
+                    );
+                    if (!$userRow) {
+                        $userRow = $this->db->selectOne("SELECT * FROM `users` WHERE `id` = 1 AND `status` = 'active' LIMIT 1");
+                    }
+                }
+            }
+        } else {
+            // Username lookup
+            $userRow = $this->db->selectOne(
+                "SELECT * FROM `users` WHERE `username` = ? AND `status` = 'active' LIMIT 1",
+                [$identity]
+            );
         }
-        // Use the configured site URL, never a request Host header, for recovery links.
-        $base = (string)Setting::get('general', 'site_url', '');
-        if (!filter_var($base, FILTER_VALIDATE_URL) || !in_array(parse_url($base, PHP_URL_SCHEME), ['http', 'https'], true)) {
-            return;
+
+        if (!$userRow) {
+            return false;
         }
+
+        $user = new User((array)$userRow);
+        $isAdminAccount = $user->hasRole('admin') || $user->hasRole('super-admin') || (int)$user->id === 1;
+
+        // Authoritative recipient determination:
+        // Admin account recovery recipient is general.admin_email
+        // Normal user recovery recipient is the user's registered account email
+        $recipientEmail = '';
+        if ($isAdminAccount) {
+            $configuredAdminEmail = strtolower(trim((string)Setting::get('general', 'admin_email', '')));
+            if ($configuredAdminEmail !== '' && filter_var($configuredAdminEmail, FILTER_VALIDATE_EMAIL)) {
+                $recipientEmail = $configuredAdminEmail;
+            } else {
+                $recipientEmail = strtolower(trim((string)$user->email));
+            }
+        } else {
+            $recipientEmail = strtolower(trim((string)$user->email));
+        }
+
+        if (!filter_var($recipientEmail, FILTER_VALIDATE_EMAIL)) {
+            return false;
+        }
+
         $token = bin2hex(random_bytes(32));
         $this->db->query('INSERT INTO `password_resets` (`user_id`, `email`, `token_hash`, `expires_at`, `created_at`)
             VALUES (?, ?, ?, ?, ?)
             ON DUPLICATE KEY UPDATE `email` = VALUES(`email`), `token_hash` = VALUES(`token_hash`),
                 `expires_at` = VALUES(`expires_at`), `created_at` = VALUES(`created_at`)',
-            [$user->id, $email, hash('sha256', $token), gmdate('Y-m-d H:i:s', time() + 1800), gmdate('Y-m-d H:i:s')]);
-        $url = rtrim($base, '/') . '/reset-password#token=' . rawurlencode($token);
-        $subject = 'Reset your Favorite CMS password';
-        $message = "Use this link to choose a new password:\n\n{$url}\n\nThis single-use link expires in 30 minutes. If you did not request it, ignore this email.";
-        // Match the existing native-mail/filter convention without adding a mail dependency.
-        $handled = Hook::applyFilters('pre_send_password_reset_email', null, ['to' => $email, 'subject' => $subject, 'message' => $message]);
+            [$user->id, $user->email, hash('sha256', $token), gmdate('Y-m-d H:i:s', time() + 1800), gmdate('Y-m-d H:i:s')]);
+
+        $url = app_url('/reset-password?token=' . rawurlencode($token));
+        $siteName = (string)Setting::get('general', 'site_name', 'Favorite CMS');
+        $subject = "Reset your {$siteName} password";
+        $message = "Hello,\n\n"
+            . "A request has been made to reset the password for your account on {$siteName}.\n\n"
+            . "Please click the link below to choose a new password:\n"
+            . "{$url}\n\n"
+            . "If the link does not open directly, please copy and paste the full URL into your browser's address bar:\n"
+            . "{$url}\n\n"
+            . "This single-use link is valid for 30 minutes.\n\n"
+            . "If you did not request a password reset, you can safely ignore this email. Your password will not change.\n\n"
+            . "Regards,\nThe {$siteName} Team";
+
+        // Plugin interception hook
+        $handled = Hook::applyFilters('pre_send_password_reset_email', null, [
+            'to'      => $recipientEmail,
+            'subject' => $subject,
+            'message' => $message,
+            'url'     => $url,
+            'token'   => $token,
+        ]);
         if ($handled !== null) {
-            return;
+            return (bool)$handled;
         }
-        $from = (string)Setting::get('general', 'admin_email', '');
-        if (!filter_var($from, FILTER_VALIDATE_EMAIL) || strpbrk($from, "\r\n") !== false) {
-            return;
-        }
-        @mail($email, $subject, $message, "From: {$from}\r\nContent-Type: text/plain; charset=UTF-8");
+
+        return MailService::send($recipientEmail, $subject, $message);
     }
 
     public function reset(string $token, string $password): bool
@@ -62,7 +133,7 @@ class PasswordResetService
             }
             $changed = $this->db->query("UPDATE `users` SET `password` = ?, `auth_version` = `auth_version` + 1, `updated_at` = ?
                 WHERE `id` = ? AND `email` = ? AND `status` = 'active'",
-                [password_hash($password, PASSWORD_DEFAULT), gmdate('Y-m-d H:i:s'), $record->user_id, $record->email])->rowCount();
+                [PasswordHasher::hash($password), gmdate('Y-m-d H:i:s'), $record->user_id, $record->email])->rowCount();
             $this->db->delete('password_resets', ['user_id' => $record->user_id]);
             return $changed === 1;
         });

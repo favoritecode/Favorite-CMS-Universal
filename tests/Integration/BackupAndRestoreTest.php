@@ -55,6 +55,7 @@ class BackupAndRestoreTest extends TestCase
 
             $this->db = new Database($dbConfig);
             app()->instance(Database::class, $this->db);
+            \FavoriteCMS\Models\Setting::clearCache();
 
             // Create essential tables with seed rows for backup/restore testing
             $this->pdo->exec("CREATE TABLE `{$this->dbName}`.`{$this->prefix}settings` (
@@ -115,6 +116,7 @@ class BackupAndRestoreTest extends TestCase
         if ($this->pdo) {
             $this->pdo->exec("DROP DATABASE IF EXISTS `{$this->dbName}`");
         }
+        \FavoriteCMS\Models\Setting::clearCache();
 
         // Clean test directory
         if (is_dir($this->testDir)) {

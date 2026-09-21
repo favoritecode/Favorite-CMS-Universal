@@ -129,7 +129,7 @@ class EmailVerificationService
             [$tokenHash]
         );
 
-        if (!$record) {
+        if (!$record || !hash_equals((string)$record->token_hash, $tokenHash)) {
             return [
                 'success'       => false,
                 'error'         => 'Invalid, expired, or already-used verification link.',
@@ -248,8 +248,7 @@ class EmailVerificationService
     public function sendVerificationEmail(User $user, string $targetEmail, string $token, bool $isEmailChange = false): bool
     {
         $siteName = Setting::get('general', 'site_name', 'Favorite CMS');
-        $siteUrl = rtrim(config('app.url', 'http://localhost'), '/');
-        $verificationUrl = $siteUrl . '/verify-email?token=' . urlencode($token);
+        $verificationUrl = app_url('/verify-email?token=' . rawurlencode($token));
 
         $subject = $isEmailChange
             ? "Confirm your new email address — {$siteName}"
@@ -268,8 +267,10 @@ class EmailVerificationService
             $message .= "Please verify your email address by clicking the link below:\n\n";
         }
         $message .= "{$verificationUrl}\n\n";
+        $message .= "If the link does not open directly, please copy and paste the full URL into your browser's address bar:\n";
+        $message .= "{$verificationUrl}\n\n";
         $message .= "This link is valid for " . self::TOKEN_EXPIRATION_HOURS . " hours.\n";
-        $message .= "If you did not request this, you can safely ignore this email.\n\n";
+        $message .= "If you did not request this, no further action is required and you can safely ignore this email.\n\n";
         $message .= "Regards,\nThe {$siteName} Team";
 
         // Allow plugins or mail systems to intercept/handle email dispatch
@@ -286,20 +287,8 @@ class EmailVerificationService
             return (bool)$intercepted;
         }
 
-        // Standard native mail dispatch (wrapped safely so failure doesn't halt execution)
-        $adminEmail = Setting::get('general', 'admin_email', 'noreply@' . ($_SERVER['HTTP_HOST'] ?? 'localhost'));
-        $headers = [
-            'From: ' . $siteName . ' <' . $adminEmail . '>',
-            'Reply-To: ' . $adminEmail,
-            'X-Mailer: Favorite CMS Universal',
-            'Content-Type: text/plain; charset=UTF-8',
-        ];
-
-        try {
-            return @mail($targetEmail, $subject, $message, implode("\r\n", $headers));
-        } catch (\Throwable) {
-            return false;
-        }
+        // Standard native mail dispatch via authoritative Core MailService
+        return MailService::send($targetEmail, $subject, $message);
     }
 }
 

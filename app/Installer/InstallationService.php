@@ -133,6 +133,20 @@ class InstallationService
         Setting::set('general', 'site_url', $site['url']);
         Setting::set('general', 'admin_email', $admin['email']);
         Setting::set('theme', 'active_theme', 'default');
+
+        // Universal Email & SMTP Auto-Configuration
+        $suggestedSender = \FavoriteCMS\Services\Mail\MailDetector::suggestSenderEmail($site['url']);
+        $smtpProfile = \FavoriteCMS\Services\Mail\MailDetector::detectSmtpProfile($site['url']);
+
+        Setting::set('email', 'transport', 'auto');
+        Setting::set('email', 'sender_name', $site['name']);
+        Setting::set('email', 'sender_email', $suggestedSender);
+        Setting::set('email', 'smtp_host', $smtpProfile['host'] ?? '');
+        Setting::set('email', 'smtp_port', (int)($smtpProfile['port'] ?? 587), 'int');
+        Setting::set('email', 'smtp_encryption', $smtpProfile['encryption'] ?? 'tls');
+        Setting::set('email', 'smtp_username', '');
+        Setting::set('email', 'smtp_password', '');
+        Setting::set('email', 'smtp_timeout', 15, 'int');
     }
 
     public function publicMessage(\Throwable $e): string

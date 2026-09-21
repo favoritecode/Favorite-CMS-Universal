@@ -95,11 +95,17 @@ if (!function_exists('e')) {
     }
 }
 
+if (!function_exists('app_url')) {
+    function app_url(string $path = ''): string
+    {
+        return \FavoriteCMS\Core\Url::to($path);
+    }
+}
+
 if (!function_exists('url')) {
     function url(string $path = ''): string
     {
-        $baseUrl = config('app.url', 'http://localhost');
-        return rtrim($baseUrl, '/') . '/' . ltrim($path, '/');
+        return app_url($path);
     }
 }
 

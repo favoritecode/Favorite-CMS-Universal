@@ -12,6 +12,7 @@ use FavoriteCMS\Models\User;
 use FavoriteCMS\Models\Role;
 use FavoriteCMS\Services\AvatarService;
 use FavoriteCMS\Services\EmailVerificationService;
+use FavoriteCMS\Services\PasswordHasher;
 
 class UserController
 {
@@ -99,7 +100,7 @@ class UserController
         }
 
         $now = date('Y-m-d H:i:s');
-        $hash = password_hash($password, PASSWORD_DEFAULT);
+        $hash = PasswordHasher::hash($password);
 
         $userId = $db->insert('users', [
             'username'          => $username,
@@ -211,7 +212,12 @@ class UserController
                 ];
 
                 if ($password !== '') {
-                    $data['password'] = password_hash($password, PASSWORD_DEFAULT);
+                    $data['password'] = PasswordHasher::hash($password);
+                    $newVersion = (int)($user->auth_version ?? 0) + 1;
+                    $data['auth_version'] = $newVersion;
+                    if ($id === $currentId) {
+                        $_SESSION['auth_version'] = $newVersion;
+                    }
                 }
 
                 $user->update($data);
@@ -222,6 +228,7 @@ class UserController
 
                     if ($id === $currentId) {
                         $_SESSION['auth_user_role'] = $newRole ? $newRole->slug : 'subscriber';
+                        (new \FavoriteCMS\Installer\InstallerSession(new \FavoriteCMS\Installer\UrlResolver()))->regenerate();
                     }
                 }
 
@@ -524,7 +531,11 @@ class UserController
                 $_SESSION['flash_error'] = 'New password and password confirmation do not match.';
                 return Response::redirect('/admin/users/profile');
             }
-            $data['password'] = password_hash($password, PASSWORD_DEFAULT);
+            $data['password'] = PasswordHasher::hash($password);
+            $newVersion = (int)($user->auth_version ?? 0) + 1;
+            $data['auth_version'] = $newVersion;
+            $_SESSION['auth_version'] = $newVersion;
+            (new \FavoriteCMS\Installer\InstallerSession(new \FavoriteCMS\Installer\UrlResolver()))->regenerate();
         }
 
         // Strictly prevent user from modifying their own role or status through profile update
@@ -544,7 +555,10 @@ class UserController
 
     public function delete(Request $request): Response
     {
-        $id = (int)$request->get('id', (int)$request->post('id', 0));
+        $id = (int)$request->post('id', (int)$request->get('id', 0));
+        if ($id <= 0) {
+            $id = (int)$request->get('id', 0);
+        }
         $currentId = (int)($_SESSION['auth_user_id'] ?? 0);
 
         if ($id === $currentId) {
@@ -581,6 +595,54 @@ class UserController
             }
         }
 
+        return Response::redirect('/admin/users');
+    }
+
+    public function verifyUser(Request $request): Response
+    {
+        if ($request->method() !== 'POST') {
+            return Response::make('Method not allowed.', 405)->header('Allow', 'POST');
+        }
+
+        $token = (string)$request->post('_token', '');
+        if (empty($_SESSION['_token']) || !hash_equals($_SESSION['_token'], $token)) {
+            $_SESSION['flash_error'] = 'Security verification failed (invalid CSRF token).';
+            return Response::redirect('/admin/users');
+        }
+
+        $currentId = (int)($_SESSION['auth_user_id'] ?? 0);
+        $currentUser = User::find($currentId);
+        if (!$currentUser || !$currentUser->canManageUsers()) {
+            return Response::make('<h1>403 Access Denied</h1><p>You do not have permission to verify users.</p>', 403);
+        }
+
+        $id = (int)$request->post('id', (int)$request->get('id', 0));
+        if ($id <= 0) {
+            $id = (int)$request->get('id', 0);
+        }
+
+        $targetUser = User::find($id);
+        if (!$targetUser) {
+            $_SESSION['flash_error'] = 'User not found.';
+            return Response::redirect('/admin/users');
+        }
+
+        if ($targetUser->isEmailVerified()) {
+            $_SESSION['flash_success'] = 'User is already verified.';
+            return Response::redirect('/admin/users');
+        }
+
+        $now = date('Y-m-d H:i:s');
+        $db = $this->app->make(Database::class);
+        $targetUser->update([
+            'email_verified_at' => $now,
+            'updated_at'        => $now,
+        ]);
+
+        // Invalidate/delete any pending email verification tokens without sending email
+        $db->delete('email_verifications', ['user_id' => $targetUser->id]);
+
+        $_SESSION['flash_success'] = "User '{$targetUser->username}' has been successfully verified.";
         return Response::redirect('/admin/users');
     }
 
@@ -681,11 +743,101 @@ class UserController
         }
 
         $action = trim((string)$request->post('bulk_action', ''));
-        $rawIds = (array)$request->post('ids', []);
+        $rawIds = (array)($request->post('ids', $request->post('user_ids', [])));
         $ids = array_filter(array_map('intval', $rawIds), fn($id) => $id > 0);
 
         if (empty($action) || empty($ids)) {
             $_SESSION['flash_error'] = 'Please select at least one user and a bulk action.';
+            return Response::redirect('/admin/users');
+        }
+
+        $db = $this->app->make(Database::class);
+
+        // Bulk verification handler
+        if ($action === 'verify') {
+            $count = 0;
+            $now = date('Y-m-d H:i:s');
+            try {
+                $db->transaction(function() use ($db, $ids, $now, &$count) {
+                    foreach ($ids as $id) {
+                        $targetUser = User::find($id);
+                        if (!$targetUser || $targetUser->isEmailVerified()) {
+                            continue;
+                        }
+
+                        $targetUser->update([
+                            'email_verified_at' => $now,
+                            'updated_at'        => $now,
+                        ]);
+                        $db->delete('email_verifications', ['user_id' => $targetUser->id]);
+                        $count++;
+                    }
+                });
+            } catch (\Throwable $e) {
+                $_SESSION['flash_error'] = 'Bulk verification failed: ' . $e->getMessage();
+                return Response::redirect('/admin/users');
+            }
+
+            if ($count > 0) {
+                $_SESSION['flash_success'] = "{$count} user(s) successfully marked as verified.";
+            } else {
+                $_SESSION['flash_error'] = 'No unverified users were updated.';
+            }
+            return Response::redirect('/admin/users');
+        }
+
+        // Bulk deletion handler
+        if ($action === 'delete') {
+            $count = 0;
+            $isSuperAdmin = $currentUser->hasRole('super-admin');
+
+            try {
+                $db->transaction(function() use ($db, $ids, $currentId, $isSuperAdmin, &$count) {
+                    try {
+                        $db->select("SELECT `id` FROM `roles` WHERE `slug` IN ('super-admin', 'super_admin') OR `name` = 'Super Admin' FOR UPDATE");
+                    } catch (\Throwable) {
+                    }
+
+                    $activeSuperAdminCount = User::getActiveSuperAdminCount($db, true);
+
+                    foreach ($ids as $id) {
+                        // Guard: Cannot delete self
+                        if ($id === $currentId) {
+                            continue;
+                        }
+
+                        $targetUser = User::find($id);
+                        if (!$targetUser) {
+                            continue;
+                        }
+
+                        // Guard: Cannot delete a super-admin unless acting user is super-admin
+                        if ($targetUser->hasRole('super-admin') && !$isSuperAdmin) {
+                            continue;
+                        }
+
+                        // Guard: Cannot delete the last remaining active super-admin
+                        if ($targetUser->hasRole('super-admin') && $targetUser->isActive()) {
+                            if ($activeSuperAdminCount <= 1) {
+                                continue;
+                            }
+                            $activeSuperAdminCount--;
+                        }
+
+                        $targetUser->deleteAccount($currentId);
+                        $count++;
+                    }
+                });
+            } catch (\Throwable $e) {
+                $_SESSION['flash_error'] = 'Bulk deletion failed: ' . $e->getMessage();
+                return Response::redirect('/admin/users');
+            }
+
+            if ($count > 0) {
+                $_SESSION['flash_success'] = "{$count} user(s) permanently deleted.";
+            } else {
+                $_SESSION['flash_error'] = 'No users were deleted (you cannot delete your own account or protected accounts).';
+            }
             return Response::redirect('/admin/users');
         }
 

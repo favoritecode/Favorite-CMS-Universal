@@ -69,7 +69,7 @@ class PasswordResetTest extends TestCase
     {
         (new PasswordResetService(self::$db))->request($this->email);
         $this->assertNotEmpty($this->mail);
-        preg_match('/https:\/\/example\.com\/cms\/reset-password#token=([a-f0-9]{64})/', end($this->mail)['message'], $match);
+        preg_match('/https:\/\/example\.com\/cms\/reset-password[#?]token=([a-f0-9]{64})/', end($this->mail)['message'], $match);
         $this->assertCount(2, $match);
         return $match[1];
     }
