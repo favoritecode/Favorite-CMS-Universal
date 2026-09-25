@@ -46,4 +46,7 @@ Welcome to the official documentation for **Favorite CMS Universal v1.0.0**. Thi
 
 ### 🔧 Maintenance & Support
 - [Troubleshooting](troubleshooting.md) — Diagnostic steps for common installation, permission, database, rewrite, and upload issues.
+- [Disaster Recovery](disaster-recovery.md) — Complete procedure to restore the master development workspace from Git.
 - [Release Process](release-process.md) — Build verification, SHA-256 checksum calculation, and release integrity guidelines.
+- [Repository Governance](../REPOSITORY-RULES.md) — Official repository scope, core-only policy, and release boundaries.
+- [AI Agent Rules](../AGENTS.md) — Permanent directives and constraints for automated AI agents.

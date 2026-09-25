@@ -1,0 +1,23 @@
+name: Repository Governance & Integrity Guard
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  governance-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: mbstring, json, pdo, pdo_mysql
+
+      - name: Run Repository Governance Audit
+        run: php scripts/check-repository-governance.php

@@ -28,6 +28,22 @@
 
 ---
 
+## 🛡️ Repository Scope & Governance
+
+> [!IMPORTANT]
+> **Favorite-CMS-Universal is the official Favorite CMS CORE master repository.**
+>
+> This repository contains the complete CMS core development source, automated test suites, and official core documentation.
+>
+> **Standalone plugins, themes, external products, and asset releases are maintained elsewhere:**
+> - Non-core releases, standalone plugins, themes, and asset bundles belong in:  
+>   👉 **[Favorite-CMS-Assets](https://github.com/favoritecode/Favorite-CMS-Assets)**
+> - Independent standalone products (such as *Favorite Multimedia*, *Favorite Web Tools*, *Favorite Shop*) are maintained in their respective dedicated repositories.
+>
+> For full repository policies, see [REPOSITORY-RULES.md](REPOSITORY-RULES.md) and [AGENTS.md](AGENTS.md).
+
+---
+
 ## 🌟 What is Favorite CMS Universal?
 
 **Favorite CMS Universal** is a standalone, lightweight PHP Content Management System built from the ground up to eliminate dependency bloat, terminal requirements, and complex hosting overhead.
