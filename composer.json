@@ -15,16 +15,5 @@
         "files": [
             "app/Core/helpers.php"
         ]
-    },
-    "autoload-dev": {
-        "psr-4": {
-            "FavoriteCMS\\Tests\\": "tests/"
-        }
-    },
-    "require-dev": {
-        "phpunit/phpunit": "^10"
-    },
-    "scripts": {
-        "test": "phpunit"
     }
 }
