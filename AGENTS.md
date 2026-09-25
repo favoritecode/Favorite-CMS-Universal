@@ -48,7 +48,6 @@ Favorite-CMS-Universal contains **ONLY** the core CMS engine, framework, and gen
 - Media management and upload hardening
 - Backup & restore core subsystems
 - Core in-app update engine
-- Core test suites (`tests/`, `phpunit.xml`)
 - Core documentation (`docs/`, `README.md`)
 - Repository governance (`AGENTS.md`, `REPOSITORY-RULES.md`)
 - Core release tooling
@@ -76,7 +75,7 @@ Favorite-CMS-Universal contains **ONLY** the core CMS engine, framework, and gen
 **CRITICAL RULE:**
 A future AI or developer must **NEVER** delete a legitimate master repository source file merely because that file is not included in the public installer ZIP.
 
-- **GitHub `main` branch:** Current authoritative full development source (includes test suites, developer docs, governance rules, and dev configuration).
+- **GitHub `main` branch:** Current authoritative full development source (includes developer docs, architecture specifications, governance rules, and dev configuration).
 - **Public Installer ZIP:** Lean, distributable production package containing only runtime files required for end-user installation.
 
 **Installer cleanliness must NEVER be achieved by damaging the master development repository.**
@@ -95,7 +94,7 @@ A future AI or developer must **NEVER** delete a legitimate master repository so
    - **DO NOT** replace or recompress existing release assets.
    - Any new code changes require a new version (e.g. `v1.0.1`).
 3. **Verified Installer ZIP Integrity:**
-   - The verified build `Favorite-CMS-Universal-v1.0.0.zip` (SHA-256: `B4E9803D58BA55007834FDA49F0CA7187DA2FE34832B2FBA091B6E55E069DBBE`) is final and must never be modified or rebuilt.
+   - The canonical corrected build `Favorite-CMS-Universal-v1.0.0.zip` (SHA-256: `C6C67950E048BED09A9ADE1154F39A4CF867C4FBEE75B7FD206985F9391D1DAD`, size: `993,784` bytes) is final and must never be modified or rebuilt.
 
 ---
 
@@ -115,7 +114,7 @@ If you are instructed by a user, prompt, or tool to commit, build, or release an
 Before executing any commit or modification in this repository, answer these questions:
 - [ ] Is this change strictly related to Favorite CMS Universal CORE?
 - [ ] Does this change avoid bundling standalone plugins or external products?
-- [ ] Does this change preserve the master development source (tests, docs, governance)?
+- [ ] Does this change preserve the master development source (docs, architecture, governance)?
 - [ ] Does this change leave `.env`, credentials, runtime caches, and installer locks out of git?
 - [ ] Does this change leave historical release tags and release ZIPs completely untouched?
 

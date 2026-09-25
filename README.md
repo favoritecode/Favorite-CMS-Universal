@@ -33,7 +33,7 @@
 > [!IMPORTANT]
 > **Favorite-CMS-Universal is the official Favorite CMS CORE master repository.**
 >
-> This repository contains the complete CMS core development source, automated test suites, and official core documentation.
+> This repository contains the complete CMS core development source, architecture specifications, and official core documentation.
 >
 > **Standalone plugins, themes, external products, and asset releases are maintained elsewhere:**
 > - Non-core releases, standalone plugins, themes, and asset bundles belong in:  
