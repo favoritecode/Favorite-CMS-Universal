@@ -100,12 +100,15 @@ foreach ($trackedStorageFiles as $file) {
 $v1ZipPath = $root . '/release/Favorite-CMS-Universal-v1.0.0.zip';
 $canonicalHash = 'c6c67950e048bed09a9ade1154f39a4cf867c4fbee75b7fd206985f9391d1dad';
 $canonicalSize = 993784;
+$zipStatus = 'NOT CHECKED (installer ZIP not present)';
 
 if (file_exists($v1ZipPath)) {
     $currentHash = strtolower(hash_file('sha256', $v1ZipPath));
     $currentSize = filesize($v1ZipPath);
     if ($currentHash !== $canonicalHash || $currentSize !== $canonicalSize) {
         $violations[] = "[IMMUTABILITY VIOLATION] Verified release ZIP Favorite-CMS-Universal-v1.0.0.zip has been modified! Expected size: {$canonicalSize}, got: {$currentSize}. Expected hash: {$canonicalHash}, got: {$currentHash}.";
+    } else {
+        $zipStatus = 'VERIFIED';
     }
 }
 
@@ -152,6 +155,6 @@ if (!empty($violations)) {
 echo "✅ All repository governance checks passed successfully!\n";
 echo "   - Core-only boundary: INTACT\n";
 echo "   - Master development source: PRESERVED\n";
-echo "   - Verified v1.0.0 ZIP immutability: VERIFIED\n";
+echo "   - Verified v1.0.0 ZIP immutability: {$zipStatus}\n";
 echo "   - No non-core products or assets detected.\n";
 exit(0);
