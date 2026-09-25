@@ -83,7 +83,7 @@ $response->send();
 ```
 
 ### `bootstrap.php`
-- Declares `APP_VERSION` (`1.0.4` build line) and `CMS_NAME`.
+- Declares `APP_VERSION` (`1.0.0` build line) and `CMS_NAME`.
 - Loads PSR-4 autoloader (`vendor/autoload.php`).
 - Reads `.env` configuration file if present and populates `$_ENV` and `putenv()`.
 - Sets error reporting based on `APP_DEBUG`.

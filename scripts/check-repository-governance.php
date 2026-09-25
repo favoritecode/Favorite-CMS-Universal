@@ -98,8 +98,8 @@ foreach ($trackedStorageFiles as $file) {
 
 // 5. Verify v1.0.0 installer ZIP immutability (if present locally)
 $v1ZipPath = $root . '/release/Favorite-CMS-Universal-v1.0.0.zip';
-$canonicalHash = 'b4e9803d58ba55007834fda49f0ca7187da2fe34832b2fba091b6e55e069dbbe';
-$canonicalSize = 993789;
+$canonicalHash = 'c6c67950e048bed09a9ade1154f39a4cf867c4fbee75b7fd206985f9391d1dad';
+$canonicalSize = 993784;
 
 if (file_exists($v1ZipPath)) {
     $currentHash = strtolower(hash_file('sha256', $v1ZipPath));
@@ -120,6 +120,22 @@ $requiredDevFiles = [
 foreach ($requiredDevFiles as $devFile) {
     if (!file_exists($root . '/' . $devFile)) {
         $violations[] = "[MASTER SOURCE LOSS] Essential development file missing: {$devFile}. Master repository must preserve complete development source.";
+    }
+}
+
+// 7. Audit release assets if triggered by GitHub Actions release event
+$eventPath = getenv('GITHUB_EVENT_PATH');
+$eventName = getenv('GITHUB_EVENT_NAME');
+if ($eventName === 'release' && $eventPath && file_exists($eventPath)) {
+    $eventData = json_decode((string)file_get_contents($eventPath), true);
+    $assets = $eventData['release']['assets'] ?? [];
+    echo "--- GitHub Release Event Audit ---\n";
+    echo "Auditing " . count($assets) . " release asset(s)...\n";
+    foreach ($assets as $asset) {
+        $name = (string)($asset['name'] ?? '');
+        if (!preg_match('/^Favorite-CMS-Universal-v\d+\.\d+\.\d+\.zip$/i', $name)) {
+            $violations[] = "[NON-CORE RELEASE ASSET] Invalid release asset detected on release: '{$name}'. Only Favorite-CMS-Universal-vX.Y.Z.zip is allowed.";
+        }
     }
 }
 

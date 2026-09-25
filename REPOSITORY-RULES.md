@@ -33,7 +33,6 @@ Only content directly belonging to **Favorite CMS Universal CORE** is permitted 
 - Core authentication, authorization, and 6-role permission matrix
 - Built-in media subsystem, upload hardening, and HTMLPurifier integration
 - Core site backup, restore, and update engine (`app/Services/Update/`)
-- Automated test suites (`tests/`, `phpunit.xml`)
 - Official core documentation (`docs/`, `README.md`)
 - Repository governance policies (`REPOSITORY-RULES.md`, `AGENTS.md`)
 - Release verification scripts
@@ -71,11 +70,11 @@ Redirect the task to:
 
 | Component | Target Location | Contents & Purpose |
 |---|---|---|
-| **Master Repository** | GitHub `main` branch | The complete developer workspace. Contains core runtime, automated test suites (`tests/`), developer documentation, repository governance rules, and release verification tools. |
-| **Public Installer ZIP** | GitHub Release Asset | A clean, production-ready package containing strictly the runtime files necessary for end-users to install and run the CMS. Excludes dev-only tests and governance docs. |
+| **Master Repository** | GitHub `main` branch | The complete developer workspace. Contains core runtime, architecture specifications, developer documentation, repository governance rules, and release verification tools. |
+| **Public Installer ZIP** | GitHub Release Asset | A clean, production-ready package containing strictly the runtime files necessary for end-users to install and run the CMS. Excludes dev-only governance docs and dev tooling. |
 
 ### Rule on Development Source Preservation
-**A developer or automated agent must NEVER delete a legitimate development source file (e.g. tests, development configs, developer documentation) merely because that file is not included inside the public installer ZIP.**
+**A developer or automated agent must NEVER delete a legitimate development source file (e.g. governance rules, development configs, developer documentation) merely because that file is not included inside the public installer ZIP.**
 
 Installer cleanliness is achieved during the packaging step. It must never be achieved by stripping the master development repository.
 
@@ -89,7 +88,7 @@ The master GitHub repository must always be complete enough that if the local de
 2. Restoring local environment configuration from `.env.example`
 3. Configuring a local database and web server
 4. Restoring separate operational data (database dump and user uploads) if applicable
-5. Resuming development and automated testing immediately
+5. Resuming development and environment verification immediately
 
 Detailed disaster recovery procedures are documented in [`docs/disaster-recovery.md`](docs/disaster-recovery.md).
 

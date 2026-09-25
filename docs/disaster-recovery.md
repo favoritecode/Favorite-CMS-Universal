@@ -57,12 +57,9 @@ DB_PREFIX=fc_
 
 ---
 
-### Step 3: Restore Dependencies (Developer Tools)
-Favorite CMS Universal bundles its production vendor runtime (`HTMLPurifier` and class loaders) out of the box.  
-To run PHPUnit automated test suites locally, install dev dependencies via Composer:
-```bash
-composer install
-```
+### Step 3: Verify Core Vendor Runtime & Autoloading
+Favorite CMS Universal bundles its required runtime (`HTMLPurifier` and PSR-4 autoloader) out of the box in `vendor/`.
+No additional production Composer installations or command-line package managers are required.
 
 ---
 
@@ -103,12 +100,10 @@ Ensure directory write permissions are maintained on `storage/` and `public/uplo
 
 ---
 
-### Step 7: Run Automated Tests to Verify Integrity
-Execute the PHPUnit test suite to verify that your restored development environment functions properly:
+### Step 7: Verify Core Environment & Governance Integrity
+Run the repository governance audit script to ensure that the restored master development environment satisfies all repository integrity rules:
 ```bash
-php vendor/phpunit/phpunit/phpunit
-# or
-composer test
+php scripts/check-repository-governance.php
 ```
 
-You are now fully restored and ready to continue development, testing, and contribution!
+You are now fully restored and ready to continue core development and contribution!

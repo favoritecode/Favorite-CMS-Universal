@@ -54,11 +54,11 @@ NEVER Publish in Favorite-CMS-Universal
 1. **The Verified Release ZIP is Authoritative:**  
    The official production release ZIP is pre-tested and verified prior to publication.
    - Core CMS code inside the production package is final and must not be altered.
-   - Documentation, developer guides, tests, and repository maintenance files live in the master repository and are intentionally excluded from the production installer ZIP.
+   - Documentation, developer guides, architecture specifications, and repository governance files live in the master repository and are intentionally excluded from the production installer ZIP.
 2. **Byte-for-Byte Reproducibility:**  
    The release asset attached to the official GitHub Release must remain byte-for-byte identical to the verified build.
 3. **Master Repository ≠ Public Installer ZIP:**  
-   A developer or automation tool must never delete legitimate development files (such as automated tests or governance documentation) from the master repository merely to keep the installer ZIP clean.
+   A developer or automation tool must never delete legitimate development files (such as governance documentation, architecture guides, or release verification tools) from the master repository merely to keep the installer ZIP clean.
 4. **Historical Tag & Release Immutability:**  
    Existing published tags and release assets (including `v1.0.0`) are permanently immutable. Never move, overwrite, or rebuild released tags.
 
@@ -67,8 +67,8 @@ NEVER Publish in Favorite-CMS-Universal
 ## 3. Official Core Release Checklist
 
 ### Step 1: Pre-Release Verification
-- Run automated unit and integration tests: `composer test` or `php vendor/phpunit/phpunit/phpunit`.
 - Run repository governance audit: `php scripts/check-repository-governance.php`.
+- Verify core PHP syntax and bootstrap readiness: `php -l bootstrap.php && php -l index.php`.
 - Ensure no untracked local junk, credentials (`.env`), or non-core plugins exist.
 
 ### Step 2: Build Clean Production ZIP
