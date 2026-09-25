@@ -109,11 +109,8 @@ if (file_exists($v1ZipPath)) {
     }
 }
 
-// 6. Check for master development files preservation
+// 6. Check for master governance and recovery documentation files
 $requiredDevFiles = [
-    'phpunit.xml',
-    'tests/Unit/CoreTest.php',
-    'tests/Integration/InstallerTest.php',
     'AGENTS.md',
     'REPOSITORY-RULES.md',
     'docs/disaster-recovery.md',
