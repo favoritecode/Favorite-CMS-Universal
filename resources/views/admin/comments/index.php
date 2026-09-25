@@ -1,0 +1,118 @@
+<div class="page-header">
+    <h1 class="page-title">Comments</h1>
+</div>
+
+<ul class="subsubsub">
+    <li><a href="<?php echo htmlspecialchars(site_path('/admin/comments?status=all'), ENT_QUOTES, 'UTF-8'); ?>" class="<?php echo $status === 'all' ? 'current' : ''; ?>">All (<?php echo $counts['all'] ?? 0; ?>)</a> |</li>
+    <li><a href="<?php echo htmlspecialchars(site_path('/admin/comments?status=pending'), ENT_QUOTES, 'UTF-8'); ?>" class="<?php echo $status === 'pending' ? 'current' : ''; ?>">Pending (<?php echo $counts['pending'] ?? 0; ?>)</a> |</li>
+    <li><a href="<?php echo htmlspecialchars(site_path('/admin/comments?status=approved'), ENT_QUOTES, 'UTF-8'); ?>" class="<?php echo $status === 'approved' ? 'current' : ''; ?>">Approved (<?php echo $counts['approved'] ?? 0; ?>)</a> |</li>
+    <li><a href="<?php echo htmlspecialchars(site_path('/admin/comments?status=spam'), ENT_QUOTES, 'UTF-8'); ?>" class="<?php echo $status === 'spam' ? 'current' : ''; ?>">Spam (<?php echo $counts['spam'] ?? 0; ?>)</a> |</li>
+    <li><a href="<?php echo htmlspecialchars(site_path('/admin/comments?status=trash'), ENT_QUOTES, 'UTF-8'); ?>" class="<?php echo $status === 'trash' ? 'current' : ''; ?>">Trash (<?php echo $counts['trash'] ?? 0; ?>)</a></li>
+</ul>
+
+<form method="POST" action="<?php echo htmlspecialchars(site_path('/admin/comments/bulk'), ENT_QUOTES, 'UTF-8'); ?>" id="comments-bulk-form">
+    <input type="hidden" name="_token" value="<?php echo htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8'); ?>">
+    <input type="hidden" name="status" value="<?php echo htmlspecialchars($status, ENT_QUOTES, 'UTF-8'); ?>">
+
+    <div class="bulk-actions-wrap">
+        <select name="bulk_action" class="form-control" style="width: auto; max-width: 200px; display: inline-block;">
+            <option value="">Bulk Actions</option>
+            <?php if ($status === 'trash'): ?>
+                <option value="approve">Restore (Approve)</option>
+                <option value="delete">Delete Permanently</option>
+            <?php else: ?>
+                <option value="approve">Approve</option>
+                <option value="unapprove">Unapprove</option>
+                <option value="spam">Mark as Spam</option>
+                <option value="trash">Move to Trash</option>
+                <option value="delete">Delete Permanently</option>
+            <?php endif; ?>
+        </select>
+        <button type="submit" class="btn btn-secondary">Apply</button>
+        <span class="bulk-count-badge">0 selected</span>
+    </div>
+
+    <div class="wp-table-wrap">
+        <table class="wp-table">
+            <thead>
+                <tr>
+                    <th style="width: 32px; text-align: center;">
+                        <input type="checkbox" id="select-all-comments" data-select-all>
+                    </th>
+                    <th style="width: 180px;">Author</th>
+                    <th>Comment</th>
+                    <th style="width: 200px;">In Response To</th>
+                    <th style="width: 140px;">Submitted On</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php if (empty($comments)): ?>
+                    <tr>
+                        <td colspan="5" style="text-align: center; color: var(--wp-text-muted); padding: 24px;">No comments found.</td>
+                    </tr>
+                <?php else: ?>
+                    <?php foreach ($comments as $comment): ?>
+                        <tr>
+                            <td style="text-align: center;">
+                                <input type="checkbox" name="ids[]" value="<?php echo (int)$comment->id; ?>" class="bulk-cb">
+                            </td>
+                            <td>
+                                <strong><?php echo htmlspecialchars($comment->author_name, ENT_QUOTES, 'UTF-8'); ?></strong>
+                                <div style="font-size: 12px; color: var(--wp-text-muted);">
+                                    <a href="mailto:<?php echo htmlspecialchars($comment->author_email, ENT_QUOTES, 'UTF-8'); ?>"><?php echo htmlspecialchars($comment->author_email, ENT_QUOTES, 'UTF-8'); ?></a>
+                                </div>
+                            </td>
+                            <td>
+                                <div style="margin-bottom: 6px;">
+                                    <?php echo nl2br(htmlspecialchars($comment->content, ENT_QUOTES, 'UTF-8')); ?>
+                                </div>
+                                <div class="row-actions">
+                                    <?php 
+                                    $csrfToken = htmlspecialchars($_SESSION['_token'] ?? '', ENT_QUOTES, 'UTF-8'); 
+                                    ?>
+                                    <?php if ($comment->status === 'pending'): ?>
+                                        <button type="submit" form="core-action-form" formmethod="POST" formnovalidate formaction="<?php echo htmlspecialchars(site_base_path(), ENT_QUOTES, 'UTF-8'); ?>/admin/comments/approve?id=<?php echo (int)$comment->id; ?>" class="core-action-link" style="color: var(--wp-success); font-weight: 600;">Approve</button> |
+                                    <?php elseif ($comment->status === 'approved'): ?>
+                                        <button type="submit" form="core-action-form" formmethod="POST" formnovalidate formaction="<?php echo htmlspecialchars(site_base_path(), ENT_QUOTES, 'UTF-8'); ?>/admin/comments/unapprove?id=<?php echo (int)$comment->id; ?>" class="core-action-link" style="color: #b35900;">Unapprove</button> |
+                                    <?php endif; ?>
+
+                                    <?php if ($comment->status !== 'spam'): ?>
+                                        <button type="submit" form="core-action-form" formmethod="POST" formnovalidate formaction="<?php echo htmlspecialchars(site_base_path(), ENT_QUOTES, 'UTF-8'); ?>/admin/comments/spam?id=<?php echo (int)$comment->id; ?>" class="core-action-link" style="color: var(--wp-danger);">Spam</button> |
+                                    <?php endif; ?>
+
+                                    <?php if ($comment->status === 'trash'): ?>
+                                        <button type="submit" form="core-action-form" formmethod="POST" formnovalidate formaction="<?php echo htmlspecialchars(site_base_path(), ENT_QUOTES, 'UTF-8'); ?>/admin/comments/approve?id=<?php echo (int)$comment->id; ?>&status=trash" class="core-action-link" style="color: var(--wp-success);">Restore</button> |
+                                        <button type="submit" form="core-action-form" formmethod="POST" formnovalidate formaction="<?php echo htmlspecialchars(site_base_path(), ENT_QUOTES, 'UTF-8'); ?>/admin/comments/delete?id=<?php echo (int)$comment->id; ?>" class="core-action-link" onclick="return confirm('Permanently delete this comment?');" style="color: var(--wp-danger);">Delete Permanently</button>
+                                    <?php else: ?>
+                                        <button type="submit" form="core-action-form" formmethod="POST" formnovalidate formaction="<?php echo htmlspecialchars(site_base_path(), ENT_QUOTES, 'UTF-8'); ?>/admin/comments/trash?id=<?php echo (int)$comment->id; ?>" class="core-action-link" style="color: var(--wp-danger);">Trash</button>
+                                    <?php endif; ?>
+                                </div>
+                            </td>
+                            <td>
+                                <?php if ($post = $comment->getPost()): ?>
+                                    <a href="<?php echo htmlspecialchars(site_path('/post/'), ENT_QUOTES, 'UTF-8'); ?><?php echo htmlspecialchars($post->slug, ENT_QUOTES, 'UTF-8'); ?>" target="_blank">
+                                        <?php echo htmlspecialchars($post->title, ENT_QUOTES, 'UTF-8'); ?>
+                                    </a>
+                                <?php else: ?>
+                                    <span style="color: var(--wp-text-muted);">&mdash;</span>
+                                <?php endif; ?>
+                            </td>
+                            <td>
+                                <?php echo format_date($comment->created_at, 'Y/m/d \a\t g:i a'); ?>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                <?php endif; ?>
+            </tbody>
+        </table>
+    </div>
+</form>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    initAdminMultiSelect('comments-bulk-form', { itemType: 'comment' });
+});
+</script>
+
+<?php $paginationBase = '/admin/comments'; include APP_ROOT . '/resources/views/admin/partials/pagination.php'; ?>
+
