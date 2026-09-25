@@ -1,0 +1,19 @@
+{
+    "name": "favoritecode/favorite-cms-universal",
+    "description": "Favorite CMS Universal — A lightweight, modular, standalone PHP CMS",
+    "version": "1.0.0",
+    "type": "project",
+    "license": "MIT",
+    "homepage": "https://github.com/favoritecode/Favorite-CMS-Universal",
+    "require": {
+        "php": "^8.1"
+    },
+    "autoload": {
+        "psr-4": {
+            "FavoriteCMS\\": "app/"
+        },
+        "files": [
+            "app/Core/helpers.php"
+        ]
+    }
+}

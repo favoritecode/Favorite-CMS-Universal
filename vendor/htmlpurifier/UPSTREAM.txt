@@ -1,0 +1,5 @@
+HTMLPurifier 4.19.0
+Upstream: https://github.com/ezyang/htmlpurifier/tree/v4.19.0
+Source archive: https://github.com/ezyang/htmlpurifier/archive/refs/tags/v4.19.0.zip
+Bundled library/ is unmodified. See LICENSE for LGPL terms.
+No Composer download or optional DOM extension is needed at installation.

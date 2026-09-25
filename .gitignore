@@ -1,0 +1,49 @@
+# Environment & credentials
+.env
+.env.backup
+.env.local
+.env.*.local
+
+# Local release working folders & distribution packages
+release/
+*.zip
+
+# Runtime storage generated files
+storage/installed.lock
+storage/installed.lock.*
+storage/installed.lock.bak
+storage/logs/*.log
+storage/cache/*
+storage/sessions/*
+storage/temp/*
+storage/backups/*.zip
+storage/backups/*.sql
+
+# Keep storage directory structures
+!storage/backups/.gitkeep
+!storage/cache/.gitkeep
+!storage/logs/.gitkeep
+!storage/sessions/.gitkeep
+!storage/temp/.gitkeep
+
+# User media uploads
+public/uploads/*
+!public/uploads/.gitkeep
+!public/uploads/avatars/
+public/uploads/avatars/*
+!public/uploads/avatars/.gitkeep
+
+# Testing & cache
+.phpunit.result.cache
+.phpunit.cache/
+
+# OS & IDE metadata
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+*.swp
+*~
