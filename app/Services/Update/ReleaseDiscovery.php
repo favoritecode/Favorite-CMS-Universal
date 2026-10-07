@@ -141,12 +141,21 @@ class ReleaseDiscovery
             }
 
             if ($zipAssetName !== '') {
-                $checksumNames = [$zipAssetName . '.sha256'];
+                $exactChecksumName = $zipAssetName . '.sha256';
                 foreach ($release['assets'] as $asset) {
                     $assetName = (string)($asset['name'] ?? '');
-                    if (in_array($assetName, $checksumNames, true) || preg_match('/\.zip\.sha256$/i', $assetName)) {
+                    if ($assetName === $exactChecksumName) {
                         $result['checksum_url'] = (string)($asset['browser_download_url'] ?? '');
                         break;
+                    }
+                }
+                if ($result['checksum_url'] === '') {
+                    foreach ($release['assets'] as $asset) {
+                        $assetName = (string)($asset['name'] ?? '');
+                        if (preg_match('/\.zip\.sha256$/i', $assetName) && !preg_match('/[-_]tests/i', $assetName)) {
+                            $result['checksum_url'] = (string)($asset['browser_download_url'] ?? '');
+                            break;
+                        }
                     }
                 }
             }
