@@ -114,7 +114,7 @@ class GoogleOAuthService
      * 1. Explicit installation database setting (highest priority)
      * 2. Environment variable: FAVORITE_OAUTH_GATEWAY_URL
      * 3. Config file: services.google_oauth.gateway_url
-     * 4. Null if not configured (NO fake or hardcoded default)
+     * 4. Official Favorite CMS Gateway fallback
      */
     public static function getGatewayUrl(): ?string
     {
@@ -153,8 +153,11 @@ class GoogleOAuthService
             }
         }
 
-        // 4. Not configured (no fake or hardcoded default)
-        return null;
+        // 4. Official Favorite CMS Gateway fallback.
+        // The official Gateway is part of the Core product contract, so a
+        // fresh installation must work without requiring the administrator
+        // to manually enter the Gateway URL.
+        return 'https://oauth.favoriteweb.net';
     }
 
     /**

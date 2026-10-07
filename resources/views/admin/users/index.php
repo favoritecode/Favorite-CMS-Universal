@@ -51,10 +51,10 @@
                     $userStatus = $u->status ?? 'active';
 
                     $statusBadgeStyle = match ($userStatus) {
-                        'active'    => 'background: #dcfce7; color: #15803d;',
-                        'suspended' => 'background: #fef3c7; color: #b45309; font-weight: 700;',
-                        'banned'    => 'background: #fee2e2; color: #b91c1c; font-weight: 700;',
-                        default     => 'background: #f1f5f9; color: #475569;',
+                        'active'    => 'background: var(--admin-success-bg); color: var(--admin-success-text);',
+                        'suspended' => 'background: var(--admin-warning-bg); color: var(--admin-warning-text); font-weight: 700;',
+                        'banned'    => 'background: var(--admin-danger-bg); color: var(--admin-danger-text); font-weight: 700;',
+                        default     => 'background: var(--admin-surface-subtle); color: var(--admin-text-muted);',
                     };
                     ?>
                     <tr>
@@ -74,12 +74,12 @@
                                 </a>
                             </strong>
                             <?php if ($isSelf): ?>
-                                <span style="font-size: 11px; background: #e0f2fe; color: #0369a1; padding: 1px 6px; border-radius: 3px; margin-left: 4px;">You</span>
+                                <span style="font-size: 11px; background: var(--admin-info-bg); color: var(--admin-info-text); padding: 1px 6px; border-radius: 3px; margin-left: 4px;">You</span>
                             <?php endif; ?>
                             <div class="row-actions">
                                 <a href="<?php echo htmlspecialchars(site_path('/admin/users/edit?id='), ENT_QUOTES, 'UTF-8'); ?><?php echo (int)$u->id; ?>">Edit Profile</a>
                                 <?php if (!$u->isEmailVerified()): ?>
-                                    | <button type="submit" form="core-action-form" formmethod="POST" formnovalidate formaction="<?php echo htmlspecialchars(site_base_path(), ENT_QUOTES, 'UTF-8'); ?>/admin/users/verify?id=<?php echo (int)$u->id; ?>" class="core-action-link" style="color: #15803d;">Verify</button>
+                                    | <button type="submit" form="core-action-form" formmethod="POST" formnovalidate formaction="<?php echo htmlspecialchars(site_base_path(), ENT_QUOTES, 'UTF-8'); ?>/admin/users/verify?id=<?php echo (int)$u->id; ?>" class="core-action-link" style="color: var(--admin-success-text);">Verify</button>
                                 <?php endif; ?>
                                 <?php if (!$isSelf && !$isSoleActiveSuperAdmin): ?>
                                     | <button type="submit" form="core-action-form" formmethod="POST" formnovalidate formaction="<?php echo htmlspecialchars(site_base_path(), ENT_QUOTES, 'UTF-8'); ?>/admin/users/delete?id=<?php echo (int)$u->id; ?>" class="core-action-link" onclick="return confirm('Permanently delete user &quot;<?php echo htmlspecialchars($u->username); ?>&quot;?');" style="color: var(--wp-danger);">Delete</button>
@@ -92,12 +92,12 @@
                         <td><a href="mailto:<?php echo htmlspecialchars($u->email, ENT_QUOTES, 'UTF-8'); ?>"><?php echo htmlspecialchars($u->email, ENT_QUOTES, 'UTF-8'); ?></a></td>
                         <td>
                             <?php if ($isSoleActiveSuperAdmin): ?>
-                                <span style="font-weight: 600; color: #1e40af; background: #dbeafe; padding: 2px 8px; border-radius: 3px; font-size: 11px;">Super Admin (Protected)</span>
+                                <span style="font-weight: 600; color: var(--admin-info-text); background: var(--admin-info-bg); padding: 2px 8px; border-radius: 3px; font-size: 11px;">Super Admin (Protected)</span>
                             <?php elseif (!$isSelf && !empty($roles)): ?>
                                 <form method="POST" action="<?php echo htmlspecialchars(site_path('/admin/users/role'), ENT_QUOTES, 'UTF-8'); ?>" style="display: inline-block;">
                                     <input type="hidden" name="_token" value="<?php echo htmlspecialchars($_SESSION['_token'] ?? '', ENT_QUOTES, 'UTF-8'); ?>">
                                     <input type="hidden" name="id" value="<?php echo (int)$u->id; ?>">
-                                    <select name="role_id" onchange="this.form.submit()" style="font-size: 12px; padding: 3px 6px; border: 1px solid #cbd5e1; border-radius: 3px; background: #fff;">
+                                    <select name="role_id" onchange="this.form.submit()" style="font-size: 12px; padding: 3px 6px; border: 1px solid var(--admin-border); border-radius: 3px; background: var(--admin-surface);">
                                         <?php foreach ($roles as $r): ?>
                                             <option value="<?php echo (int)$r->id; ?>" <?php echo ($primaryRole && (int)$primaryRole->id === (int)$r->id) ? 'selected' : ''; ?>>
                                                 <?php echo htmlspecialchars($r->name, ENT_QUOTES, 'UTF-8'); ?>
@@ -116,12 +116,12 @@
                         </td>
                         <td>
                             <?php if ($u->isEmailVerified()): ?>
-                                <span style="display: inline-block; padding: 2px 8px; border-radius: 3px; font-size: 11px; font-weight: 600; background: #dcfce7; color: #15803d;" title="Email verified at <?php echo htmlspecialchars($u->email_verified_at ?? '', ENT_QUOTES, 'UTF-8'); ?>">
+                                <span style="display: inline-block; padding: 2px 8px; border-radius: 3px; font-size: 11px; font-weight: 600; background: var(--admin-success-bg); color: var(--admin-success-text);" title="Email verified at <?php echo htmlspecialchars($u->email_verified_at ?? '', ENT_QUOTES, 'UTF-8'); ?>">
                                     Verified
                                 </span>
                             <?php else: ?>
                                 <div style="display: inline-flex; align-items: center; gap: 5px;">
-                                    <span style="display: inline-block; padding: 2px 8px; border-radius: 3px; font-size: 11px; font-weight: 600; background: #fef3c7; color: #b45309;" title="Email verification pending">
+                                    <span style="display: inline-block; padding: 2px 8px; border-radius: 3px; font-size: 11px; font-weight: 600; background: var(--admin-warning-bg); color: var(--admin-warning-text);" title="Email verification pending">
                                         Unverified
                                     </span>
                                     <button type="submit" form="core-action-form" formmethod="POST" formnovalidate formaction="<?php echo htmlspecialchars(site_base_path(), ENT_QUOTES, 'UTF-8'); ?>/admin/users/verify?id=<?php echo (int)$u->id; ?>" class="btn btn-secondary" style="padding: 1px 6px; font-size: 11px; line-height: 1.2;" title="Manually verify this user">Verify</button>
@@ -129,32 +129,32 @@
                             <?php endif; ?>
                         </td>
                         <td style="text-align: center;">
-                            <a href="<?php echo htmlspecialchars(site_path('/admin/posts?s='), ENT_QUOTES, 'UTF-8'); ?><?php echo urlencode($u->username); ?>" style="font-weight: 600; color: #2271b1;" title="View Posts by <?php echo htmlspecialchars($u->username); ?>">
+                            <a href="<?php echo htmlspecialchars(site_path('/admin/posts?s='), ENT_QUOTES, 'UTF-8'); ?><?php echo urlencode($u->username); ?>" style="font-weight: 600; color: var(--admin-info-text);" title="View Posts by <?php echo htmlspecialchars($u->username); ?>">
                                 <?php echo $postCount; ?>
                             </a>
                         </td>
                         <td>
                             <?php if (!$isSelf): ?>
                                 <?php if ($isSoleActiveSuperAdmin): ?>
-                                    <span style="color: #0369a1; font-size: 11px; background: #e0f2fe; padding: 2px 6px; border-radius: 3px; font-weight: 600;">Protected Super Admin</span>
+                                    <span style="color: var(--admin-info-text); font-size: 11px; background: var(--admin-info-bg); padding: 2px 6px; border-radius: 3px; font-weight: 600;">Protected Super Admin</span>
                                 <?php else: ?>
                                     <div style="display: flex; gap: 6px; align-items: center;">
                                         <?php if ($userStatus === 'active'): ?>
-                                            <a href="<?php echo htmlspecialchars(site_path('/admin/users/status?id='), ENT_QUOTES, 'UTF-8'); ?><?php echo (int)$u->id; ?>&status=suspended" class="btn btn-secondary" style="padding: 2px 7px; font-size: 11px; color: #b45309;" title="Suspend user">
+                                            <a href="<?php echo htmlspecialchars(site_path('/admin/users/status?id='), ENT_QUOTES, 'UTF-8'); ?><?php echo (int)$u->id; ?>&status=suspended" class="btn btn-secondary" style="padding: 2px 7px; font-size: 11px; color: var(--admin-warning-text);" title="Suspend user">
                                                 Suspend
                                             </a>
-                                            <a href="<?php echo htmlspecialchars(site_path('/admin/users/status?id='), ENT_QUOTES, 'UTF-8'); ?><?php echo (int)$u->id; ?>&status=banned" class="btn btn-secondary" style="padding: 2px 7px; font-size: 11px; color: #b91c1c;" title="Ban user" onclick="return confirm('Ban user &quot;<?php echo htmlspecialchars($u->username); ?>&quot;? They will not be able to log in.');">
+                                            <a href="<?php echo htmlspecialchars(site_path('/admin/users/status?id='), ENT_QUOTES, 'UTF-8'); ?><?php echo (int)$u->id; ?>&status=banned" class="btn btn-secondary" style="padding: 2px 7px; font-size: 11px; color: var(--admin-danger-text);" title="Ban user" onclick="return confirm('Ban user &quot;<?php echo htmlspecialchars($u->username); ?>&quot;? They will not be able to log in.');">
                                                 Ban
                                             </a>
                                         <?php elseif ($userStatus === 'suspended'): ?>
-                                            <a href="<?php echo htmlspecialchars(site_path('/admin/users/status?id='), ENT_QUOTES, 'UTF-8'); ?><?php echo (int)$u->id; ?>&status=active" class="btn btn-secondary" style="padding: 2px 7px; font-size: 11px; color: #15803d; font-weight: 600;" title="Reactivate user">
+                                            <a href="<?php echo htmlspecialchars(site_path('/admin/users/status?id='), ENT_QUOTES, 'UTF-8'); ?><?php echo (int)$u->id; ?>&status=active" class="btn btn-secondary" style="padding: 2px 7px; font-size: 11px; color: var(--admin-success-text); font-weight: 600;" title="Reactivate user">
                                                 Activate
                                             </a>
-                                            <a href="<?php echo htmlspecialchars(site_path('/admin/users/status?id='), ENT_QUOTES, 'UTF-8'); ?><?php echo (int)$u->id; ?>&status=banned" class="btn btn-secondary" style="padding: 2px 7px; font-size: 11px; color: #b91c1c;" title="Ban user">
+                                            <a href="<?php echo htmlspecialchars(site_path('/admin/users/status?id='), ENT_QUOTES, 'UTF-8'); ?><?php echo (int)$u->id; ?>&status=banned" class="btn btn-secondary" style="padding: 2px 7px; font-size: 11px; color: var(--admin-danger-text);" title="Ban user">
                                                 Ban
                                             </a>
                                         <?php elseif ($userStatus === 'banned'): ?>
-                                            <a href="<?php echo htmlspecialchars(site_path('/admin/users/status?id='), ENT_QUOTES, 'UTF-8'); ?><?php echo (int)$u->id; ?>&status=active" class="btn btn-secondary" style="padding: 2px 7px; font-size: 11px; color: #15803d; font-weight: 600;" title="Restore user">
+                                            <a href="<?php echo htmlspecialchars(site_path('/admin/users/status?id='), ENT_QUOTES, 'UTF-8'); ?><?php echo (int)$u->id; ?>&status=active" class="btn btn-secondary" style="padding: 2px 7px; font-size: 11px; color: var(--admin-success-text); font-weight: 600;" title="Restore user">
                                                 Restore
                                             </a>
                                         <?php endif; ?>

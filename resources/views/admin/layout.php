@@ -27,37 +27,9 @@ unset($_SESSION['flash_success'], $_SESSION['flash_error']);
 $activeMenu = $activeMenu ?? 'dashboard';
 $siteFaviconUrl = function_exists('get_site_favicon_url') ? get_site_favicon_url('') : '';
 
-// Resolve Admin Appearance Preference with deterministic precedence:
-// 1. Authoritative Core Setting (for authenticated user)
-// 2. Session cache
-// 3. Cookie preference ('favorite_admin_theme')
-// 4. Default: 'dark' (Global Dark Mode default across the CMS)
-$adminTheme = 'dark';
-$cookieTheme = $_COOKIE['favorite_admin_theme'] ?? null;
-if ($currentAdminUser) {
-    try {
-        $savedTheme = class_exists(\FavoriteCMS\Models\Setting::class)
-            ? \FavoriteCMS\Models\Setting::get('admin_appearance', 'user_' . $currentAdminUser->id, null)
-            : null;
-        if ($savedTheme === 'dark' || $savedTheme === 'light') {
-            $adminTheme = $savedTheme;
-        } elseif (!empty($_SESSION['admin_theme']) && in_array($_SESSION['admin_theme'], ['dark', 'light'], true)) {
-            $adminTheme = $_SESSION['admin_theme'];
-        } elseif ($cookieTheme === 'dark' || $cookieTheme === 'light') {
-            $adminTheme = $cookieTheme;
-        }
-    } catch (\Throwable $e) {
-        $adminTheme = $_SESSION['admin_theme'] ?? (($cookieTheme === 'light') ? 'light' : 'dark');
-    }
-} elseif (!empty($_SESSION['admin_theme']) && in_array($_SESSION['admin_theme'], ['dark', 'light'], true)) {
-    $adminTheme = $_SESSION['admin_theme'];
-} elseif ($cookieTheme === 'dark' || $cookieTheme === 'light') {
-    $adminTheme = $cookieTheme;
-}
-if ($adminTheme !== 'light') {
-    $adminTheme = 'dark';
-}
-$_SESSION['admin_theme'] = $adminTheme;
+// Resolve consistently with installer, authentication, customizer and public pages.
+$adminTheme = \FavoriteCMS\Services\Appearance::resolve($currentAdminUser);
+$appearancePersist = true;
 ?>
 <!DOCTYPE html>
 <html lang="en" data-admin-theme="<?php echo $adminTheme; ?>">
@@ -65,23 +37,7 @@ $_SESSION['admin_theme'] = $adminTheme;
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?php echo htmlspecialchars($pageTitle ?? 'Admin', ENT_QUOTES, 'UTF-8'); ?> &lsaquo; <?php echo htmlspecialchars($siteName, ENT_QUOTES, 'UTF-8'); ?> &mdash; Favorite CMS</title>
-    <script>
-    (function() {
-        try {
-            var serverTheme = <?php echo json_encode($adminTheme); ?>;
-            var isAuth = <?php echo $currentAdminUser ? 'true' : 'false'; ?>;
-            if (isAuth) {
-                localStorage.setItem('favorite_admin_theme', serverTheme);
-                document.cookie = 'favorite_admin_theme=' + serverTheme + ';path=/;max-age=31536000;SameSite=Lax';
-            } else {
-                var localTheme = localStorage.getItem('favorite_admin_theme');
-                if (localTheme === 'dark' || localTheme === 'light') {
-                    document.documentElement.setAttribute('data-admin-theme', localTheme);
-                }
-            }
-        } catch (e) {}
-    })();
-    </script>
+    <?php include __DIR__ . '/../partials/appearance/head.php'; ?>
     <?php if (!empty($siteFaviconUrl)): ?>
         <?php
         $favExt = strtolower(pathinfo(parse_url($siteFaviconUrl, PHP_URL_PATH) ?? '', PATHINFO_EXTENSION));
@@ -270,15 +226,18 @@ $_SESSION['admin_theme'] = $adminTheme;
             padding: 0 16px;
             color: #fff;
             font-size: 12.5px;
-            position: sticky;
+            /* Fixed to the viewport: admin header must remain visible even on very long posts/pages. */
+            position: fixed;
             top: 0;
-            z-index: 999;
+            left: 0;
+            right: 0;
+            z-index: 1000;
             box-shadow: 0 1px 3px rgba(0,0,0,0.15);
         }
         .wp-topbar a { color: #f1f5f9; text-decoration: none; transition: color 0.15s; }
-        .wp-topbar a:hover { color: #93c5fd; }
+        .wp-topbar a:hover { color: var(--admin-info-text); }
         .topbar-left { display: flex; align-items: center; gap: 14px; font-weight: 500; }
-        .topbar-left .star { color: #f59e0b; font-size: 15px; }
+        .topbar-left .star { color: var(--admin-warning-text); font-size: 15px; }
         .topbar-right { display: flex; align-items: center; gap: 16px; }
 
         .mobile-menu-toggle {
@@ -299,26 +258,29 @@ $_SESSION['admin_theme'] = $adminTheme;
             display: flex;
             flex: 1;
             position: relative;
+            /* Reserve the fixed 42px admin header in normal document flow. */
+            padding-top: 42px;
         }
 
-        /* Sidebar */
+        /* Sidebar: desktop viewport-anchored so long editor content cannot break sticky behavior. */
         .wp-sidebar {
-            width: var(--sidebar-width);
-            background: var(--wp-sidebar-bg);
-            color: #94a3b8;
-            flex-shrink: 0;
-            padding: 12px 0;
-            display: flex;
-            flex-direction: column;
-            position: -webkit-sticky;
-            position: sticky;
-            top: 42px;
-            height: calc(100vh - 42px);
-            max-height: calc(100vh - 42px);
-            overflow-y: auto;
-            overscroll-behavior: contain;
-            scrollbar-width: thin;
-            scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+             width: var(--sidebar-width);
+             background: var(--wp-sidebar-bg);
+             color: var(--admin-text-muted);
+             padding: 12px 0;
+             display: flex;
+             flex-direction: column;
+             position: fixed;
+             top: 42px;
+             left: 0;
+             bottom: 0;
+             height: calc(100vh - 42px);
+             max-height: calc(100vh - 42px);
+             overflow-y: auto;
+             overscroll-behavior: contain;
+             scrollbar-width: thin;
+             scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+             z-index: 900;
         }
         .wp-sidebar::-webkit-scrollbar {
             width: 5px;
@@ -337,7 +299,7 @@ $_SESSION['admin_theme'] = $adminTheme;
             align-items: center;
             gap: 10px;
             padding: 10px 18px;
-            color: #cbd5e1;
+            color: var(--admin-code-text);
             text-decoration: none;
             font-size: 13px;
             font-weight: 500;
@@ -360,7 +322,7 @@ $_SESSION['admin_theme'] = $adminTheme;
             align-items: center;
             justify-content: center;
             margin-left: auto;
-            color: #94a3b8;
+            color: var(--admin-text-muted);
             transition: transform 0.2s ease, color 0.15s ease;
             flex-shrink: 0;
         }
@@ -372,7 +334,7 @@ $_SESSION['admin_theme'] = $adminTheme;
         }
         .wp-submenu {
             list-style: none;
-            background: #0f172a;
+            background: var(--admin-code-bg);
             padding: 4px 0;
             display: none;
         }
@@ -382,7 +344,7 @@ $_SESSION['admin_theme'] = $adminTheme;
         .wp-submenu a {
             display: block;
             padding: 6px 18px 6px 42px;
-            color: #94a3b8;
+            color: var(--admin-text-muted);
             text-decoration: none;
             font-size: 12.5px;
             transition: color 0.15s;
@@ -396,7 +358,8 @@ $_SESSION['admin_theme'] = $adminTheme;
             flex: 1;
             padding: 24px 28px;
             min-width: 0;
-        }
+             margin-left: var(--sidebar-width);
+         }
         .page-header {
             display: flex;
             align-items: center;
@@ -408,7 +371,7 @@ $_SESSION['admin_theme'] = $adminTheme;
         .page-title {
             font-size: 22px;
             font-weight: 700;
-            color: #0f172a;
+            color: var(--admin-text-heading);
             letter-spacing: -0.3px;
         }
 
@@ -436,34 +399,34 @@ $_SESSION['admin_theme'] = $adminTheme;
         }
         .btn-primary:hover { background: var(--wp-blue-hover); border-color: var(--wp-blue-hover); color: #fff; }
         .btn-secondary {
-            background: #fff;
+            background: var(--admin-surface);
             color: var(--wp-text);
-            border-color: #cbd5e1;
+            border-color: var(--admin-border);
         }
-        .btn-secondary:hover { background: #f8fafc; border-color: #94a3b8; }
+        .btn-secondary:hover { background: var(--admin-surface-subtle); border-color: var(--admin-border); }
         .btn-danger {
-            background: #fee2e2;
+            background: var(--admin-danger-bg);
             color: var(--wp-danger);
-            border-color: #fecaca;
+            border-color: var(--admin-danger-border);
         }
         .btn-danger:hover { background: var(--wp-danger); color: #fff; border-color: var(--wp-danger); }
         .btn-success {
-            background: #16a34a;
+            background: var(--admin-success-solid);
             color: #fff;
-            border-color: #15803d;
+            border-color: var(--admin-success-border);
         }
-        .btn-success:hover { background: #15803d; color: #fff; }
+        .btn-success:hover { background: var(--admin-success-bg); color: #fff; }
         .btn-outline-secondary {
             background: transparent;
             color: var(--wp-text-muted);
-            border-color: #cbd5e1;
+            border-color: var(--admin-border);
         }
-        .btn-outline-secondary:hover { background: #f1f5f9; color: var(--wp-text); border-color: #94a3b8; }
+        .btn-outline-secondary:hover { background: var(--admin-surface-subtle); color: var(--wp-text); border-color: var(--admin-border); }
         .btn-sm { padding: 3px 8px; font-size: 12px; border-radius: var(--radius-sm); }
 
         /* Notices and Alerts */
         .notice, .alert {
-            background: #fff;
+            background: var(--admin-surface);
             border-left: 4px solid var(--wp-blue);
             box-shadow: var(--shadow-sm);
             padding: 12px 16px;
@@ -472,14 +435,14 @@ $_SESSION['admin_theme'] = $adminTheme;
             border-radius: var(--radius-md);
             line-height: 1.5;
         }
-        .notice-success, .alert-success { border-left-color: var(--wp-success); background: #f0fdf4; color: #166534; }
-        .notice-error, .alert-danger { border-left-color: var(--wp-danger); background: #fef2f2; color: #991b1b; }
-        .notice-warning, .alert-warning { border-left-color: var(--wp-warning); background: #fffbeb; color: #92400e; }
-        .notice-info, .alert-info { border-left-color: var(--wp-info); background: #f0f9ff; color: #0369a1; }
+        .notice-success, .alert-success { border-left-color: var(--wp-success); background: var(--admin-success-bg); color: var(--admin-success-text); }
+        .notice-error, .alert-danger { border-left-color: var(--wp-danger); background: var(--admin-danger-bg); color: var(--admin-danger-text); }
+        .notice-warning, .alert-warning { border-left-color: var(--wp-warning); background: var(--admin-warning-bg); color: var(--admin-warning-text); }
+        .notice-info, .alert-info { border-left-color: var(--wp-info); background: var(--admin-info-bg); color: var(--admin-info-text); }
 
         /* Cards */
         .card, .form-card {
-            background: #fff;
+            background: var(--admin-surface);
             border: 1px solid var(--wp-border);
             border-radius: var(--radius-md);
             box-shadow: var(--shadow-sm);
@@ -488,7 +451,7 @@ $_SESSION['admin_theme'] = $adminTheme;
         .form-card { padding: 24px; }
         .card-header {
             padding: 14px 18px;
-            background: #f8fafc;
+            background: var(--admin-surface-subtle);
             border-bottom: 1px solid var(--wp-border);
             border-top-left-radius: var(--radius-md);
             border-top-right-radius: var(--radius-md);
@@ -496,11 +459,11 @@ $_SESSION['admin_theme'] = $adminTheme;
             align-items: center;
             justify-content: space-between;
         }
-        .card-header h5 { margin: 0; font-size: 14px; font-weight: 600; color: #0f172a; }
+        .card-header h5 { margin: 0; font-size: 14px; font-weight: 600; color: var(--admin-text-heading); }
         .card-body { padding: 20px; }
         .card-footer {
             padding: 12px 18px;
-            background: #f8fafc;
+            background: var(--admin-surface-subtle);
             border-top: 1px solid var(--wp-border);
             border-bottom-left-radius: var(--radius-md);
             border-bottom-right-radius: var(--radius-md);
@@ -520,12 +483,12 @@ $_SESSION['admin_theme'] = $adminTheme;
             letter-spacing: 0.3px;
             line-height: 1.2;
         }
-        .badge-success, .badge.bg-success { background: #dcfce7 !important; color: #166534 !important; border: 1px solid #bbf7d0; }
-        .badge-warning, .badge.bg-warning { background: #fef3c7 !important; color: #92400e !important; border: 1px solid #fde68a; }
-        .badge-danger, .badge.bg-danger { background: #fee2e2 !important; color: #991b1b !important; border: 1px solid #fecaca; }
-        .badge-info, .badge.bg-info { background: #e0f2fe !important; color: #075985 !important; border: 1px solid #bae6fd; }
-        .badge-secondary, .badge.bg-secondary { background: #f1f5f9 !important; color: #475569 !important; border: 1px solid #e2e8f0; }
-        .badge-primary, .badge.bg-primary { background: #eff6ff !important; color: #1d4ed8 !important; border: 1px solid #bfdbfe; }
+        .badge-success, .badge.bg-success { background: var(--admin-success-bg) !important; color: var(--admin-success-text) !important; border: 1px solid var(--admin-success-border); }
+        .badge-warning, .badge.bg-warning { background: var(--admin-warning-bg) !important; color: var(--admin-warning-text) !important; border: 1px solid var(--admin-warning-border); }
+        .badge-danger, .badge.bg-danger { background: var(--admin-danger-bg) !important; color: var(--admin-danger-text) !important; border: 1px solid var(--admin-danger-border); }
+        .badge-info, .badge.bg-info { background: var(--admin-info-bg) !important; color: var(--admin-info-text) !important; border: 1px solid #bae6fd; }
+        .badge-secondary, .badge.bg-secondary { background: var(--admin-surface-subtle) !important; color: var(--admin-text-muted) !important; border: 1px solid var(--admin-border); }
+        .badge-primary, .badge.bg-primary { background: var(--admin-info-bg) !important; color: var(--admin-info-text) !important; border: 1px solid var(--admin-info-border); }
 
         /* Tabs */
         .nav-tabs {
@@ -559,17 +522,17 @@ $_SESSION['admin_theme'] = $adminTheme;
         .form-group label, .form-label {
             display: block;
             font-weight: 600;
-            color: #1e293b;
+            color: var(--admin-text-heading);
             margin-bottom: 6px;
             font-size: 13px;
         }
         .form-control, .form-select {
             width: 100%;
             padding: 8px 12px;
-            border: 1px solid #cbd5e1;
+            border: 1px solid var(--admin-border);
             border-radius: var(--radius-md);
             font-size: 13.5px;
-            background: #fff;
+            background: var(--admin-surface);
             color: var(--wp-text);
             font-family: inherit;
             transition: border-color 0.15s, box-shadow 0.15s;
@@ -616,7 +579,7 @@ $_SESSION['admin_theme'] = $adminTheme;
             width: 16px;
             height: 16px;
             border-radius: 50%;
-            background: #fff;
+            background: var(--admin-surface);
             top: 2px;
             left: 2px;
             transition: transform 0.2s;
@@ -626,7 +589,7 @@ $_SESSION['admin_theme'] = $adminTheme;
 
         /* Data Tables */
         .wp-table-wrap {
-            background: #fff;
+            background: var(--admin-surface);
             border: 1px solid var(--wp-border);
             box-shadow: var(--shadow-sm);
             border-radius: var(--radius-md);
@@ -646,15 +609,15 @@ $_SESSION['admin_theme'] = $adminTheme;
         }
         table.wp-table th {
             font-weight: 600;
-            color: #334155;
-            background: #f8fafc;
+            color: var(--admin-text);
+            background: var(--admin-surface-subtle);
             border-bottom: 2px solid var(--wp-border);
         }
         table.wp-table tr:hover td {
-            background: #f8fafc;
+            background: var(--admin-surface-subtle);
         }
         table.wp-table tr.is-selected td {
-            background-color: #eff6ff !important;
+            background-color: var(--admin-info-bg) !important;
         }
         .bulk-actions-wrap {
             display: flex;
@@ -665,8 +628,8 @@ $_SESSION['admin_theme'] = $adminTheme;
         }
         .bulk-count-badge {
             display: inline-block;
-            background: #f1f5f9;
-            color: #64748b;
+            background: var(--admin-surface-subtle);
+            color: var(--admin-text-muted);
             font-size: 11.5px;
             font-weight: 600;
             padding: 4px 10px;
@@ -709,7 +672,7 @@ $_SESSION['admin_theme'] = $adminTheme;
             flex-wrap: wrap;
         }
         ul.subsubsub a { color: var(--wp-blue); text-decoration: none; }
-        ul.subsubsub a.current { font-weight: 700; color: #0f172a; }
+        ul.subsubsub a.current { font-weight: 700; color: var(--admin-text-heading); }
 
         /* Layout Grid & Flex Utilities */
         .d-flex { display: flex; }
@@ -786,6 +749,7 @@ $_SESSION['admin_theme'] = $adminTheme;
             }
             .wp-content {
                 padding: 16px;
+                margin-left: 0;
             }
             .col-md-3, .col-md-4, .col-md-6, .col-lg-4, .col-md-8 {
                 flex: 0 0 100%;
@@ -841,15 +805,7 @@ $_SESSION['admin_theme'] = $adminTheme;
         [data-admin-theme="dark"] .wp-content {
             background: var(--admin-bg);
         }
-        [data-admin-theme="dark"] .page-title,
-        [data-admin-theme="dark"] h1,
-        [data-admin-theme="dark"] h2,
-        [data-admin-theme="dark"] h3,
-        [data-admin-theme="dark"] h4,
-        [data-admin-theme="dark"] h5,
-        [data-admin-theme="dark"] h6 {
-            color: var(--admin-text-heading) !important;
-        }
+        [data-admin-theme="dark"] .page-title { color: var(--admin-text-heading); }
         [data-admin-theme="dark"] .card,
         [data-admin-theme="dark"] .form-card,
         [data-admin-theme="dark"] .plugin-page-card,
@@ -946,7 +902,7 @@ $_SESSION['admin_theme'] = $adminTheme;
         }
         [data-admin-theme="dark"] .btn-success {
             background: var(--admin-success) !important;
-            border-color: #15803d !important;
+            border-color: var(--admin-success-border) !important;
             color: #ffffff !important;
         }
         [data-admin-theme="dark"] .nav-tabs {
@@ -975,12 +931,7 @@ $_SESSION['admin_theme'] = $adminTheme;
         [data-admin-theme="dark"] ul.subsubsub {
             color: var(--admin-text-muted) !important;
         }
-        [data-admin-theme="dark"] code,
-        [data-admin-theme="dark"] pre {
-            background: var(--admin-surface-subtle) !important;
-            border-color: var(--admin-border) !important;
-            color: #38bdf8 !important;
-        }
+        :where(code, pre) { background: var(--admin-code-bg); border-color: var(--admin-border); color: var(--admin-code-text); }
         [data-admin-theme="dark"] hr {
             border-color: var(--admin-border) !important;
         }
@@ -1055,46 +1006,20 @@ $_SESSION['admin_theme'] = $adminTheme;
         [data-admin-theme="dark"] .btn-menu-action.btn-menu-edit {
             background: rgba(59, 130, 246, 0.15) !important;
             border-color: rgba(59, 130, 246, 0.35) !important;
-            color: #93c5fd !important;
+            color: var(--admin-info-text) !important;
         }
         [data-admin-theme="dark"] .btn-menu-action.btn-menu-edit:hover {
             background: rgba(59, 130, 246, 0.25) !important;
-            color: #bfdbfe !important;
+            color: var(--admin-info-text) !important;
         }
         [data-admin-theme="dark"] .btn-menu-action.btn-menu-remove {
             background: rgba(239, 68, 68, 0.15) !important;
             border-color: rgba(239, 68, 68, 0.35) !important;
-            color: #fca5a5 !important;
+            color: var(--admin-danger-text) !important;
         }
         [data-admin-theme="dark"] .btn-menu-action.btn-menu-remove:hover {
             background: var(--admin-danger) !important;
             color: #ffffff !important;
-        }
-        /* Fallback for inline-styled white/light containers and text across admin views */
-        [data-admin-theme="dark"] [style*="background: #f8fafc"],
-        [data-admin-theme="dark"] [style*="background:#f8fafc"],
-        [data-admin-theme="dark"] [style*="background: #f1f5f9"],
-        [data-admin-theme="dark"] [style*="background:#f1f5f9"] {
-            background: var(--admin-surface-subtle) !important;
-            border-color: var(--admin-border) !important;
-        }
-        [data-admin-theme="dark"] [style*="background: #ffffff"],
-        [data-admin-theme="dark"] [style*="background:#ffffff"],
-        [data-admin-theme="dark"] [style*="background: #fff"],
-        [data-admin-theme="dark"] [style*="background:#fff"] {
-            background: var(--admin-surface) !important;
-            border-color: var(--admin-border) !important;
-        }
-        [data-admin-theme="dark"] [style*="color: #0f172a"],
-        [data-admin-theme="dark"] [style*="color: #1d2327"],
-        [data-admin-theme="dark"] [style*="color: #1e293b"] {
-            color: var(--admin-text-heading) !important;
-        }
-        [data-admin-theme="dark"] [style*="color: #334155"] {
-            color: var(--admin-text) !important;
-        }
-        [data-admin-theme="dark"] [style*="color: #475569"] {
-            color: var(--admin-text-muted) !important;
         }
         [data-admin-theme="dark"] .row-title {
             color: var(--admin-text-heading) !important;
@@ -1169,9 +1094,41 @@ $_SESSION['admin_theme'] = $adminTheme;
             background: var(--admin-surface) !important;
             color: var(--admin-text) !important;
         }
-        [data-admin-theme="dark"] #preview-modal div[style*="background: #f8fafc"],
-        [data-admin-theme="dark"] #media-modal div[style*="background: #f8fafc"] {
+        [data-admin-theme="dark"] #preview-modal div[style*="background: var(--admin-surface-subtle)"],
+        [data-admin-theme="dark"] #media-modal div[style*="background: var(--admin-surface-subtle)"] {
             background: var(--admin-surface-subtle) !important;
+            border-color: var(--admin-border) !important;
+        }
+
+        /* Media library modal: complete admin dark-mode surface/text coverage. */
+        [data-admin-theme="dark"] #media-modal > div,
+        [data-admin-theme="dark"] #media-modal #modal-view-browse,
+        [data-admin-theme="dark"] #media-modal #modal-view-upload {
+            background: var(--admin-surface) !important;
+            color: var(--admin-text) !important;
+            border-color: var(--admin-border) !important;
+        }
+        [data-admin-theme="dark"] #media-modal input,
+        [data-admin-theme="dark"] #media-modal select,
+        [data-admin-theme="dark"] #media-modal textarea {
+            background: var(--admin-input-bg) !important;
+            color: var(--admin-text) !important;
+            border-color: var(--admin-border) !important;
+        }
+        [data-admin-theme="dark"] #media-modal .media-picker-card {
+            background: var(--admin-surface-subtle) !important;
+            border-color: transparent !important;
+            color: var(--admin-text) !important;
+        }
+        [data-admin-theme="dark"] #media-modal .media-picker-card:hover,
+        [data-admin-theme="dark"] #media-modal .media-picker-card.selected {
+            border-color: var(--admin-primary) !important;
+            background: var(--admin-surface-elevated) !important;
+        }
+        [data-admin-theme="dark"] #media-modal .modal-tab-btn:not(.active),
+        [data-admin-theme="dark"] #media-modal .media-filter-btn:not(.active) {
+            background: var(--admin-surface-subtle) !important;
+            color: var(--admin-text-muted) !important;
             border-color: var(--admin-border) !important;
         }
 
@@ -1195,36 +1152,60 @@ $_SESSION['admin_theme'] = $adminTheme;
         #code-editor::-webkit-scrollbar-track {
             background: transparent;
         }
-        .editor-sidebar-sticky {
-            scrollbar-width: none;
+        /* Keep the editor actions above both columns in normal document flow. */
+        .editor-page-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: center;
+            min-width: 0;
+            max-width: 100%;
         }
-        .editor-sidebar-sticky::-webkit-scrollbar {
-            display: none;
+        .editor-page-actions .btn {
+            white-space: normal;
+            text-align: center;
         }
 
-        /* Editor Responsive Grid & Sticky Sidebar */
+        /* The sidebar starts beside the title field, below the page actions.
+           It only sticks after scrolling, and stays inside its grid column. */
         .editor-layout-grid {
             display: grid;
-            grid-template-columns: 1fr 320px;
+            grid-template-columns: minmax(0, 1fr) 320px;
             gap: 24px;
             align-items: start;
         }
         .editor-sidebar-sticky {
-            position: -webkit-sticky;
             position: sticky;
-            top: calc(42px + 20px);
-            max-height: calc(100vh - 42px - 32px);
+            top: 62px;
+            width: 100%;
+            min-width: 0;
+            max-height: calc(100vh - 82px);
+            max-height: calc(100dvh - 82px);
             overflow-y: auto;
             overscroll-behavior: contain;
+            scrollbar-width: thin;
+            scrollbar-color: var(--admin-border) transparent;
+            align-self: start;
+            box-sizing: border-box;
+        }
+        .editor-sidebar-sticky::-webkit-scrollbar {
+            width: 6px;
+        }
+        .editor-sidebar-sticky::-webkit-scrollbar-thumb {
+            background: var(--admin-border);
+            border-radius: 4px;
         }
         @media (max-width: 900px) {
             .editor-layout-grid {
-                grid-template-columns: 1fr !important;
+                grid-template-columns: minmax(0, 1fr) !important;
             }
+        }
+        @media (max-width: 900px), (max-height: 480px) {
             .editor-sidebar-sticky {
-                position: static !important;
-                max-height: none !important;
-                overflow-y: visible !important;
+                position: static;
+                top: auto;
+                max-height: none;
+                overflow-y: visible;
             }
         }
 
@@ -1349,6 +1330,7 @@ $_SESSION['admin_theme'] = $adminTheme;
             font-weight: 600;
         }
     </style>
+    <style><?php readfile(__DIR__ . '/../partials/appearance/admin.css'); ?></style>
 </head>
 <body>
 <form id="core-action-form" method="POST" hidden><?php echo csrf_field(); ?></form>
@@ -1357,7 +1339,7 @@ $_SESSION['admin_theme'] = $adminTheme;
     <div class="wp-topbar">
         <div class="topbar-left">
             <button type="button" class="mobile-menu-toggle" id="mobile-menu-toggle" aria-expanded="false" aria-label="Toggle navigation menu">&#9776;</button>
-            <a href="<?php echo htmlspecialchars(site_path('/'), ENT_QUOTES, 'UTF-8'); ?>" target="_blank" title="Visit Site"><span class="star">&#9733;</span> <strong><?php echo htmlspecialchars($siteName, ENT_QUOTES, 'UTF-8'); ?></strong> &rarr;</a>
+            <a href="<?php echo htmlspecialchars(site_path('/'), ENT_QUOTES, 'UTF-8'); ?>" target="_blank" title="Visit Site"><img src="<?php echo htmlspecialchars(site_path('/assets/images/Favorite_Web_Icon.png'), ENT_QUOTES, 'UTF-8'); ?>" alt="" aria-hidden="true" width="18" height="18" style="width:18px;height:18px;object-fit:contain;display:inline-block;vertical-align:middle;margin-right:4px;"> <strong><?php echo htmlspecialchars($siteName, ENT_QUOTES, 'UTF-8'); ?></strong> &rarr;</a>
         </div>
         <div class="topbar-right">
             <button type="button" 
@@ -1371,7 +1353,7 @@ $_SESSION['admin_theme'] = $adminTheme;
             </button>
             <span>Howdy, <strong><?php echo htmlspecialchars($username, ENT_QUOTES, 'UTF-8'); ?></strong></span>
             <a href="<?php echo htmlspecialchars(site_path('/admin/users/profile'), ENT_QUOTES, 'UTF-8'); ?>">Edit Profile</a>
-            <a href="<?php echo htmlspecialchars(site_path('/admin/logout'), ENT_QUOTES, 'UTF-8'); ?>" style="color: #fca5a5;">Log Out</a>
+            <a href="<?php echo htmlspecialchars(site_path('/admin/logout'), ENT_QUOTES, 'UTF-8'); ?>" style="color: var(--admin-danger-text);">Log Out</a>
         </div>
     </div>
     <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
@@ -1808,53 +1790,11 @@ $_SESSION['admin_theme'] = $adminTheme;
             });
         }
 
-        // Admin Dark/Light Mode toggle handler
-        var themeToggleBtn = document.getElementById('admin-theme-toggle');
-        if (themeToggleBtn) {
-            themeToggleBtn.addEventListener('click', function() {
-                var currentTheme = document.documentElement.getAttribute('data-admin-theme') || 'dark';
-                var nextTheme = currentTheme === 'dark' ? 'light' : 'dark';
-                var isDark = nextTheme === 'dark';
-
-                // 1. Update DOM immediately
-                document.documentElement.setAttribute('data-admin-theme', nextTheme);
-
-                // 2. Update toggle button attributes and icons
-                themeToggleBtn.setAttribute('aria-pressed', isDark ? 'true' : 'false');
-                var labelText = isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode';
-                themeToggleBtn.setAttribute('aria-label', labelText);
-                themeToggleBtn.setAttribute('title', labelText);
-                var sunIcon = themeToggleBtn.querySelector('.theme-icon-sun');
-                var moonIcon = themeToggleBtn.querySelector('.theme-icon-moon');
-                if (sunIcon) sunIcon.style.display = isDark ? 'inline-flex' : 'none';
-                if (moonIcon) moonIcon.style.display = isDark ? 'none' : 'inline-flex';
-
-                // 3. Save to localStorage and cookie for early flash-free client bootstrap & cross-page persistence
-                try {
-                    localStorage.setItem('favorite_admin_theme', nextTheme);
-                    document.cookie = 'favorite_admin_theme=' + nextTheme + ';path=/;max-age=31536000;SameSite=Lax';
-                } catch (e) {}
-
-                // 4. Send background POST to persist in authoritative Core Setting for authenticated user
-                var csrfToken = <?php echo json_encode($_SESSION['_token'] ?? ''); ?>;
-                var formData = new FormData();
-                formData.append('_token', csrfToken);
-                formData.append('theme', nextTheme);
-
-                fetch(<?php echo json_encode(site_path('/admin/appearance/toggle'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>, {
-                    method: 'POST',
-                    body: formData,
-                    credentials: 'same-origin',
-                    headers: {
-                        'X-Requested-With': 'XMLHttpRequest'
-                    }
-                }).catch(function(err) {
-                    console.warn('Could not persist admin appearance to server:', err);
-                });
-            });
-        }
     });
     </script>
+<script>
+<?php include APP_ROOT . '/resources/views/admin/partials/accessibility.js'; ?>
+</script>
 </body>
 </html>
 

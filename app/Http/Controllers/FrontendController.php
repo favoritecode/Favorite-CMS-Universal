@@ -73,7 +73,7 @@ class FrontendController
     {
         $post = Post::findBySlug($slug);
         if (!$post || $post->status !== 'published') {
-            return $this->notFound();
+            return \FavoriteCMS\Services\SeoRedirects::resolve('post', $slug) ?? $this->notFound();
         }
 
         $seo = $post->getSeoMeta();
@@ -105,7 +105,7 @@ class FrontendController
     {
         $page = Page::findBySlug($slug);
         if (!$page || $page->status !== 'published') {
-            return $this->notFound();
+            return \FavoriteCMS\Services\SeoRedirects::resolve('page', $slug) ?? $this->notFound();
         }
 
         return $this->renderPage($page);
@@ -292,52 +292,7 @@ class FrontendController
 
     public function sitemap(Request $request): Response
     {
-        $siteUrlSetting = (string)Setting::get('general', 'site_url', '');
-        if ($siteUrlSetting !== '' && !str_contains($siteUrlSetting, 'favorite-cms.local') && !str_contains($siteUrlSetting, 'localhost')) {
-            $baseUrl = rtrim($siteUrlSetting, '/');
-        } else {
-            $basePath = $request->basePath();
-            $server = $request->server();
-            $scheme = (!empty($server['HTTPS']) && strtolower((string)$server['HTTPS']) !== 'off') || (($server['SERVER_PORT'] ?? null) === '443') ? 'https' : 'http';
-            $host = (string)($server['HTTP_HOST'] ?? $server['SERVER_NAME'] ?? 'localhost');
-            $baseUrl = rtrim($scheme . '://' . $host . $basePath, '/');
-            if ($baseUrl === '' || $baseUrl === 'http://localhost') {
-                $baseUrl = rtrim((string)config('app.url', 'http://favorite-cms.local'), '/');
-            }
-        }
-
-        $posts = Post::published(500);
-        $pages = Page::published();
-        $categories = Taxonomy::getByTaxonomy('category');
-
-        $xml = '<?xml version="1.0" encoding="UTF-8"?>' . "\n";
-        $xml .= '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' . "\n";
-
-        // Home
-        $xml .= "  <url>\n    <loc>{$baseUrl}/</loc>\n    <changefreq>daily</changefreq>\n    <priority>1.0</priority>\n  </url>\n";
-
-        // Posts
-        foreach ($posts as $p) {
-            $lastmod = format_date($p->updated_at ?? $p->created_at, 'c');
-            $xml .= "  <url>\n    <loc>{$baseUrl}/post/" . htmlspecialchars($p->slug, ENT_QUOTES, 'UTF-8') . "</loc>\n    <lastmod>{$lastmod}</lastmod>\n    <changefreq>weekly</changefreq>\n    <priority>0.8</priority>\n  </url>\n";
-        }
-
-        // Pages
-        foreach ($pages as $p) {
-            $lastmod = format_date($p->updated_at ?? $p->created_at, 'c');
-            $xml .= "  <url>\n    <loc>{$baseUrl}/page/" . htmlspecialchars($p->slug, ENT_QUOTES, 'UTF-8') . "</loc>\n    <lastmod>{$lastmod}</lastmod>\n    <changefreq>monthly</changefreq>\n    <priority>0.6</priority>\n  </url>\n";
-        }
-
-        // Categories
-        foreach ($categories as $c) {
-            $xml .= "  <url>\n    <loc>{$baseUrl}/category/" . htmlspecialchars($c->slug, ENT_QUOTES, 'UTF-8') . "</loc>\n    <changefreq>weekly</changefreq>\n    <priority>0.5</priority>\n  </url>\n";
-        }
-
-        $xml .= '</urlset>';
-
-        $res = Response::make($xml, 200);
-        $res->header('Content-Type', 'application/xml; charset=utf-8');
-        return $res;
+        return \FavoriteCMS\Services\SeoSitemap::render($request);
     }
 
     public function robots(Request $request): Response

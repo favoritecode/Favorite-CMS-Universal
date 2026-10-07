@@ -36,6 +36,14 @@ public/uploads/avatars/*
 # Testing & cache
 .phpunit.result.cache
 .phpunit.cache/
+tests/renders/
+tests/*-results.json
+*-results.json
+_qa/
+node_modules/
+playwright-report/
+test-results/
+.cms-test-sandbox
 
 # OS & IDE metadata
 .DS_Store

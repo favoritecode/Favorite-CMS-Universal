@@ -137,11 +137,14 @@ class PageController
 
         $page = Page::find($pageId);
         ContentRevision::record(Page::find((int)$page->id), 'page');
+        \FavoriteCMS\Services\ContentWorkspace::capture(Page::find((int)$page->id), 'page');
+        \FavoriteCMS\Services\ContentWorkspace::acknowledge($request, 'page');
         $page->saveSeoMeta([
             'meta_title'       => trim((string)$request->post('meta_title', '')),
             'meta_description' => trim((string)$request->post('meta_description', '')),
             'og_title'         => trim((string)$request->post('og_title', '')),
             'og_description'   => trim((string)$request->post('og_description', '')),
+                'og_image_url' => \FavoriteCMS\Services\SeoMetadata::httpUrl((string)$request->post('og_image_url', '')),
             'canonical_url'    => trim((string)$request->post('canonical_url', '')),
             'robots'           => trim((string)$request->post('robots', 'index,follow')),
         ]);
@@ -213,6 +216,12 @@ class PageController
             return Response::redirect('/admin/pages/edit?id=' . $id);
         }
 
+        $baseline = (string)$request->post('_workspace_baseline', '');
+        if ($baseline !== '' && !hash_equals(\FavoriteCMS\Services\ContentWorkspace::fingerprint($page), $baseline)) {
+            $_SESSION['flash_error'] = 'This content changed in another tab or account. Your draft is preserved; reopen the editor before saving.';
+            return Response::redirect('/admin/pages/edit?id=' . $id);
+        }
+        \FavoriteCMS\Services\ContentWorkspace::capture($page, 'page');
         $page->update([
             'title'             => $title,
             'slug'              => $finalSlug,
@@ -225,11 +234,14 @@ class PageController
         ]);
 
         ContentRevision::record(Page::find((int)$page->id), 'page');
+        \FavoriteCMS\Services\ContentWorkspace::capture(Page::find((int)$page->id), 'page');
+        \FavoriteCMS\Services\ContentWorkspace::acknowledge($request, 'page');
         $page->saveSeoMeta([
             'meta_title'       => trim((string)$request->post('meta_title', '')),
             'meta_description' => trim((string)$request->post('meta_description', '')),
             'og_title'         => trim((string)$request->post('og_title', '')),
             'og_description'   => trim((string)$request->post('og_description', '')),
+                'og_image_url' => \FavoriteCMS\Services\SeoMetadata::httpUrl((string)$request->post('og_image_url', '')),
             'canonical_url'    => trim((string)$request->post('canonical_url', '')),
             'robots'           => trim((string)$request->post('robots', 'index,follow')),
         ]);

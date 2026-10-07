@@ -99,7 +99,7 @@ Detailed disaster recovery procedures are documented in [`docs/disaster-recovery
 1. **Exclusive Core Releases:**  
    GitHub Releases in Favorite-CMS-Universal are reserved exclusively for Favorite CMS Universal core builds (e.g. `v1.0.0`, `v1.0.1`, `v1.1.0`).
 2. **Release Asset Naming:**  
-   Allowed release asset format: `Favorite-CMS-Universal-vX.X.X.zip`.  
+   Allowed release asset format: `Favorite-CMS-Universal-vX.X.X.zip` (along with official core `-update.zip`, `-tests.zip`, and `.sha256` checksum sidecars).  
    Never attach plugin packages (`favorite-multimedia*.zip`), theme archives, or external products here.
 3. **Historical Tag & Release Immutability:**  
    - Existing released versions and Git tags (including `v1.0.0`) are permanent and immutable.

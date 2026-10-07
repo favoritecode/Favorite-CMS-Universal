@@ -11,6 +11,9 @@ use PDOStatement;
 class Database
 {
     protected PDO $pdo;
+    protected array $readCache = [];
+    protected int $queryCount = 0;
+    protected int $writeVersion = 0;
     protected array $config;
     protected string $prefix = '';
     protected array $prefixableTables = [
@@ -33,6 +36,9 @@ class Database
         'plugin_settings',
         'comments',
         'password_resets',
+        'content_drafts',
+        'content_history',
+        'seo_redirects',
     ];
 
     public function __construct(array $config)
@@ -79,8 +85,10 @@ class Database
     public function query(string $sql, array $bindings = []): PDOStatement
     {
         $sql = $this->prefixSql($sql);
+        $this->queryCount++;
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute($bindings);
+        if (!preg_match('/^\s*(SELECT|SHOW|PRAGMA|EXPLAIN)\b/i', $sql)) { $this->readCache = []; $this->writeVersion++; }
         return $stmt;
     }
 
@@ -88,6 +96,19 @@ class Database
     {
         return $this->query($sql, $bindings)->fetchAll();
     }
+
+    /** Bounded request-only cache; every database write invalidates it. */
+    public function rememberSelect(string $sql, array $bindings = []): array
+    {
+        $key = hash('sha256', $sql . serialize($bindings));
+        if (!isset($this->readCache[$key])) {
+            if (count($this->readCache) >= 128) $this->readCache = [];
+            $this->readCache[$key] = $this->select($sql, $bindings);
+        }
+        return array_map(static fn($row) => clone $row, $this->readCache[$key]);
+    }
+    public function queryCount(): int { return $this->queryCount; }
+    public function writeVersion(): int { return $this->writeVersion; }
 
     public function selectOne(string $sql, array $bindings = []): ?object
     {
@@ -153,11 +174,13 @@ class Database
 
     public function commit(): bool
     {
+        $this->readCache = []; $this->writeVersion++;
         return $this->pdo->commit();
     }
 
     public function rollback(): bool
     {
+        $this->readCache = []; $this->writeVersion++;
         return $this->pdo->rollBack();
     }
 

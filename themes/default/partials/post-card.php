@@ -18,7 +18,7 @@ $loadingAttrs = !empty($eager) ? ' loading="eager" fetchpriority="high"' : ' loa
 <article class="post-card post-card--<?php echo $variant; ?><?php echo ($image && !empty($image->url)) ? ' has-media' : ''; ?>">
     <?php if ($image && !empty($image->url)): ?>
         <a class="post-card__media" href="<?php echo fcd_e($href); ?>" tabindex="-1" aria-hidden="true">
-            <img src="<?php echo fcd_e(fcd_url((string)$image->url)); ?>" alt=""<?php echo fcd_image_dimensions($image); ?><?php echo $loadingAttrs; ?> decoding="async">
+            <img src="<?php echo fcd_e(fcd_url($image->getThumbnailUrl(640, 480))); ?>" <?php if ($image->getResponsiveSrcset() !== ''): ?>srcset="<?php echo fcd_e($image->getResponsiveSrcset()); ?>" sizes="(max-width: 720px) 100vw, (max-width: 1100px) 60vw, 700px"<?php endif; ?> alt=""<?php echo fcd_image_dimensions($image); ?><?php echo $loadingAttrs; ?> decoding="async">
         </a>
     <?php endif; ?>
     <div class="post-card__body">

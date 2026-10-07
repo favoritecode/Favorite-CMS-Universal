@@ -2,6 +2,8 @@
     <h1 class="page-title">Search Engine Optimization (SEO)</h1>
 </div>
 
+<?php include __DIR__ . '/automation.php'; ?>
+
 <div class="form-card" style="max-width: 700px;">
     <form method="POST" action="<?php echo htmlspecialchars(site_path('/admin/seo/update'), ENT_QUOTES, 'UTF-8'); ?>">
         <input type="hidden" name="_token" value="<?php echo htmlspecialchars($_SESSION['_token'] ?? '', ENT_QUOTES, 'UTF-8'); ?>">
@@ -48,7 +50,7 @@
             Analytics & Tag Management
         </h2>
 
-        <div style="background: #f8fafc; border: 1px solid var(--wp-border); border-radius: 4px; padding: 12px; margin-bottom: 16px; font-size: 13px; color: #475569;">
+        <div style="background: var(--admin-surface-subtle); border: 1px solid var(--wp-border); border-radius: 4px; padding: 12px; margin-bottom: 16px; font-size: 13px; color: var(--admin-text-muted);">
             Tracking scripts are only injected into public visitor pages and are strictly excluded from the admin dashboard (<code>/admin/*</code>). If Google Tag Manager is enabled, standalone GA4 tracking is automatically deduplicated to prevent double counting.
         </div>
 
@@ -80,7 +82,7 @@
             Robots.txt & XML Sitemap
         </h2>
 
-        <div style="background: #f8fafc; border: 1px solid var(--wp-border); border-radius: 4px; padding: 12px; margin-bottom: 16px;">
+        <div style="background: var(--admin-surface-subtle); border: 1px solid var(--wp-border); border-radius: 4px; padding: 12px; margin-bottom: 16px;">
             <strong>XML Sitemap:</strong> Automatically generated and accessible at:
             <a href="/sitemap.xml" target="_blank" style="font-weight: 600;">/sitemap.xml &rarr;</a>
         </div>

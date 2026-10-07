@@ -27,14 +27,14 @@
         </div>
 
         <!-- Site Logo (Upload or URL) -->
-        <div class="form-group" style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 16px; margin-bottom: 20px;">
+        <div class="form-group" style="background: var(--admin-surface-subtle); border: 1px solid var(--admin-border); border-radius: 6px; padding: 16px; margin-bottom: 20px;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 6px;">
-                <label style="font-size: 14px; font-weight: 700; color: #1e293b; margin: 0;">Site Logo</label>
+                <label style="font-size: 14px; font-weight: 700; color: var(--admin-text-heading); margin: 0;">Site Logo</label>
                 <?php
                 $activeLogoSource = function_exists('get_site_logo_source') ? get_site_logo_source() : ($settings['site_logo_source'] ?? 'url');
                 $currentLogoUrl = function_exists('get_site_logo_url') ? get_site_logo_url() : '';
                 ?>
-                <span style="font-size: 11px; background: #e0e7ff; color: #3730a3; padding: 2px 8px; border-radius: 4px; font-weight: 600;">
+                <span style="font-size: 11px; background: var(--admin-purple-bg); color: var(--admin-purple-text); padding: 2px 8px; border-radius: 4px; font-weight: 600;">
                     Active Source: <?php echo $activeLogoSource === 'upload' ? 'Uploaded File' : ($activeLogoSource === 'url' && !empty($settings['site_logo_url']) ? 'Custom URL' : 'Default / None'); ?>
                 </span>
             </div>
@@ -54,44 +54,44 @@
             <!-- Upload Option -->
             <div id="logo-upload-wrap" style="margin-bottom: 12px; display: <?php echo ($activeLogoSource === 'upload' || !empty($settings['site_logo_upload_path'])) ? 'block' : 'none'; ?>;">
                 <?php if (!empty($settings['site_logo_upload_path'])): ?>
-                    <div style="margin-bottom: 8px; padding: 8px 12px; background: #fff; border: 1px solid #cbd5e1; border-radius: 4px; display: flex; align-items: center; gap: 12px; justify-content: space-between;">
+                    <div style="margin-bottom: 8px; padding: 8px 12px; background: var(--admin-surface); border: 1px solid var(--admin-border); border-radius: 4px; display: flex; align-items: center; gap: 12px; justify-content: space-between;">
                         <div style="display: flex; align-items: center; gap: 10px;">
                             <img src="<?php echo htmlspecialchars($settings['site_logo_upload_path'], ENT_QUOTES, 'UTF-8'); ?>" alt="Uploaded Logo" style="max-height: 36px; max-width: 140px; object-fit: contain;">
-                            <code style="font-size: 11px; color: #475569;"><?php echo htmlspecialchars($settings['site_logo_upload_path']); ?></code>
+                            <code style="font-size: 11px; color: var(--admin-text-muted);"><?php echo htmlspecialchars($settings['site_logo_upload_path']); ?></code>
                         </div>
-                        <label style="font-size: 11px; color: #b91c1c; cursor: pointer; display: flex; align-items: center; gap: 4px;">
+                        <label style="font-size: 11px; color: var(--admin-danger-text); cursor: pointer; display: flex; align-items: center; gap: 4px;">
                             <input type="checkbox" name="remove_uploaded_logo" value="1"> Remove Upload
                         </label>
                     </div>
                 <?php endif; ?>
-                <label for="site_logo_file" style="font-size: 12px; font-weight: 500; color: #475569; margin-bottom: 4px; display: block;">Select new logo image (PNG, JPG, SVG, WebP, ICO):</label>
+                <label for="site_logo_file" style="font-size: 12px; font-weight: 500; color: var(--admin-text-muted); margin-bottom: 4px; display: block;">Select new logo image (PNG, JPG, SVG, WebP, ICO):</label>
                 <input type="file" id="site_logo_file" name="site_logo_file" class="form-control" accept="image/*,.ico">
             </div>
 
             <!-- URL Option -->
             <div id="logo-url-wrap" style="margin-bottom: 12px; display: <?php echo ($activeLogoSource === 'url' && empty($settings['site_logo_upload_path'])) ? 'block' : 'none'; ?>;">
-                <label for="site_logo_url" style="font-size: 12px; font-weight: 500; color: #475569; margin-bottom: 4px; display: block;">Enter absolute or relative image URL:</label>
+                <label for="site_logo_url" style="font-size: 12px; font-weight: 500; color: var(--admin-text-muted); margin-bottom: 4px; display: block;">Enter absolute or relative image URL:</label>
                 <input type="url" id="site_logo_url" name="site_logo_url" class="form-control" value="<?php echo htmlspecialchars($settings['site_logo_url'] ?? '', ENT_QUOTES, 'UTF-8'); ?>" placeholder="https://example.com/images/logo.png or /uploads/logo.png">
             </div>
 
             <!-- Preview -->
             <?php if (!empty($currentLogoUrl)): ?>
-                <div style="margin-top: 10px; padding: 10px; background: #fff; border: 1px solid #cbd5e1; border-radius: 4px; display: inline-block;">
-                    <div style="font-size: 11px; color: #64748b; font-weight: 600; margin-bottom: 4px;">Active Logo Preview:</div>
+                <div style="margin-top: 10px; padding: 10px; background: var(--admin-surface); border: 1px solid var(--admin-border); border-radius: 4px; display: inline-block;">
+                    <div style="font-size: 11px; color: var(--admin-text-muted); font-weight: 600; margin-bottom: 4px;">Active Logo Preview:</div>
                     <img src="<?php echo htmlspecialchars($currentLogoUrl, ENT_QUOTES, 'UTF-8'); ?>" alt="Active Site Logo" style="max-height: 48px; max-width: 240px; object-fit: contain; display: block;">
                 </div>
             <?php endif; ?>
         </div>
 
         <!-- Site Favicon (Upload or URL) -->
-        <div class="form-group" style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 16px; margin-bottom: 20px;">
+        <div class="form-group" style="background: var(--admin-surface-subtle); border: 1px solid var(--admin-border); border-radius: 6px; padding: 16px; margin-bottom: 20px;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 6px;">
-                <label style="font-size: 14px; font-weight: 700; color: #1e293b; margin: 0;">Site Icon / Favicon</label>
+                <label style="font-size: 14px; font-weight: 700; color: var(--admin-text-heading); margin: 0;">Site Icon / Favicon</label>
                 <?php
                 $activeFaviconSource = function_exists('get_site_favicon_source') ? get_site_favicon_source() : ($settings['site_favicon_source'] ?? 'url');
                 $currentFaviconUrl = function_exists('get_site_favicon_url') ? get_site_favicon_url() : '/favicon.ico';
                 ?>
-                <span style="font-size: 11px; background: #e0e7ff; color: #3730a3; padding: 2px 8px; border-radius: 4px; font-weight: 600;">
+                <span style="font-size: 11px; background: var(--admin-purple-bg); color: var(--admin-purple-text); padding: 2px 8px; border-radius: 4px; font-weight: 600;">
                     Active Source: <?php echo $activeFaviconSource === 'upload' ? 'Uploaded File' : ($activeFaviconSource === 'url' && !empty($settings['site_favicon_url']) ? 'Custom URL' : 'Default (/favicon.ico)'); ?>
                 </span>
             </div>
@@ -111,29 +111,29 @@
             <!-- Upload Option -->
             <div id="fav-upload-wrap" style="margin-bottom: 12px; display: <?php echo ($activeFaviconSource === 'upload' || !empty($settings['site_favicon_upload_path'])) ? 'block' : 'none'; ?>;">
                 <?php if (!empty($settings['site_favicon_upload_path'])): ?>
-                    <div style="margin-bottom: 8px; padding: 8px 12px; background: #fff; border: 1px solid #cbd5e1; border-radius: 4px; display: flex; align-items: center; gap: 12px; justify-content: space-between;">
+                    <div style="margin-bottom: 8px; padding: 8px 12px; background: var(--admin-surface); border: 1px solid var(--admin-border); border-radius: 4px; display: flex; align-items: center; gap: 12px; justify-content: space-between;">
                         <div style="display: flex; align-items: center; gap: 10px;">
                             <img src="<?php echo htmlspecialchars($settings['site_favicon_upload_path'], ENT_QUOTES, 'UTF-8'); ?>" alt="Uploaded Favicon" style="width: 24px; height: 24px; object-fit: contain;">
-                            <code style="font-size: 11px; color: #475569;"><?php echo htmlspecialchars($settings['site_favicon_upload_path']); ?></code>
+                            <code style="font-size: 11px; color: var(--admin-text-muted);"><?php echo htmlspecialchars($settings['site_favicon_upload_path']); ?></code>
                         </div>
-                        <label style="font-size: 11px; color: #b91c1c; cursor: pointer; display: flex; align-items: center; gap: 4px;">
+                        <label style="font-size: 11px; color: var(--admin-danger-text); cursor: pointer; display: flex; align-items: center; gap: 4px;">
                             <input type="checkbox" name="remove_uploaded_favicon" value="1"> Remove Upload
                         </label>
                     </div>
                 <?php endif; ?>
-                <label for="site_favicon_file" style="font-size: 12px; font-weight: 500; color: #475569; margin-bottom: 4px; display: block;">Select favicon file (.ico, .png, .svg):</label>
+                <label for="site_favicon_file" style="font-size: 12px; font-weight: 500; color: var(--admin-text-muted); margin-bottom: 4px; display: block;">Select favicon file (.ico, .png, .svg):</label>
                 <input type="file" id="site_favicon_file" name="site_favicon_file" class="form-control" accept=".ico,.png,.svg,.gif,.webp,image/*">
             </div>
 
             <!-- URL Option -->
             <div id="fav-url-wrap" style="margin-bottom: 12px; display: <?php echo ($activeFaviconSource === 'url' && empty($settings['site_favicon_upload_path'])) ? 'block' : 'none'; ?>;">
-                <label for="site_favicon_url" style="font-size: 12px; font-weight: 500; color: #475569; margin-bottom: 4px; display: block;">Enter absolute or relative favicon URL:</label>
+                <label for="site_favicon_url" style="font-size: 12px; font-weight: 500; color: var(--admin-text-muted); margin-bottom: 4px; display: block;">Enter absolute or relative favicon URL:</label>
                 <input type="url" id="site_favicon_url" name="site_favicon_url" class="form-control" value="<?php echo htmlspecialchars($settings['site_favicon_url'] ?? '', ENT_QUOTES, 'UTF-8'); ?>" placeholder="https://example.com/favicon.png or /favicon.ico">
             </div>
 
             <!-- Preview -->
-            <div style="margin-top: 10px; padding: 8px 12px; background: #fff; border: 1px solid #cbd5e1; border-radius: 4px; display: inline-flex; align-items: center; gap: 10px;">
-                <div style="font-size: 11px; color: #64748b; font-weight: 600;">Active Favicon Preview:</div>
+            <div style="margin-top: 10px; padding: 8px 12px; background: var(--admin-surface); border: 1px solid var(--admin-border); border-radius: 4px; display: inline-flex; align-items: center; gap: 10px;">
+                <div style="font-size: 11px; color: var(--admin-text-muted); font-weight: 600;">Active Favicon Preview:</div>
                 <img src="<?php echo htmlspecialchars($currentFaviconUrl, ENT_QUOTES, 'UTF-8'); ?>" alt="Active Favicon" style="width: 24px; height: 24px; object-fit: contain; display: block;">
             </div>
         </div>
@@ -205,32 +205,32 @@
             <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
                 <span style="font-weight: 600; font-size: 13px;">Mail Delivery Status:</span>
                 <?php if ($resolved === 'google' && $googleConnected): ?>
-                    <span style="font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 9999px; background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3);">
+                    <span style="font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 9999px; background: rgba(16, 185, 129, 0.15); color: var(--admin-success-text); border: 1px solid rgba(16, 185, 129, 0.3);">
                         &#10003; Google Mail Active (<?php echo htmlspecialchars((string)($settings['google_account_email'] ?? $diag['google_account_email'] ?? 'connected'), ENT_QUOTES, 'UTF-8'); ?>)
                     </span>
                 <?php elseif ($resolved === 'smtp' && $smtpConfigured): ?>
-                    <span style="font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 9999px; background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3);">
+                    <span style="font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 9999px; background: rgba(16, 185, 129, 0.15); color: var(--admin-success-text); border: 1px solid rgba(16, 185, 129, 0.3);">
                         &#10003; SMTP Active (<?php echo htmlspecialchars((string)($diag['smtp_host'] ?? 'configured'), ENT_QUOTES, 'UTF-8'); ?>:<?php echo (int)($diag['smtp_port_configured'] ?? 587); ?>)
                     </span>
                 <?php elseif ($mailAvailable): ?>
-                    <span style="font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 9999px; background: rgba(59, 130, 246, 0.15); color: #3b82f6; border: 1px solid rgba(59, 130, 246, 0.3);">
+                    <span style="font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 9999px; background: rgba(59, 130, 246, 0.15); color: var(--admin-info-text); border: 1px solid rgba(59, 130, 246, 0.3);">
                         &#10003; PHP Mail Active (Native MTA)
                     </span>
                 <?php else: ?>
-                    <span style="font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 9999px; background: rgba(239, 68, 68, 0.15); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3);">
+                    <span style="font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 9999px; background: rgba(239, 68, 68, 0.15); color: var(--admin-danger-text); border: 1px solid rgba(239, 68, 68, 0.3);">
                         &#9888; Outgoing mail transport unavailable
                     </span>
                 <?php endif; ?>
             </div>
 
             <?php if (!$googleConnected && !$smtpConfigured && $activeTransport !== 'mail'): ?>
-                <div style="font-size: 12px; color: #f59e0b; display: flex; align-items: center; gap: 6px;">
+                <div style="font-size: 12px; color: var(--admin-warning-text); display: flex; align-items: center; gap: 6px;">
                     <span>&#9888;</span> <span>Connect with Google or configure SMTP for authenticated delivery on production hosting.</span>
                 </div>
             <?php endif; ?>
 
             <?php if (!empty($diag['google_send_as_advisory'])): ?>
-                <div style="font-size: 12px; color: #3b82f6; background: rgba(59, 130, 246, 0.08); border-left: 3px solid #3b82f6; padding: 8px 10px; border-radius: 4px; margin-top: 4px;">
+                <div style="font-size: 12px; color: var(--admin-info-text); background: rgba(59, 130, 246, 0.08); border-left: 3px solid var(--admin-info-border); padding: 8px 10px; border-radius: 4px; margin-top: 4px;">
                     <strong>Google Send-As Notice:</strong> <?php echo htmlspecialchars((string)$diag['google_send_as_advisory'], ENT_QUOTES, 'UTF-8'); ?>
                 </div>
             <?php endif; ?>
@@ -263,7 +263,7 @@
                         <li><strong>Manual SMTP:</strong> Standard authenticated outgoing mail through any provider (cPanel webmail, dedicated VPS, transactional relays).</li>
                         <li><strong>PHP Mail:</strong> Native server MTA via PHP <code>mail()</code> function for local development or basic hosting.</li>
                     </ol>
-                    <div style="margin-top: 8px; font-size: 12px; color: #10b981; font-weight: 500;">
+                    <div style="margin-top: 8px; font-size: 12px; color: var(--admin-success-text); font-weight: 500;">
                         &#10003; <em>Recommended:</em> <strong>Auto Detect</strong> is recommended for most installations when Google Mail or SMTP has been configured.
                     </div>
                 </div>
@@ -299,7 +299,7 @@
                         <li>CMS stores only the protected credential material required for future sending, encrypted with AES-256-GCM.</li>
                         <li>Short-lived access tokens are refreshed over backchannel and kept in memory only.</li>
                     </ol>
-                    <div style="background: rgba(59, 130, 246, 0.08); border-left: 3px solid #3b82f6; padding: 8px 10px; border-radius: 4px; font-size: 12px;">
+                    <div style="background: rgba(59, 130, 246, 0.08); border-left: 3px solid var(--admin-info-border); padding: 8px 10px; border-radius: 4px; font-size: 12px;">
                         <strong>Gateway Note:</strong> Normal users do NOT need to enter a Google Client ID or Google Client Secret when a Google OAuth Gateway is configured. Universal Google OAuth requires a configured Google OAuth Gateway (e.g. <code style="word-break: break-all;">https://oauth.example.com</code>, configured under Advanced settings) to be reachable. If a Gateway is not configured or offline, administrators can configure Manual SMTP or utilize Custom GCP credentials.
                     </div>
                 </div>
@@ -321,7 +321,7 @@
                 <div>
                     <h4 style="font-size: 13px; font-weight: 700; margin: 0 0 6px; color: var(--wp-text-heading, #0f172a);">4. Manual SMTP Setup</h4>
                     <p style="margin: 0 0 6px;">Use Manual SMTP when your email provider gives you dedicated outgoing SMTP server credentials:</p>
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; margin: 8px 0;">
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: 10px; margin: 8px 0;">
                         <div style="background: var(--wp-surface, rgba(0,0,0,0.03)); padding: 8px 10px; border-radius: 4px; border: 1px solid var(--wp-border);">
                             <strong>SMTP Host</strong><br>
                             <span style="font-size: 11px; color: var(--wp-text-muted, #94a3b8);">The hostname of your email provider's outgoing SMTP server (e.g. <code>smtp.example.com</code> or <code>smtp-relay.example.com</code>).</span>
@@ -350,7 +350,7 @@
                     <!-- Generic Examples -->
                     <div style="margin-top: 10px;">
                         <strong>Generic SMTP Examples:</strong>
-                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px; margin-top: 6px; font-size: 11px;">
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)); gap: 8px; margin-top: 6px; font-size: 11px;">
                             <div style="padding: 6px 8px; background: rgba(0,0,0,0.04); border-radius: 4px;">
                                 <strong>Example A &mdash; STARTTLS:</strong><br>
                                 Host: <code>smtp.example.com</code><br>
@@ -454,7 +454,7 @@
 
                 <!-- 10. Security Advisory -->
                 <div style="background: rgba(239, 68, 68, 0.06); border: 1px solid rgba(239, 68, 68, 0.2); border-radius: 4px; padding: 8px 12px; font-size: 12px;">
-                    <strong style="color: #ef4444;">Security Advisory:</strong> Never share your SMTP password, SMTP API key, Google OAuth secret, installation secret, or refresh token. Use SMTP API keys with restricted permissions where providers recommend them, enable TLS/SSL encryption, and never paste sensitive credentials in public posts, pages, URLs, or support forums.
+                    <strong style="color: var(--admin-danger-text);">Security Advisory:</strong> Never share your SMTP password, SMTP API key, Google OAuth secret, installation secret, or refresh token. Use SMTP API keys with restricted permissions where providers recommend them, enable TLS/SSL encryption, and never paste sensitive credentials in public posts, pages, URLs, or support forums.
                 </div>
 
             </div>
@@ -517,7 +517,7 @@
                     <span style="font-size: 14px; font-weight: 600;">Google Mail</span>
                 </div>
                 <?php if ($googleConnected): ?>
-                    <span style="font-size: 11px; font-weight: 600; color: #10b981; background: rgba(16, 185, 129, 0.12); padding: 3px 10px; border-radius: 4px; border: 1px solid rgba(16, 185, 129, 0.25);">
+                    <span style="font-size: 11px; font-weight: 600; color: var(--admin-success-text); background: rgba(16, 185, 129, 0.12); padding: 3px 10px; border-radius: 4px; border: 1px solid rgba(16, 185, 129, 0.25);">
                         &#10003; Connected: <?php echo htmlspecialchars((string)($settings['google_account_email'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>
                     </span>
                 <?php else: ?>
@@ -548,7 +548,7 @@
                 </p>
                 <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 12px;">
                     <button type="submit" formmethod="POST" formaction="<?php echo htmlspecialchars(app_url('/admin/settings/test-google'), ENT_QUOTES, 'UTF-8'); ?>" class="btn btn-secondary">Test Google Connection</button>
-                    <button type="submit" formmethod="POST" formaction="<?php echo htmlspecialchars(app_url('/admin/settings/google-disconnect'), ENT_QUOTES, 'UTF-8'); ?>" class="btn btn-secondary" style="color: #ef4444; border-color: rgba(239, 68, 68, 0.3);" onclick="return confirm('Disconnect Google Mail integration?');">Disconnect Google</button>
+                    <button type="submit" formmethod="POST" formaction="<?php echo htmlspecialchars(app_url('/admin/settings/google-disconnect'), ENT_QUOTES, 'UTF-8'); ?>" class="btn btn-secondary" style="color: var(--admin-danger-text); border-color: rgba(239, 68, 68, 0.3);" onclick="return confirm('Disconnect Google Mail integration?');">Disconnect Google</button>
                 </div>
 
                 <?php 
@@ -556,7 +556,7 @@
                 $connectedGoogleEmail = (string)($settings['google_account_email'] ?? '');
                 if ($resolvedSender !== '' && $connectedGoogleEmail !== '' && strcasecmp($resolvedSender, $connectedGoogleEmail) !== 0): 
                 ?>
-                    <div style="font-size: 12px; color: #f59e0b; background: rgba(245, 158, 11, 0.08); border-left: 3px solid #f59e0b; padding: 8px 10px; border-radius: 4px; margin-top: 8px;">
+                    <div style="font-size: 12px; color: var(--admin-warning-text); background: rgba(245, 158, 11, 0.08); border-left: 3px solid var(--admin-warning-border); padding: 8px 10px; border-radius: 4px; margin-top: 8px;">
                         <strong>Sender Advisory:</strong> The configured sender address (<code><?php echo htmlspecialchars($resolvedSender, ENT_QUOTES, 'UTF-8'); ?></code>) differs from the connected Google account (<code><?php echo htmlspecialchars($connectedGoogleEmail, ENT_QUOTES, 'UTF-8'); ?></code>). Gmail may require this address to be configured as a verified Send As identity.
                     </div>
                 <?php endif; ?>
@@ -589,7 +589,7 @@
                     <input type="text" id="google_gateway_url" name="google_gateway_url" class="form-control" value="<?php echo htmlspecialchars($settings['google_gateway_url'] ?? '', ENT_QUOTES, 'UTF-8'); ?>" placeholder="e.g. https://oauth.example.com" autocomplete="off">
                     <span class="description" style="margin-top: 4px; display: block; font-size: 11px;">
                         <?php if (!empty($settings['google_active_gateway_url'])): ?>
-                            Active Gateway: <code><?php echo htmlspecialchars((string)$settings['google_active_gateway_url'], ENT_QUOTES, 'UTF-8'); ?></code> <span style="color: #10b981; font-weight: 600;">(Custom Gateway)</span>
+                            Active Gateway: <code><?php echo htmlspecialchars((string)$settings['google_active_gateway_url'], ENT_QUOTES, 'UTF-8'); ?></code> <span style="color: var(--admin-success-text); font-weight: 600;">(Custom Gateway)</span>
                         <?php else: ?>
                             <span style="color: var(--wp-text-muted, #94a3b8);">Google OAuth Gateway is not configured.</span>
                         <?php endif; ?>
@@ -609,7 +609,7 @@
                 </div>
 
                 <?php if (!empty($settings['google_client_secret_set'])): ?>
-                    <button type="submit" name="clear_google_secret" value="1" class="btn btn-secondary" style="color: #ef4444; border-color: rgba(239, 68, 68, 0.3); font-size: 11px;" onclick="return confirm('Clear the saved Google Client Secret?');">Clear Saved Client Secret</button>
+                    <button type="submit" name="clear_google_secret" value="1" class="btn btn-secondary" style="color: var(--admin-danger-text); border-color: rgba(239, 68, 68, 0.3); font-size: 11px;" onclick="return confirm('Clear the saved Google Client Secret?');">Clear Saved Client Secret</button>
                 <?php endif; ?>
             </details>
         </div>
@@ -619,7 +619,7 @@
             <div style="font-size: 14px; font-weight: 600; margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between;">
                 <span>SMTP Server Settings</span>
                 <?php if (!empty($settings['smtp_password_set'])): ?>
-                    <span style="font-size: 11px; font-weight: 500; color: #10b981; background: rgba(16, 185, 129, 0.12); padding: 2px 8px; border-radius: 4px;">Password Stored</span>
+                    <span style="font-size: 11px; font-weight: 500; color: var(--admin-success-text); background: rgba(16, 185, 129, 0.12); padding: 2px 8px; border-radius: 4px;">Password Stored</span>
                 <?php endif; ?>
             </div>
 
@@ -663,7 +663,7 @@
             <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 10px;">
                 <button type="submit" formmethod="POST" formaction="<?php echo htmlspecialchars(app_url('/admin/settings/test-smtp'), ENT_QUOTES, 'UTF-8'); ?>" class="btn btn-secondary">Test SMTP Connection</button>
                 <?php if (!empty($settings['smtp_password_set'])): ?>
-                    <button type="submit" name="clear_smtp_password" value="1" class="btn btn-secondary" style="color: #ef4444; border-color: rgba(239, 68, 68, 0.3);" onclick="return confirm('Clear the saved SMTP password?');">Clear SMTP Password</button>
+                    <button type="submit" name="clear_smtp_password" value="1" class="btn btn-secondary" style="color: var(--admin-danger-text); border-color: rgba(239, 68, 68, 0.3);" onclick="return confirm('Clear the saved SMTP password?');">Clear SMTP Password</button>
                 <?php endif; ?>
             </div>
             <span class="description" style="margin-top: 6px; display: block; font-size: 11px;">
@@ -735,11 +735,11 @@
             Media & Upload Capabilities
         </h2>
 
-        <div style="background: #f8fafc; border: 1px solid var(--wp-border); border-radius: 6px; padding: 14px; margin-bottom: 16px;">
-            <div style="font-size: 12px; font-weight: 700; color: #475569; text-transform: uppercase; margin-bottom: 8px;">
+        <div style="background: var(--admin-surface-subtle); border: 1px solid var(--wp-border); border-radius: 6px; padding: 14px; margin-bottom: 16px;">
+            <div style="font-size: 12px; font-weight: 700; color: var(--admin-text-muted); text-transform: uppercase; margin-bottom: 8px;">
                 Detected PHP / Server Limits
             </div>
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; font-size: 13px;">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 160px), 1fr)); gap: 12px; font-size: 13px;">
                 <div>
                     <span style="color: var(--wp-text-muted);">upload_max_filesize:</span><br>
                     <strong><?php echo htmlspecialchars($serverLimits['upload_max_filesize_raw']); ?></strong>
@@ -754,7 +754,7 @@
                 </div>
                 <div>
                     <span style="color: var(--wp-text-muted);">Effective Server Cap:</span><br>
-                    <strong style="color: #0284c7;"><?php echo htmlspecialchars($serverLimits['effective_server_formatted']); ?></strong>
+                    <strong style="color: var(--admin-info-text);"><?php echo htmlspecialchars($serverLimits['effective_server_formatted']); ?></strong>
                 </div>
             </div>
             <div style="margin-top: 10px; font-size: 11px; color: var(--wp-text-muted);">

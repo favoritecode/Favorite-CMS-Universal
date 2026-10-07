@@ -111,50 +111,8 @@ class ThemeManager
      */
     public function installFromZip(array $uploadedFile): array
     {
-        if (empty($uploadedFile['tmp_name']) || (!is_uploaded_file($uploadedFile['tmp_name']) && (PHP_SAPI !== 'cli' || !is_file($uploadedFile['tmp_name'])))) {
-            throw new \InvalidArgumentException("No valid file uploaded.");
-        }
-
-        $zip = new ZipArchive();
-        $res = $zip->open($uploadedFile['tmp_name']);
-        if ($res !== true) {
-            throw new \RuntimeException("Could not open ZIP archive (code {$res}).");
-        }
-
-        // Security check: Guard against Path Traversal (Zip Slip vulnerability)
-        $themeId = null;
-        for ($i = 0; $i < $zip->numFiles; $i++) {
-            $stat = $zip->statIndex($i);
-            $filename = $stat['name'];
-
-            if (str_contains($filename, '..') || str_starts_with($filename, '/') || str_starts_with($filename, '\\')) {
-                $zip->close();
-                throw new SecurityException("Malicious path detected in ZIP archive: {$filename}");
-            }
-
-            // Determine root folder in zip
-            $parts = explode('/', trim($filename, '/'));
-            if ($themeId === null && !empty($parts[0])) {
-                $themeId = preg_replace('/[^a-zA-Z0-9_\-]/', '', $parts[0]);
-            }
-        }
-
-        if (empty($themeId)) {
-            $themeId = 'theme_' . bin2hex(random_bytes(4));
-        }
-
-        $extractPath = $this->themesPath . '/' . $themeId;
-        if (!is_dir($extractPath)) {
-            mkdir($extractPath, 0775, true);
-        }
-
-        $zip->extractTo($this->themesPath);
-        $zip->close();
-
-        return [
-            'theme_id' => $themeId,
-            'success'  => true,
-        ];
+        $package = \FavoriteCMS\Services\ExtensionPackageInstaller::install($uploadedFile, 'theme', $this->themesPath);
+        return ['theme_id'=>$package['id'], 'success'=>true];
     }
 
     public function deleteTheme(string $themeId): bool

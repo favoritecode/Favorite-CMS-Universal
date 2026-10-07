@@ -162,6 +162,7 @@ class JsonAdapter implements ImporterInterface
                 }
 
                 $post = new NormalizedPost([
+                    'metadata' => ['seo'=>is_array($p['seo']??null)?$p['seo']:$p],
                     'sourceId'         => (string)($p['id'] ?? bin2hex(random_bytes(6))),
                     'sourceGuid'       => (string)($p['guid'] ?? $p['id'] ?? ''),
                     'sourceUrl'        => (string)($p['url'] ?? ''),
@@ -201,6 +202,7 @@ class JsonAdapter implements ImporterInterface
                 }
 
                 $import->addPage(new NormalizedPage([
+                    'metadata' => ['seo'=>is_array($pg['seo']??null)?$pg['seo']:$pg],
                     'sourceId'         => (string)($pg['id'] ?? bin2hex(random_bytes(6))),
                     'sourceGuid'       => (string)($pg['guid'] ?? $pg['id'] ?? ''),
                     'sourceUrl'        => (string)($pg['url'] ?? ''),

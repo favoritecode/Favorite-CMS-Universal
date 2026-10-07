@@ -13,7 +13,7 @@ $isAuthor = $currentUser && $currentUser->hasRole('author');
     <h1 class="page-title">Dashboard</h1>
 </div>
 
-<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px;">
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)); gap: 16px; margin-bottom: 24px;">
     <div class="form-card" style="padding: 16px;">
         <h3 style="color: var(--wp-text-muted); font-size: 13px; text-transform: uppercase;"><?php echo $isAuthor ? 'My Posts' : 'Posts'; ?></h3>
         <div style="font-size: 26px; font-weight: 700; color: var(--admin-text-heading); margin: 4px 0;"><?php echo $postsCount['all'] ?? 0; ?></div>
@@ -105,7 +105,7 @@ $isAuthor = $currentUser && $currentUser->hasRole('author');
         <?php else: ?>
             <ul style="list-style: none; font-size: 13px;">
                 <?php foreach ($recentPosts as $p): ?>
-                    <li style="padding: 6px 0; border-bottom: 1px solid #f0f0f1; display: flex; justify-content: space-between;">
+                    <li style="padding: 6px 0; border-bottom: 1px solid var(--admin-border); display: flex; justify-content: space-between;">
                         <?php if ($currentUser && $currentUser->canEditPost($p)): ?>
                             <a href="<?php echo htmlspecialchars(site_path('/admin/posts/edit?id='), ENT_QUOTES, 'UTF-8'); ?><?php echo (int)$p->id; ?>"><?php echo htmlspecialchars($p->title, ENT_QUOTES, 'UTF-8'); ?></a>
                         <?php else: ?>

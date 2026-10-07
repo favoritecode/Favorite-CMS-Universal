@@ -89,15 +89,17 @@ class TaxonomyController
             $finalSlug = $taxonomy . '-' . bin2hex(random_bytes(2));
         }
 
-        // Check unique slug
+        // Check unique slug. The database schema keeps slug globally unique,
+        // so check across all taxonomy types before inserting.
         $db = $this->app->make(Database::class);
-        $existing = $db->selectOne("SELECT id FROM `taxonomies` WHERE `slug` = ? AND `taxonomy` = ?", [$finalSlug, $taxonomy]);
-        if ($existing) {
-            $finalSlug .= '-' . bin2hex(random_bytes(2));
+        $baseSlug = $finalSlug;
+        $suffix = 1;
+        while ($db->selectOne("SELECT id FROM `taxonomies` WHERE `slug` = ? LIMIT 1", [$finalSlug])) {
+            $finalSlug = $baseSlug . '-' . $suffix++;
         }
 
         $now = date('Y-m-d H:i:s');
-        $db->insert('taxonomies', [
+        $taxonomyData = [
             'name'        => $name,
             'slug'        => $finalSlug,
             'taxonomy'    => $taxonomy,
@@ -106,7 +108,23 @@ class TaxonomyController
             'post_count'  => 0,
             'created_at'  => $now,
             'updated_at'  => $now,
-        ]);
+        ];
+
+        try {
+            $db->insert('taxonomies', $taxonomyData);
+        } catch (\PDOException $e) {
+            // Older installations may have a taxonomies table created before
+            // parent_id was introduced. Keep category creation compatible with
+            // that existing schema without touching migrations or other tables.
+            $message = $e->getMessage();
+            if (stripos($message, 'parent_id') === false ||
+                (stripos($message, 'unknown column') === false && stripos($message, 'column') === false)) {
+                throw $e;
+            }
+
+            unset($taxonomyData['parent_id']);
+            $db->insert('taxonomies', $taxonomyData);
+        }
 
         $_SESSION['flash_success'] = ucfirst($taxonomy) . ' added successfully.';
         return Response::redirect('/admin/taxonomies/' . ($taxonomy === 'tag' ? 'tags' : 'categories'));

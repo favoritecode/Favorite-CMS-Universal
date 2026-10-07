@@ -174,6 +174,8 @@ class PostController
 
         $post = Post::find($postId);
         ContentRevision::record(Post::find((int)$post->id), 'post');
+        \FavoriteCMS\Services\ContentWorkspace::capture(Post::find((int)$post->id), 'post');
+        \FavoriteCMS\Services\ContentWorkspace::acknowledge($request, 'post');
         $post->syncTaxonomies($catIds, 'category');
         if ($tagsStr !== '') {
             $post->syncTags($tagsStr);
@@ -185,6 +187,7 @@ class PostController
                 'meta_description' => trim((string)$request->post('meta_description', '')),
                 'og_title'         => trim((string)$request->post('og_title', '')),
                 'og_description'   => trim((string)$request->post('og_description', '')),
+                'og_image_url' => \FavoriteCMS\Services\SeoMetadata::httpUrl((string)$request->post('og_image_url', '')),
                 'canonical_url'    => trim((string)$request->post('canonical_url', '')),
                 'robots'           => trim((string)$request->post('robots', 'index,follow')),
             ]);
@@ -313,6 +316,12 @@ class PostController
             return Response::redirect('/admin/posts/edit?id=' . $id);
         }
 
+        $baseline = (string)$request->post('_workspace_baseline', '');
+        if ($baseline !== '' && !hash_equals(\FavoriteCMS\Services\ContentWorkspace::fingerprint($post), $baseline)) {
+            $_SESSION['flash_error'] = 'This content changed in another tab or account. Your draft is preserved; reopen the editor before saving.';
+            return Response::redirect('/admin/posts/edit?id=' . $id);
+        }
+        \FavoriteCMS\Services\ContentWorkspace::capture($post, 'post');
         $post->update([
             'title'             => $title,
             'slug'              => $finalSlug,
@@ -325,6 +334,8 @@ class PostController
         ]);
 
         ContentRevision::record(Post::find((int)$post->id), 'post');
+        \FavoriteCMS\Services\ContentWorkspace::capture(Post::find((int)$post->id), 'post');
+        \FavoriteCMS\Services\ContentWorkspace::acknowledge($request, 'post');
         $post->syncTaxonomies($catIds, 'category');
         $post->syncTags($tagsStr);
 
@@ -334,6 +345,7 @@ class PostController
                 'meta_description' => trim((string)$request->post('meta_description', '')),
                 'og_title'         => trim((string)$request->post('og_title', '')),
                 'og_description'   => trim((string)$request->post('og_description', '')),
+                'og_image_url' => \FavoriteCMS\Services\SeoMetadata::httpUrl((string)$request->post('og_image_url', '')),
                 'canonical_url'    => trim((string)$request->post('canonical_url', '')),
                 'robots'           => trim((string)$request->post('robots', 'index,follow')),
             ]);

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace FavoriteCMS\Services\Update;
 
 use RuntimeException;
+use Throwable;
 
 class ReleaseDiscovery
 {
@@ -36,6 +37,7 @@ class ReleaseDiscovery
             'checked_at'        => date('c'),
             'current_version'   => $currentVersion,
             'update_available'  => false,
+            'repair_available'  => false,
             'latest_version'    => $currentVersion,
             'tag_name'          => 'v' . $currentVersion,
             'release_name'      => '',
@@ -46,6 +48,9 @@ class ReleaseDiscovery
             'package_name'      => '',
             'package_size'      => 0,
             'sha256'            => '',
+            'checksum_url'      => '',
+            'core_inventory'    => [],
+            'missing_core_files'=> [],
             'cached'            => false,
             'error'             => null,
         ];
@@ -56,13 +61,36 @@ class ReleaseDiscovery
             if ($cacheAge < self::CACHE_TTL_SECONDS) {
                 $cachedData = json_decode((string)file_get_contents($this->cacheFile), true);
                 if (is_array($cachedData)) {
-                    $cachedData['cached'] = true;
+                    $cachedVersion = (string)($cachedData['latest_version'] ?? '');
+                    $cacheHasRepairInventory = array_key_exists('core_inventory', $cachedData);
+                    $cacheNeedsFreshRepairInventory = (
+                        $this->validator->compareVersions($cachedVersion, $currentVersion) === 0
+                        && !$cacheHasRepairInventory
+                    );
+                    if ($cacheNeedsFreshRepairInventory) {
+                        @unlink($this->cacheFile);
+                    } else {
+                        $cachedData['cached'] = true;
                     $cachedData['current_version'] = $currentVersion;
                     $cachedData['update_available'] = $this->validator->isNewer(
                         $cachedData['latest_version'] ?? '',
                         $currentVersion
                     );
-                    return $cachedData;
+                    $sameVersion = $this->validator->compareVersions(
+                        (string)($cachedData['latest_version'] ?? ''),
+                        $currentVersion
+                    ) === 0;
+                    $cachedData['missing_core_files'] = $sameVersion
+                        ? $this->detectMissingCoreFiles((array)($cachedData['core_inventory'] ?? []))
+                        : [];
+                    $cachedData['repair_available'] = (
+                        $sameVersion
+                        && !empty($cachedData['download_url'])
+                        && !empty($cachedData['core_inventory'])
+                        && !empty($cachedData['missing_core_files'])
+                    );
+                        return $cachedData;
+                    }
                 }
             }
         }
@@ -92,24 +120,81 @@ class ReleaseDiscovery
         $result['published_at'] = (string)($release['published_at'] ?? '');
         $result['release_url'] = (string)($release['html_url'] ?? $result['release_url']);
         $result['update_available'] = $this->validator->isNewer($cleanVersion, $currentVersion);
+        $result['repair_available'] = (
+            !$result['update_available']
+            && $this->validator->compareVersions($cleanVersion, $currentVersion) === 0
+        );
 
-        // Find Favorite-CMS-Universal.zip asset
+        // Find the Core ZIP and its official checksum sidecar.
+        $zipAssetName = '';
         if (!empty($release['assets']) && is_array($release['assets'])) {
             foreach ($release['assets'] as $asset) {
                 $assetName = (string)($asset['name'] ?? '');
-                if (preg_match('/^Favorite-CMS-Universal.*\.zip$/i', $assetName)) {
+                if (preg_match('/^Favorite-CMS-Universal.*\.zip$/i', $assetName)
+                    && !preg_match('/[-_](?:tests|plugin|theme).*\.zip$/i', $assetName)) {
                     $result['download_url'] = (string)($asset['browser_download_url'] ?? '');
                     $result['package_name'] = $assetName;
                     $result['package_size'] = (int)($asset['size'] ?? 0);
+                    $zipAssetName = $assetName;
                     break;
+                }
+            }
+
+            if ($zipAssetName !== '') {
+                $checksumNames = [$zipAssetName . '.sha256'];
+                foreach ($release['assets'] as $asset) {
+                    $assetName = (string)($asset['name'] ?? '');
+                    if (in_array($assetName, $checksumNames, true) || preg_match('/\.zip\.sha256$/i', $assetName)) {
+                        $result['checksum_url'] = (string)($asset['browser_download_url'] ?? '');
+                        break;
+                    }
                 }
             }
         }
 
-        // Extract SHA-256 checksum from release notes if present (e.g. `SHA-256: 6bdfe...`)
-        if (preg_match('/(?<![a-zA-Z0-9])SHA-?256(?:\*\*|__)?\s*:?\s*(?:\*\*|__)?\s*`?([a-fA-F0-9]{64})(?![a-fA-F0-9])`?/i', $result['release_notes'], $m)) {
+        // Prefer the published .sha256 sidecar; keep release-note parsing as a legacy fallback.
+        if (!empty($result['checksum_url'])) {
+            $checksumText = $this->fetchUrl($result['checksum_url']);
+            if ($checksumText !== null && preg_match('/(?<![a-fA-F0-9])([a-fA-F0-9]{64})(?![a-fA-F0-9])/', $checksumText, $m)) {
+                $result['sha256'] = strtolower($m[1]);
+            }
+        }
+        if ($result['sha256'] === '' && preg_match('/(?<![a-zA-Z0-9])SHA-?256(?:\*\*|__)?\s*:?\s*(?:\*\*|__)?\s*`?([a-fA-F0-9]{64})(?![a-fA-F0-9])`?/i', $result['release_notes'], $m)) {
             $result['sha256'] = strtolower($m[1]);
         }
+
+        $sameVersion = $this->validator->compareVersions($cleanVersion, $currentVersion) === 0;
+        if ($sameVersion && !empty($result['download_url'])) {
+            // Build a package-backed Core inventory only for same-version repair detection.
+            $inventoryZip = $this->cacheFile . '.inventory-' . md5($tagName . '|' . $result['download_url']) . '.zip';
+            try {
+                if (!is_file($inventoryZip)) {
+                    $this->downloadPackage($result['download_url'], $inventoryZip, 104857600);
+                }
+                $packageValidation = $this->validator->validate($inventoryZip, $result['sha256'] !== '' ? $result['sha256'] : null);
+                if (!$packageValidation['valid']) {
+                    throw new RuntimeException('Repair package validation failed: ' . implode('; ', $packageValidation['errors']));
+                }
+                $result['core_inventory'] = $this->buildCoreInventory($inventoryZip, $packageValidation['root_prefix']);
+                $result['missing_core_files'] = $this->detectMissingCoreFiles($result['core_inventory']);
+            } catch (Throwable $e) {
+                $result['core_inventory'] = [];
+                $result['missing_core_files'] = [];
+                // Do not manufacture a repair state when the package cannot be safely inspected.
+                $result['error'] = 'The current Core release could not be safely inspected for repair status.';
+            } finally {
+                if (is_file($inventoryZip)) {
+                    @unlink($inventoryZip);
+                }
+            }
+        }
+
+        $result['repair_available'] = (
+            $sameVersion
+            && !empty($result['download_url'])
+            && !empty($result['core_inventory'])
+            && !empty($result['missing_core_files'])
+        );
 
         // 3. Cache response locally
         $cacheDir = dirname($this->cacheFile);
@@ -119,6 +204,97 @@ class ReleaseDiscovery
         @file_put_contents($this->cacheFile, json_encode($result, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
 
         return $result;
+    }
+
+    /**
+     * Build the canonical list of Core files that this updater is allowed to
+     * restore. User uploads, installed plugins, custom themes and runtime data
+     * are intentionally excluded.
+     */
+    protected function buildCoreInventory(string $zipPath, string $rootPrefix = ''): array
+    {
+        $zip = new \ZipArchive();
+        if ($zip->open($zipPath, \ZipArchive::RDONLY) !== true) {
+            throw new RuntimeException('Could not open Core package for inventory inspection.');
+        }
+
+        $allowedPrefixes = [
+            'app/',
+            'resources/',
+            'vendor/',
+            'config/',
+            'database/migrations/',
+            'themes/default/',
+            'public/themes/default/',
+            'public/assets/',
+        ];
+        $allowedFiles = [
+            '.htaccess',
+            'bootstrap.php',
+            'index.php',
+            'migrate.php',
+            'public/index.php',
+            'public/.htaccess',
+            'README.txt',
+            'README.md',
+            'LICENSE',
+            'CHANGELOG.md',
+            'release.json',
+        ];
+
+        $inventory = [];
+        try {
+            for ($i = 0; $i < $zip->numFiles; $i++) {
+                $stat = $zip->statIndex($i);
+                $name = str_replace('\\', '/', (string)($stat['name'] ?? ''));
+                if ($rootPrefix !== '') {
+                    $prefix = rtrim($rootPrefix, '/') . '/';
+                    if (!str_starts_with($name, $prefix)) {
+                        continue;
+                    }
+                    $name = substr($name, strlen($prefix));
+                }
+                if ($name === '' || str_ends_with($name, '/')) {
+                    continue;
+                }
+                $allowed = in_array($name, $allowedFiles, true);
+                if (!$allowed) {
+                    foreach ($allowedPrefixes as $prefix) {
+                        if (str_starts_with($name, $prefix)) {
+                            $allowed = true;
+                            break;
+                        }
+                    }
+                }
+                if ($allowed) {
+                    $inventory[] = $name;
+                }
+            }
+        } finally {
+            $zip->close();
+        }
+
+        sort($inventory, SORT_STRING);
+        return array_values(array_unique($inventory));
+    }
+
+    /**
+     * Return only canonical Core files currently missing from the installation.
+     */
+    protected function detectMissingCoreFiles(array $inventory): array
+    {
+        $missing = [];
+        foreach ($inventory as $relativePath) {
+            $relativePath = ltrim(str_replace('\\', '/', (string)$relativePath), '/');
+            if ($relativePath === '') {
+                continue;
+            }
+            $absolute = $this->appRoot . '/' . $relativePath;
+            if (!is_file($absolute)) {
+                $missing[] = $relativePath;
+            }
+        }
+        return $missing;
     }
 
     /**

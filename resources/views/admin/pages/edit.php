@@ -8,7 +8,7 @@ $pageId = (int)($page->id ?? 0);
 ?>
 <div class="page-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
     <h1 class="page-title"><?php echo $isEdit ? 'Edit Page' : 'Add New Page'; ?></h1>
-    <div style="display: flex; gap: 8px;">
+    <div class="editor-page-actions">
         <?php if ($isEdit): ?>
             <a href="<?php echo htmlspecialchars(site_path('/admin/pages/new'), ENT_QUOTES, 'UTF-8'); ?>" class="btn btn-secondary">Add New</a>
             <a href="<?php echo htmlspecialchars(site_path('/page/'), ENT_QUOTES, 'UTF-8'); ?><?php echo htmlspecialchars($page->slug, ENT_QUOTES, 'UTF-8'); ?>" target="_blank" class="btn btn-secondary">View Page &#8599;</a>
@@ -38,11 +38,11 @@ $pageId = (int)($page->id ?? 0);
             </div>
 
             <!-- Dual-Mode Editor -->
-            <div class="editor-wrapper" style="background: #ffffff; border: 1px solid var(--wp-border); border-radius: 6px; overflow: hidden; margin-bottom: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+            <div class="editor-wrapper" style="background: var(--admin-surface); border: 1px solid var(--wp-border); border-radius: 6px; overflow: hidden; margin-bottom: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
                 <!-- Mode Switcher -->
-                <div style="background: #f8fafc; border-bottom: 1px solid var(--wp-border); padding: 8px 12px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
-                    <div style="display: flex; gap: 4px; background: #e2e8f0; padding: 3px; border-radius: 6px;">
-                        <button type="button" id="page-mode-visual-btn" class="mode-tab-btn active" style="padding: 5px 14px; font-size: 12px; font-weight: 600; border: none; border-radius: 4px; cursor: pointer; background: #ffffff; color: var(--wp-blue);">
+                <div style="background: var(--admin-surface-subtle); border-bottom: 1px solid var(--wp-border); padding: 8px 12px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                    <div style="display: flex; gap: 4px; background: var(--admin-surface-elevated); padding: 3px; border-radius: 6px;">
+                        <button type="button" id="page-mode-visual-btn" class="mode-tab-btn active" style="padding: 5px 14px; font-size: 12px; font-weight: 600; border: none; border-radius: 4px; cursor: pointer; background: var(--admin-surface); color: var(--wp-blue);">
                             &#9998; Visual Mode
                         </button>
                         <button type="button" id="page-mode-code-btn" class="mode-tab-btn" style="padding: 5px 14px; font-size: 12px; font-weight: 600; border: none; border-radius: 4px; cursor: pointer; background: transparent; color: var(--wp-text-muted);">
@@ -52,7 +52,7 @@ $pageId = (int)($page->id ?? 0);
                 </div>
 
                 <!-- Visual Mode Toolbar -->
-                <div id="page-visual-toolbar" style="background: #ffffff; border-bottom: 1px solid var(--wp-border); padding: 6px 10px; display: flex; gap: 4px; flex-wrap: wrap; align-items: center;">
+                <div id="page-visual-toolbar" style="background: var(--admin-surface); border-bottom: 1px solid var(--wp-border); padding: 6px 10px; display: flex; gap: 4px; flex-wrap: wrap; align-items: center;">
                     <select id="page-format-block-select" style="border: 1px solid var(--wp-border); border-radius: 4px; padding: 3px 6px; font-size: 12px;">
                         <option value="p">Paragraph</option>
                         <option value="h1">Heading 1</option>
@@ -61,26 +61,26 @@ $pageId = (int)($page->id ?? 0);
                         <option value="h4">Heading 4</option>
                         <option value="pre">Preformatted</option>
                     </select>
-                    <button type="button" class="page-rich-btn" data-cmd="bold" style="padding: 3px 8px; font-size: 12px; border: 1px solid var(--wp-border); border-radius: 3px; background: #ffffff; cursor: pointer;"><strong>B</strong></button>
-                    <button type="button" class="page-rich-btn" data-cmd="italic" style="padding: 3px 8px; font-size: 12px; border: 1px solid var(--wp-border); border-radius: 3px; background: #ffffff; cursor: pointer;"><em>I</em></button>
-                    <button type="button" class="page-rich-btn" data-cmd="underline" style="padding: 3px 8px; font-size: 12px; border: 1px solid var(--wp-border); border-radius: 3px; background: #ffffff; cursor: pointer;"><u>U</u></button>
-                    <button type="button" class="page-rich-btn" data-cmd="justifyLeft" style="padding: 3px 8px; font-size: 12px; border: 1px solid var(--wp-border); border-radius: 3px; background: #ffffff; cursor: pointer;">&#9776;</button>
-                    <button type="button" class="page-rich-btn" data-cmd="justifyCenter" style="padding: 3px 8px; font-size: 12px; border: 1px solid var(--wp-border); border-radius: 3px; background: #ffffff; cursor: pointer;">&#9868;</button>
-                    <button type="button" class="page-rich-btn" data-cmd="insertUnorderedList" style="padding: 3px 8px; font-size: 12px; border: 1px solid var(--wp-border); border-radius: 3px; background: #ffffff; cursor: pointer;">&bull; List</button>
-                    <button type="button" class="page-rich-btn" data-cmd="insertOrderedList" style="padding: 3px 8px; font-size: 12px; border: 1px solid var(--wp-border); border-radius: 3px; background: #ffffff; cursor: pointer;">1. List</button>
-                    <button type="button" class="page-rich-btn" data-cmd="insertHorizontalRule" style="padding: 3px 8px; font-size: 12px; border: 1px solid var(--wp-border); border-radius: 3px; background: #ffffff; cursor: pointer;">&mdash;</button>
+                    <button type="button" class="page-rich-btn" data-cmd="bold" style="padding: 3px 8px; font-size: 12px; border: 1px solid var(--wp-border); border-radius: 3px; background: var(--admin-surface); cursor: pointer;"><strong>B</strong></button>
+                    <button type="button" class="page-rich-btn" data-cmd="italic" style="padding: 3px 8px; font-size: 12px; border: 1px solid var(--wp-border); border-radius: 3px; background: var(--admin-surface); cursor: pointer;"><em>I</em></button>
+                    <button type="button" class="page-rich-btn" data-cmd="underline" style="padding: 3px 8px; font-size: 12px; border: 1px solid var(--wp-border); border-radius: 3px; background: var(--admin-surface); cursor: pointer;"><u>U</u></button>
+                    <button type="button" class="page-rich-btn" data-cmd="justifyLeft" style="padding: 3px 8px; font-size: 12px; border: 1px solid var(--wp-border); border-radius: 3px; background: var(--admin-surface); cursor: pointer;">&#9776;</button>
+                    <button type="button" class="page-rich-btn" data-cmd="justifyCenter" style="padding: 3px 8px; font-size: 12px; border: 1px solid var(--wp-border); border-radius: 3px; background: var(--admin-surface); cursor: pointer;">&#9868;</button>
+                    <button type="button" class="page-rich-btn" data-cmd="insertUnorderedList" style="padding: 3px 8px; font-size: 12px; border: 1px solid var(--wp-border); border-radius: 3px; background: var(--admin-surface); cursor: pointer;">&bull; List</button>
+                    <button type="button" class="page-rich-btn" data-cmd="insertOrderedList" style="padding: 3px 8px; font-size: 12px; border: 1px solid var(--wp-border); border-radius: 3px; background: var(--admin-surface); cursor: pointer;">1. List</button>
+                    <button type="button" class="page-rich-btn" data-cmd="insertHorizontalRule" style="padding: 3px 8px; font-size: 12px; border: 1px solid var(--wp-border); border-radius: 3px; background: var(--admin-surface); cursor: pointer;">&mdash;</button>
                 </div>
 
                 <!-- Visual Mode Container -->
-                <div id="page-visual-container" style="display: block; padding: 20px 24px; min-height: 380px; background: #ffffff; cursor: text;">
-                    <div id="page-visual-editor" contenteditable="true" style="outline: none; min-height: 340px; font-size: 15px; line-height: 1.7; color: #1e293b;">
+                <div id="page-visual-container" style="display: block; padding: 20px 24px; min-height: 380px; background: var(--admin-surface); cursor: text;">
+                    <div id="page-visual-editor" contenteditable="true" style="outline: none; min-height: 340px; font-size: 15px; line-height: 1.7; color: var(--admin-text-heading);">
                         <?php echo $revision['visual'] ?? $editorContent; ?>
                     </div>
                 </div>
 
                 <!-- Code Mode Container -->
-                <div id="page-code-container" style="display: none; background: #1e293b;">
-                    <textarea id="page-code-editor" style="width: 100%; min-height: 380px; background: #1e293b; color: #f8fafc; font-family: Consolas, Monaco, monospace; font-size: 13px; line-height: 1.6; border: none; padding: 14px; outline: none; resize: vertical; tab-size: 2;"><?php echo htmlspecialchars($editorContent, ENT_QUOTES, 'UTF-8'); ?></textarea>
+                <div id="page-code-container" style="display: none; background: var(--admin-code-bg);">
+                    <textarea id="page-code-editor" style="width: 100%; min-height: 380px; background: var(--admin-code-bg); color: var(--admin-code-text); font-family: Consolas, Monaco, monospace; font-size: 13px; line-height: 1.6; border: none; padding: 14px; outline: none; resize: vertical; tab-size: 2;"><?php echo htmlspecialchars($editorContent, ENT_QUOTES, 'UTF-8'); ?></textarea>
                 </div>
 
                 <!-- Canonical form textarea -->
@@ -100,6 +100,11 @@ $pageId = (int)($page->id ?? 0);
                     <label for="meta_description">Meta Description</label>
                     <textarea id="meta_description" name="meta_description" class="form-control" style="min-height: 60px;" placeholder="Brief description for search engine snippets..."><?php echo htmlspecialchars($seo->meta_description ?? '', ENT_QUOTES, 'UTF-8'); ?></textarea>
                 </div>
+                <div class="form-group">
+                    <label for="og_image_url">Social image URL (optional)</label>
+                    <input type="text" inputmode="url" id="og_image_url" name="og_image_url" class="form-control" value="<?php echo htmlspecialchars($seo->og_image_url ?? '', ENT_QUOTES, 'UTF-8'); ?>" placeholder="Auto: featured image or first content image">
+                </div>
+                <?php $seoEditorItem = $page ?? null; include APP_ROOT . '/resources/views/partials/seo-editor.php'; ?>
                 <div class="form-row">
                     <div class="form-group">
                         <label for="og_title">Social (Open Graph) Title</label>
@@ -219,8 +224,8 @@ $pageId = (int)($page->id ?? 0);
                     </div>
 
                     <!-- URL Import Row (toggleable) -->
-                    <div id="feat-img-url-box" style="display: none; margin-top: 8px; padding: 10px; background: #f8fafc; border: 1px solid var(--wp-border); border-radius: 4px;">
-                        <label style="display: block; font-size: 11px; font-weight: 600; margin-bottom: 4px; color: var(--wp-dark);">Image URL (HTTP/HTTPS):</label>
+                    <div id="feat-img-url-box" style="display: none; margin-top: 8px; padding: 10px; background: var(--admin-surface-subtle); border: 1px solid var(--wp-border); border-radius: 4px;">
+                        <label style="display: block; font-size: 11px; font-weight: 600; margin-bottom: 4px; color: var(--admin-text-heading);">Image URL (HTTP/HTTPS):</label>
                         <div style="display: flex; gap: 6px;">
                             <input type="url" id="feat-img-url-input" class="form-control" placeholder="https://example.com/image.jpg" style="font-size: 12px; padding: 4px 8px; flex: 1;">
                             <button type="button" id="feat-img-url-submit-btn" class="btn btn-primary" style="font-size: 11px; padding: 4px 10px; white-space: nowrap;">Import</button>
@@ -238,13 +243,13 @@ $pageId = (int)($page->id ?? 0);
 
 <style>
 .media-filter-btn {
-    background: #ffffff;
+    background: var(--admin-surface);
     border: 1px solid var(--wp-border);
     border-radius: 3px;
     padding: 2px 8px;
     font-size: 11px;
     cursor: pointer;
-    color: #475569;
+    color: var(--admin-text-muted);
 }
 .media-filter-btn.active {
     background: var(--wp-blue);
@@ -256,7 +261,7 @@ $pageId = (int)($page->id ?? 0);
     border-radius: 6px;
     cursor: pointer;
     overflow: hidden;
-    background: #ffffff;
+    background: var(--admin-surface);
     box-shadow: 0 1px 2px rgba(0,0,0,0.05);
     text-align: center;
     padding: 4px;
@@ -275,16 +280,16 @@ $pageId = (int)($page->id ?? 0);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    color: #475569;
+    color: var(--admin-text-muted);
 }
 .media-picker-card:hover {
     border-color: var(--wp-blue) !important;
-    background: #f0f9ff !important;
+    background: var(--admin-info-bg) !important;
 }
 .media-picker-card.selected {
     border-color: var(--wp-blue) !important;
     box-shadow: 0 0 0 2px var(--wp-blue);
-    background: #e0f2fe !important;
+    background: var(--admin-info-bg) !important;
 }
 </style>
 
@@ -312,7 +317,7 @@ document.addEventListener('DOMContentLoaded', function() {
             visWrap.style.display = 'none';
             visTool.style.display = 'none';
             codeWrap.style.display = 'block';
-            codeBtn.style.background = '#ffffff';
+            codeBtn.style.background = 'var(--admin-surface)';
             codeBtn.style.color = 'var(--wp-blue)';
             visBtn.style.background = 'transparent';
             visBtn.style.color = 'var(--wp-text-muted)';
@@ -322,7 +327,7 @@ document.addEventListener('DOMContentLoaded', function() {
             codeWrap.style.display = 'none';
             visWrap.style.display = 'block';
             visTool.style.display = 'flex';
-            visBtn.style.background = '#ffffff';
+            visBtn.style.background = 'var(--admin-surface)';
             visBtn.style.color = 'var(--wp-blue)';
             codeBtn.style.background = 'transparent';
             codeBtn.style.color = 'var(--wp-text-muted)';
@@ -330,6 +335,11 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
+    form.favoriteEditor = {
+        read: function() { return currentMode === 'visual' ? visEdit.innerHTML : codeEdit.value; },
+        set: function(value) { setMode('code'); codeEdit.value = value; canonical.value = value; }
+    };
+    form.addEventListener('submit', function() { canonical.value = form.favoriteEditor.read(); });
     visBtn.addEventListener('click', function() { setMode('visual'); });
     codeBtn.addEventListener('click', function() { setMode('code'); });
 
@@ -352,7 +362,7 @@ document.addEventListener('DOMContentLoaded', function() {
         } else {
             canonical.value = codeEdit.value;
         }
-        form.submit();
+        form.requestSubmit();
     });
 
     // ==========================================
@@ -432,22 +442,22 @@ document.addEventListener('DOMContentLoaded', function() {
         if (tab === 'browse') {
             tabBrowseBtn.classList.add('active');
             tabUploadBtn.classList.remove('active');
-            tabBrowseBtn.style.background = '#ffffff';
+            tabBrowseBtn.style.background = 'var(--admin-surface)';
             tabBrowseBtn.style.color = 'var(--wp-blue)';
             tabBrowseBtn.style.borderColor = 'var(--wp-blue)';
-            tabUploadBtn.style.background = '#f8fafc';
-            tabUploadBtn.style.color = '#64748b';
+            tabUploadBtn.style.background = 'var(--admin-surface-subtle)';
+            tabUploadBtn.style.color = 'var(--admin-text-muted)';
             tabUploadBtn.style.borderColor = 'var(--wp-border)';
             viewBrowse.style.display = 'flex';
             viewUpload.style.display = 'none';
         } else {
             tabUploadBtn.classList.add('active');
             tabBrowseBtn.classList.remove('active');
-            tabUploadBtn.style.background = '#ffffff';
+            tabUploadBtn.style.background = 'var(--admin-surface)';
             tabUploadBtn.style.color = 'var(--wp-blue)';
             tabUploadBtn.style.borderColor = 'var(--wp-blue)';
-            tabBrowseBtn.style.background = '#f8fafc';
-            tabBrowseBtn.style.color = '#64748b';
+            tabBrowseBtn.style.background = 'var(--admin-surface-subtle)';
+            tabBrowseBtn.style.color = 'var(--admin-text-muted)';
             tabBrowseBtn.style.borderColor = 'var(--wp-border)';
             viewBrowse.style.display = 'none';
             viewUpload.style.display = 'block';
@@ -501,13 +511,13 @@ document.addEventListener('DOMContentLoaded', function() {
 
         var inner;
         if (m.is_image) {
-            inner = '<img src="' + escapeMediaHtml(m.url) + '" alt="' + escapeMediaHtml(m.filename) + '" loading="lazy">';
+            inner = '<img src="' + escapeMediaHtml(m.thumbnail_url || m.url) + '" alt="' + escapeMediaHtml(m.filename) + '" loading="lazy">';
         } else if (m.is_video) {
-            inner = '<div style="height: 80px; display: flex; align-items: center; justify-content: center; background: #0f172a; color: #ffffff; font-size: 24px;">&#127916;</div>';
+            inner = '<div style="height: 80px; display: flex; align-items: center; justify-content: center; background: var(--admin-code-bg); color: var(--admin-code-text); font-size: 24px;">&#127916;</div>';
         } else if (m.is_audio) {
-            inner = '<div style="height: 80px; display: flex; align-items: center; justify-content: center; background: #0f172a; color: #ffffff; font-size: 24px;">&#127925;</div>';
+            inner = '<div style="height: 80px; display: flex; align-items: center; justify-content: center; background: var(--admin-code-bg); color: var(--admin-code-text); font-size: 24px;">&#127925;</div>';
         } else {
-            inner = '<div style="height: 80px; display: flex; align-items: center; justify-content: center; background: #e2e8f0; font-size: 24px;">&#128196;</div>';
+            inner = '<div style="height: 80px; display: flex; align-items: center; justify-content: center; background: var(--admin-surface-elevated); font-size: 24px;">&#128196;</div>';
         }
         inner += '<div class="card-name">' + escapeMediaHtml(m.filename) + '</div>';
         card.innerHTML = inner;
@@ -645,7 +655,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (modalProgPct) modalProgPct.textContent = '0%';
         if (modalProgName) modalProgName.textContent = file.name;
         if (modalStatusMsg) {
-            modalStatusMsg.style.color = '#334155';
+            modalStatusMsg.style.color = 'var(--admin-text)';
             modalStatusMsg.textContent = 'Uploading file...';
         }
 
@@ -668,7 +678,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         if (modalProgBar) modalProgBar.style.width = '100%';
                         if (modalProgPct) modalProgPct.textContent = '100%';
                         if (modalStatusMsg) {
-                            modalStatusMsg.style.color = '#16a34a';
+                            modalStatusMsg.style.color = 'var(--admin-success-text)';
                             modalStatusMsg.textContent = 'Upload successful!';
                         }
 
@@ -693,14 +703,14 @@ document.addEventListener('DOMContentLoaded', function() {
             } catch(e) {}
 
             if (modalStatusMsg) {
-                modalStatusMsg.style.color = '#dc2626';
+                modalStatusMsg.style.color = 'var(--admin-danger-text)';
                 modalStatusMsg.textContent = err;
             }
         };
 
         xhr.onerror = function() {
             if (modalStatusMsg) {
-                modalStatusMsg.style.color = '#dc2626';
+                modalStatusMsg.style.color = 'var(--admin-danger-text)';
                 modalStatusMsg.textContent = 'Network error occurred.';
             }
         };
@@ -718,16 +728,16 @@ document.addEventListener('DOMContentLoaded', function() {
         modalUploadZone.addEventListener('dragover', function(e) {
             e.preventDefault();
             this.style.borderColor = 'var(--wp-blue)';
-            this.style.background = '#eff6ff';
+            this.style.background = 'var(--admin-info-bg)';
         });
         modalUploadZone.addEventListener('dragleave', function() {
-            this.style.borderColor = '#94a3b8';
-            this.style.background = '#ffffff';
+            this.style.borderColor = 'var(--admin-border)';
+            this.style.background = 'var(--admin-surface)';
         });
         modalUploadZone.addEventListener('drop', function(e) {
             e.preventDefault();
-            this.style.borderColor = '#94a3b8';
-            this.style.background = '#ffffff';
+            this.style.borderColor = 'var(--admin-border)';
+            this.style.background = 'var(--admin-surface)';
             if (e.dataTransfer.files.length > 0) {
                 handleModalUpload(e.dataTransfer.files[0]);
             }
@@ -847,3 +857,5 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 </script>
+
+<?php $workspaceType = 'page'; $workspaceRecord = $page ?? null; include APP_ROOT . '/resources/views/admin/partials/content-workspace.php'; ?>

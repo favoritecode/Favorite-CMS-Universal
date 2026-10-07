@@ -104,25 +104,10 @@ class UpdatePackageValidator
                 return $result;
             }
 
-            // 1. Path traversal (Zip-Slip) & security verification
-            $entryNames = [];
-            for ($i = 0; $i < $numFiles; $i++) {
-                $stat = $zip->statIndex($i);
-                $name = $stat['name'] ?? '';
-                $name = str_replace('\\', '/', $name);
-
-                // ZipSlip traversal checks
-                if (
-                    str_contains($name, '..') ||
-                    str_starts_with($name, '/') ||
-                    preg_match('/^[a-zA-Z]:/', $name)
-                ) {
-                    throw new SecurityException("Malicious path traversal entry (Zip-Slip) detected in update package: {$name}");
-                }
-
-                $entryNames[] = $name;
-
-                // Forbidden files check
+            // Validate and index canonical names once. Read contents by index so Windows paths work too.
+            $entries = \FavoriteCMS\Services\ZipPackage::entries($zip);
+            $entryNames = array_keys($entries);
+            foreach ($entryNames as $name) {
                 foreach (self::FORBIDDEN_PATTERNS as $pattern) {
                     if (preg_match($pattern, $name)) {
                         $result['valid'] = false;
@@ -131,31 +116,25 @@ class UpdatePackageValidator
                     }
                 }
             }
-
-            // 2. Detect root directory prefix (e.g. Favorite-CMS-Universal/)
-            $rootPrefix = '';
-            $firstSlash = strpos($entryNames[0], '/');
-            if ($firstSlash !== false) {
-                $possiblePrefix = substr($entryNames[0], 0, $firstSlash);
-                // Check if all non-empty entries share this prefix
-                $allShare = true;
-                foreach ($entryNames as $name) {
-                    if ($name !== '' && !str_starts_with($name, $possiblePrefix . '/')) {
-                        $allShare = false;
-                        break;
-                    }
+            $roots = [];
+            foreach ($entryNames as $name) {
+                if (basename($name) !== 'bootstrap.php') continue;
+                $candidate = dirname($name) === '.' ? '' : dirname($name);
+                $prefix = $candidate !== '' ? $candidate . '/' : '';
+                $complete = true;
+                foreach (self::REQUIRED_CORE_FILES as $required) {
+                    if (!isset($entries[$prefix . $required]) || $entries[$prefix . $required]['directory']) { $complete = false; break; }
                 }
-                if ($allShare) {
-                    $rootPrefix = $possiblePrefix;
-                }
+                if ($complete) $roots[] = $candidate;
             }
+            if (count($roots) > 1) throw new SecurityException('Package contains multiple Core releases. Upload one release ZIP.');
+            $rootPrefix = $roots[0] ?? '';
             $result['root_prefix'] = $rootPrefix;
-
-            // Helper to get archive file contents respecting rootPrefix
-            $getArchiveFile = function (string $relPath) use ($zip, $rootPrefix): ?string {
-                $target = ($rootPrefix !== '') ? $rootPrefix . '/' . $relPath : $relPath;
-                $contents = $zip->getFromName($target);
-                return ($contents !== false) ? $contents : null;
+            $getArchiveFile = function(string $relative) use ($zip, $entries, $rootPrefix): ?string {
+                $target = ($rootPrefix !== '' ? $rootPrefix . '/' : '') . $relative;
+                if (!isset($entries[$target]) || $entries[$target]['directory']) return null;
+                $contents = $zip->getFromIndex($entries[$target]['index']);
+                return $contents !== false ? $contents : null;
             };
 
             // 3. Inspect release.json or manifest.json if present
@@ -202,7 +181,7 @@ class UpdatePackageValidator
             // 6. Verify required Core files exist
             foreach (self::REQUIRED_CORE_FILES as $required) {
                 $target = ($rootPrefix !== '') ? $rootPrefix . '/' . $required : $required;
-                if ($zip->locateName($target) === false) {
+                if (!isset($entries[$target]) || $entries[$target]['directory']) {
                     $result['valid'] = false;
                     $result['errors'][] = "Package is missing required Core file: {$required}. It may not be a valid Favorite CMS Universal release.";
                 }

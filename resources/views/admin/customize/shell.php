@@ -13,7 +13,9 @@ declare(strict_types=1);
 
 $themeId = $themeId ?? 'default';
 $themeName = $themeName ?? ucfirst($themeId);
-$adminTheme = $adminTheme ?? 'light';
+$currentAdminUser = function_exists('current_user') ? current_user() : null;
+$adminTheme = \FavoriteCMS\Services\Appearance::resolve($currentAdminUser);
+$appearancePersist = true;
 $csrfToken = $csrfToken ?? csrf_token();
 $pageTitle = $pageTitle ?? "Customize: {$themeName}";
 $siteName = $siteName ?? 'Favorite CMS';
@@ -23,6 +25,7 @@ $isThemeCustomizer = isset($contentView) && is_string($contentView) && file_exis
 <!DOCTYPE html>
 <html lang="en" data-admin-theme="<?php echo htmlspecialchars($adminTheme, ENT_QUOTES, 'UTF-8'); ?>">
 <head>
+    <?php include __DIR__ . '/../../partials/appearance/head.php'; ?>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?php echo htmlspecialchars($pageTitle, ENT_QUOTES, 'UTF-8'); ?> &lsaquo; <?php echo htmlspecialchars($siteName, ENT_QUOTES, 'UTF-8'); ?></title>
@@ -355,6 +358,7 @@ $isThemeCustomizer = isset($contentView) && is_string($contentView) && file_exis
             flex: 1;
         }
     </style>
+    <style><?php readfile(__DIR__ . '/../../partials/appearance/admin.css'); ?></style>
 </head>
 <body>
     <div class="core-customizer-shell" id="core-customizer-shell">
@@ -386,16 +390,17 @@ $isThemeCustomizer = isset($contentView) && is_string($contentView) && file_exis
                         <button type="button" class="core-device-btn" data-device="mobile" title="Mobile Preview (375px)">Mobile</button>
                     </div>
                     <button type="button" class="core-tool-btn" id="core-btn-reload" title="Reload Preview Frame">↻</button>
-                    <a href="/?preview=1" target="_blank" class="core-tool-btn" id="core-btn-external" title="Open preview in new tab">↗ Preview</a>
+                    <a href="<?php echo htmlspecialchars(site_path('/?preview=1'), ENT_QUOTES, 'UTF-8'); ?>" target="_blank" class="core-tool-btn" id="core-btn-external" title="Open preview in new tab">↗ Preview</a>
                 </div>
 
                 <div class="core-toolbar-right">
+                <button type="button" class="core-tool-btn" data-appearance-toggle aria-label="Switch appearance"><span class="theme-icon-sun" aria-hidden="true">&#9728;</span><span class="theme-icon-moon" aria-hidden="true">&#9790;</span></button>
                     <button type="button" class="core-tool-btn" id="core-btn-templates" title="Reusable Templates">📋 Templates</button>
                     <form method="POST" action="<?php echo htmlspecialchars(site_path('/admin/customize/reset'), ENT_QUOTES, 'UTF-8'); ?>" style="display:inline;" onsubmit="return confirm('Reset all theme customizations and sections back to defaults?');">
                         <input type="hidden" name="_token" value="<?php echo htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
                         <button type="submit" class="core-btn-danger-outline">&#8635; Reset</button>
                     </form>
-                    <button type="button" class="core-btn-primary" id="core-btn-save">Save Changes</button>
+                    <button type="submit" form="core-fallback-form" class="core-btn-primary" id="core-btn-save">Save Changes</button>
                 </div>
             </header>
 
@@ -409,7 +414,7 @@ $isThemeCustomizer = isset($contentView) && is_string($contentView) && file_exis
                 </aside>
                 <main class="core-preview-canvas">
                     <div class="core-preview-wrapper" id="core-preview-wrapper" data-device="desktop">
-                        <iframe src="/?preview=1" class="core-preview-iframe" id="core-preview-iframe" title="Live Theme Preview"></iframe>
+                        <iframe src="<?php echo htmlspecialchars(site_path('/?preview=1'), ENT_QUOTES, 'UTF-8'); ?>" class="core-preview-iframe" id="core-preview-iframe" title="Live Theme Preview"></iframe>
                     </div>
                 </main>
             </div>
@@ -722,6 +727,7 @@ $isThemeCustomizer = isset($contentView) && is_string($contentView) && file_exis
                 tplModal.addEventListener('click', function(e) {
                     if (e.target === tplModal) closeTplModal();
                 });
+            }
             var coreToggleBtn = document.getElementById('core-toggle-sidebar-btn');
             var coreSidebar = document.querySelector('.core-sidebar');
             if (coreToggleBtn && coreSidebar) {
@@ -750,6 +756,12 @@ $isThemeCustomizer = isset($contentView) && is_string($contentView) && file_exis
         });
     })();
     </script>
+    <script>
+<?php include __DIR__ . '/enhancements.js'; ?>
+    </script>
+<script>
+<?php include APP_ROOT . '/resources/views/admin/partials/accessibility.js'; ?>
+</script>
 </body>
 </html>
 

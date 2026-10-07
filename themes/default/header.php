@@ -6,7 +6,7 @@ $siteTagline = $siteTagline ?? \FavoriteCMS\Models\Setting::get('general', 'site
 $metaTitle   = $metaTitle ?? $siteTitle;
 $metaDesc    = $metaDescription ?? \FavoriteCMS\Models\Setting::get('seo', 'meta_description', '');
 
-$siteLogoUrl    = function_exists('get_site_logo_url') ? get_site_logo_url() : get_theme_mod('site_logo_url');
+$siteLogoUrl    = function_exists('get_site_logo_url') ? get_site_logo_url('/assets/images/Favorite_Web_Icon.png') : (get_theme_mod('site_logo_url') ?: '/assets/images/Favorite_Web_Icon.png');
 $siteFaviconUrl = function_exists('get_site_favicon_url') ? get_site_favicon_url() : get_theme_mod('site_favicon_url');
 $accentColor    = fcd_accent_color();
 $siteLayout     = fcd_site_layout();
@@ -15,17 +15,13 @@ $currentUser    = function_exists('current_user') ? current_user() : null;
 $primaryMenu    = fcd_menu_items('primary', 4);
 $headerWidgets  = has_region_widgets('header-right');
 $stylesheetUrl  = function_exists('theme_asset_url') ? theme_asset_url('assets/css/style.css') : fcd_url('/themes/default/assets/css/style.css');
+$stylesheetUrl .= (str_contains($stylesheetUrl, '?') ? '&' : '?') . 'v=' . filemtime(__DIR__ . '/assets/css/style.css');
 
 $bodyClasses = ['layout-' . $siteLayout, $hasSidebar ? 'has-sidebar' : 'no-sidebar'];
 if (!empty($bodyClass) && is_string($bodyClass)) {
     $bodyClasses[] = $bodyClass;
 }
-$themePreference = 'dark';
-if (isset($_COOKIE['favorite_admin_theme']) && $_COOKIE['favorite_admin_theme'] === 'light') {
-    $themePreference = 'light';
-} elseif (isset($_SESSION['admin_theme']) && $_SESSION['admin_theme'] === 'light') {
-    $themePreference = 'light';
-}
+$themePreference = \FavoriteCMS\Services\Appearance::resolve();
 ?>
 <!DOCTYPE html>
 <html lang="<?php echo fcd_e(function_exists('site_language') ? site_language() : 'en'); ?>" class="no-js" data-theme="<?php echo $themePreference; ?>">
@@ -36,17 +32,8 @@ if (isset($_COOKIE['favorite_admin_theme']) && $_COOKIE['favorite_admin_theme'] 
     <?php if (!empty($metaDesc)): ?>
         <meta name="description" content="<?php echo htmlspecialchars((string)$metaDesc, ENT_QUOTES, 'UTF-8'); ?>">
     <?php endif; ?>
-    <script>
-    (function() {
-        document.documentElement.className = document.documentElement.className.replace(/\bno-js\b/, 'js');
-        try {
-            var localTheme = localStorage.getItem('favorite_admin_theme');
-            if (localTheme === 'light' || localTheme === 'dark') {
-                document.documentElement.setAttribute('data-theme', localTheme);
-            }
-        } catch (e) {}
-    })();
-    </script>
+    <script>document.documentElement.className = document.documentElement.className.replace(/\bno-js\b/, 'js');</script>
+    <?php include APP_ROOT . '/resources/views/partials/appearance/head.php'; ?>
     <?php if (!empty($siteFaviconUrl) && is_string($siteFaviconUrl)): ?>
         <?php
         $favExt = strtolower(pathinfo(parse_url($siteFaviconUrl, PHP_URL_PATH) ?? '', PATHINFO_EXTENSION));
@@ -63,7 +50,7 @@ if (isset($_COOKIE['favorite_admin_theme']) && $_COOKIE['favorite_admin_theme'] 
     <?php endif; ?>
     <link rel="stylesheet" href="<?php echo fcd_e($stylesheetUrl); ?>">
     <?php if ($accentColor !== ''): ?>
-        <style>:root { --accent: <?php echo $accentColor; ?>; }</style>
+        <style>:root { --brand-accent: <?php echo $accentColor; ?>; }</style>
     <?php endif; ?>
     <?php
     // Centralized Frontend SEO, social meta, schema, verification and tracking tags

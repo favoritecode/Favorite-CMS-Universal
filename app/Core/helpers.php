@@ -190,7 +190,11 @@ if (!function_exists('str_slug')) {
     function str_slug(string $str): string
     {
         $str = preg_replace('~[^\pL\d]+~u', '-', $str);
-        $str = iconv('utf-8', 'us-ascii//TRANSLIT', $str);
+        $transliterated = @iconv('utf-8', 'us-ascii//TRANSLIT', $str);
+        // Windows iconv can reject non-Latin titles. Keep valid ASCII fragments and a stable fallback.
+        if ($transliterated === false) $transliterated = preg_replace('/[^\x00-\x7F]/', '', $str);
+        if (trim((string)$transliterated, '-') === '') $transliterated = 'content-' . substr(hash('sha256', $str), 0, 12);
+        $str = $transliterated;
         $str = preg_replace('~[^-\w]+~', '', $str);
         $str = trim($str, '-');
         $str = preg_replace('~-+~', '-', $str);

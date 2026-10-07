@@ -1,3 +1,52 @@
+# Favorite CMS Universal v1.1.0
+
+**Release Date:** October 7, 2026  
+**License:** MIT  
+**Compatibility:** PHP 8.1.0 or higher, MySQL 5.7+ / MariaDB 10.3+
+
+Favorite CMS Universal 1.1.0 delivers automatic search and social SEO metadata, comprehensive dark/light appearance across all screens, editor layout improvements, private autosaves, revision history, and package validation hardening.
+
+## Highlights & Capabilities
+
+### Appearance & Dark/Light System
+- **Unified Theme Controller:** Shared appearance manager controlling installer, authentication, admin dashboard, customizer, default theme, and fallback templates.
+- **Persistence & Synchronization:** Mode preferences persist across sessions via localStorage and fallback cookies, synchronizing across browser tabs and preview frames.
+- **Semantic Color Architecture:** Semantic CSS tokens replace fixed color rules across cards, forms, badges, modals, editors, and widgets, passing WCAG 2.1 AA 4.5:1 contrast standards.
+- **Responsive Stacking:** Mobile layout fixes for widget management columns, media attachment details, and editor viewports.
+
+### Post & Page Editor Improvements
+- **Sidebar & Header Layout:** Editor right sidebar correctly positions below header actions and adheres cleanly below the admin bar on desktop scroll, with a thin scrollbar for lower controls.
+- **Header Actions Wrapping:** Add New, View, and Preview actions wrap gracefully on narrow viewports without clipping.
+
+### Customizer Undo/Redo & Live Preview
+- **History Integration:** Undo/Redo tracking for color inputs, typography, and section reordering.
+- **Unsaved Preview Mode:** View modifications in a read-only preview frame without persisting to the database until explicit save.
+- **Feedback & Navigation Guard:** AJAX save provides explicit success/error feedback, preserving edits in-flight; page exit guards prevent accidental loss.
+
+### Private Workspace & Revision History
+- **Server Autosave:** Private draft saved after an 8-second typing pause without altering published records.
+- **Stale Write Protection:** Client baselines prevent overwriting concurrent updates.
+- **Revision History:** Up to 30 revisions and 10 private drafts per content item with recovery into code mode.
+
+### Media & Thumbnails
+- **Original-Preserving Thumbnails:** Eligible JPEG, PNG, and WebP uploads generate 320/640/960/1280 responsive srcset variants while preserving untouched originals.
+- **Safety Fallbacks:** Animated GIFs, SVGs, EXIF-oriented images, and memory-constrained files safely fall back to original assets.
+
+### Hardened Theme & Plugin Uploads
+- **Pre-Extraction Inspection:** Archive structure and manifest validation before writing to disk.
+- **Type Segregation:** Automatic rejection of plugins uploaded under Themes or themes uploaded under Plugins with clear remediation messages.
+- **Archive Hardening:** Blocks path traversal, symlinks, duplicate entries, and malformed manifest structures with atomic rollback on failure.
+
+### Automatic SEO, Sitemaps & Redirects
+- **Automatic Fallback:** Search title and description compute dynamically from content, excerpt, and site settings without overwriting custom inputs.
+- **Social & Schema:** Open Graph, Twitter cards, and Schema.org JSON-LD (Article, WebPage, Breadcrumb, Organization) with social image fallback.
+- **Slug Redirects (`019_create_seo_automation.php`):** Old post/page slugs automatically generate direct 301 redirects to current live destinations.
+- **Chunked Sitemaps:** `/sitemap.xml` supports unlimited posts with 1,000-URL chunked indexes (`/sitemap-1.xml`, etc.), omitting drafts, noindex, and non-self canonicals.
+- **SEO Audit & Batch Transfer:** Admin SEO audit panel, paginated CSV/JSON metadata export/import with formula neutralization and reviewed preview commit.
+- **Migration Adapters:** WordPress WXR and JSON adapters import Yoast/Rank Math metadata into native SEO fields.
+
+---
+
 # Favorite CMS Universal v1.0.0
 
 **Release Date:** September 25, 2026  

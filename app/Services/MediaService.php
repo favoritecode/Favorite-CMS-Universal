@@ -267,7 +267,9 @@ class MediaService
             'updated_at'      => $now,
         ]);
 
-        return Media::find($mediaId);
+        $media = Media::find($mediaId);
+        if ($media) ImageVariants::all($media);
+        return $media;
     }
 
     /**
@@ -625,7 +627,9 @@ class MediaService
                 'updated_at'      => $now,
             ]);
 
-            return Media::find($mediaId);
+            $media = Media::find($mediaId);
+        if ($media) ImageVariants::all($media);
+        return $media;
         } finally {
             if (file_exists($tempFile)) {
                 @unlink($tempFile);

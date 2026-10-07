@@ -79,7 +79,7 @@
                             </td>
                             <td><?php echo htmlspecialchars($page->getAuthor()?->name ?? 'Admin', ENT_QUOTES, 'UTF-8'); ?></td>
                             <td>
-                                <span style="display: inline-block; padding: 2px 6px; border-radius: 3px; font-size: 11px; text-transform: uppercase; font-weight: 600; background: <?php echo $page->status === 'published' ? '#dcfce7; color: #15803d;' : '#f1f5f9; color: #475569;'; ?>">
+                                <span style="display: inline-block; padding: 2px 6px; border-radius: 3px; font-size: 11px; text-transform: uppercase; font-weight: 600; background: <?php echo $page->status === 'published' ? 'var(--admin-success-bg); color: var(--admin-success-text);' : 'var(--admin-surface-subtle); color: var(--admin-text-muted);'; ?>">
                                     <?php echo htmlspecialchars($page->status, ENT_QUOTES, 'UTF-8'); ?>
                                 </span>
                             </td>

@@ -107,20 +107,20 @@
                                     <?php if (!empty($plugin['active'])): ?>
                                         <?php if (!empty($plugin['settings_url'])): ?>
                                             <a href="<?php echo htmlspecialchars($plugin['settings_url'], ENT_QUOTES, 'UTF-8'); ?>" style="color: var(--wp-blue); font-weight: 600;">Settings</a>
-                                            <span style="color: #cbd5e1;"> | </span>
+                                            <span style="color: var(--admin-code-text);"> | </span>
                                         <?php endif; ?>
-                                        <button type="submit" form="core-action-form" formmethod="POST" formnovalidate formaction="<?php echo htmlspecialchars(site_base_path(), ENT_QUOTES, 'UTF-8'); ?>/admin/plugins/deactivate?id=<?php echo urlencode($id); ?>" class="core-action-link" style="color: #b45309; font-weight: 500;">Deactivate</button>
+                                        <button type="submit" form="core-action-form" formmethod="POST" formnovalidate formaction="<?php echo htmlspecialchars(site_base_path(), ENT_QUOTES, 'UTF-8'); ?>/admin/plugins/deactivate?id=<?php echo urlencode($id); ?>" class="core-action-link" style="color: var(--admin-warning-text); font-weight: 500;">Deactivate</button>
                                     <?php else: ?>
                                         <?php if (!empty($plugin['valid']) && !empty($plugin['compatible'])): ?>
                                             <button type="submit" form="core-action-form" formmethod="POST" formnovalidate formaction="<?php echo htmlspecialchars(site_base_path(), ENT_QUOTES, 'UTF-8'); ?>/admin/plugins/activate?id=<?php echo urlencode($id); ?>" class="core-action-link" style="color: var(--wp-blue); font-weight: 600;">Activate</button>
-                                            <span style="color: #cbd5e1;"> | </span>
+                                            <span style="color: var(--admin-code-text);"> | </span>
                                         <?php endif; ?>
                                         <button type="submit" form="core-action-form" formmethod="POST" formnovalidate formaction="<?php echo htmlspecialchars(site_base_path(), ENT_QUOTES, 'UTF-8'); ?>/admin/plugins/delete?id=<?php echo urlencode($id); ?>" class="core-action-link" onclick="return confirm('Are you sure you want to permanently delete this plugin? This action cannot be undone.');" style="color: var(--wp-danger); font-weight: 500;">Delete</button>
                                     <?php endif; ?>
                                 </div>
                             </td>
                             <td>
-                                <div style="margin-bottom: 8px; font-size: 13px; color: #334155; line-height: 1.5;">
+                                <div style="margin-bottom: 8px; font-size: 13px; color: var(--admin-text); line-height: 1.5;">
                                     <?php echo htmlspecialchars($plugin['description'] ?? '', ENT_QUOTES, 'UTF-8'); ?>
                                 </div>
                                 <div style="font-size: 12px; color: var(--wp-text-muted); display: flex; gap: 14px; flex-wrap: wrap; align-items: center;">
@@ -130,7 +130,7 @@
                                 </div>
 
                                 <?php if (!empty($plugin['errors'])): ?>
-                                    <div style="margin-top: 8px; padding: 6px 10px; background: #fef2f2; border: 1px solid #fecaca; border-radius: 4px; font-size: 12px; color: var(--wp-danger);">
+                                    <div style="margin-top: 8px; padding: 6px 10px; background: var(--admin-danger-bg); border: 1px solid var(--admin-danger-border); border-radius: 4px; font-size: 12px; color: var(--wp-danger);">
                                         ⚠️ <?php echo htmlspecialchars(implode(' | ', $plugin['errors']), ENT_QUOTES, 'UTF-8'); ?>
                                     </div>
                                 <?php endif; ?>
@@ -147,12 +147,12 @@
                             <td style="text-align: center;">
                                 <?php if (!empty($plugin['active'])): ?>
                                     <span class="badge badge-success" style="display: inline-flex; align-items: center; gap: 5px;">
-                                        <span style="width: 6px; height: 6px; border-radius: 50%; background: #16a34a;"></span>
+                                        <span style="width: 6px; height: 6px; border-radius: 50%; background: var(--admin-success-solid);"></span>
                                         Active
                                     </span>
                                 <?php else: ?>
                                     <span class="badge badge-secondary" style="display: inline-flex; align-items: center; gap: 5px;">
-                                        <span style="width: 6px; height: 6px; border-radius: 50%; background: #94a3b8;"></span>
+                                        <span style="width: 6px; height: 6px; border-radius: 50%; background: var(--admin-text-muted);"></span>
                                         Inactive
                                     </span>
                                 <?php endif; ?>

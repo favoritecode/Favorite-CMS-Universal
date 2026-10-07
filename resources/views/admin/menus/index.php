@@ -83,11 +83,11 @@
                     <h2 style="font-size: 16px; font-weight: 600; margin: 0;">
                         Menu Structure &mdash; <?php echo htmlspecialchars($selectedMenu->name, ENT_QUOTES, 'UTF-8'); ?>
                     </h2>
-                    <span style="font-size: 12px; color: #64748b;">Drag items or use ↑ ↓ to organize into submenus</span>
+                    <span style="font-size: 12px; color: var(--admin-text-muted);">Drag items or use ↑ ↓ to organize into submenus</span>
                 </div>
 
                 <!-- Menu Structure Container -->
-                <div style="background: #f8fafc; border: 1px solid var(--wp-border, #cbd5e1); border-radius: 6px; padding: 14px; margin-bottom: 20px;">
+                <div style="background: var(--admin-surface-subtle); border: 1px solid var(--wp-border, #cbd5e1); border-radius: 6px; padding: 14px; margin-bottom: 20px;">
                     <?php if (empty($menuItems)): ?>
                         <p style="color: var(--wp-text-muted, #64748b); font-size: 13px; text-align: center; padding: 30px 20px; margin: 0;">
                             There are no items in this menu yet. Use the panel on the left to add items.
@@ -105,44 +105,44 @@
                                     data-id="<?php echo (int)$item->id; ?>"
                                     data-parent-id="<?php echo $parentId; ?>"
                                     data-depth="<?php echo $depth; ?>"
-                                    style="margin-left: <?php echo $indentPx; ?>px; margin-bottom: 8px; border: 1px solid #cbd5e1; border-radius: 5px; background: #ffffff; box-shadow: 0 1px 2px rgba(0,0,0,0.04); transition: margin-left 0.15s ease;">
+                                    style="margin-left: <?php echo $indentPx; ?>px; margin-bottom: 8px; border: 1px solid var(--admin-border); border-radius: 5px; background: var(--admin-surface); box-shadow: 0 1px 2px rgba(0,0,0,0.04); transition: margin-left 0.15s ease;">
                                     
                                     <!-- Bar Header -->
-                                    <div class="menu-item-bar" style="display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; gap: 10px; background: #ffffff; border-radius: 5px;">
+                                    <div class="menu-item-bar" style="display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; gap: 10px; background: var(--admin-surface); border-radius: 5px;">
                                         <div class="menu-item-left" style="display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1 1 auto;">
-                                            <span class="menu-drag-handle" title="Drag to reorder or nest" style="cursor: grab; font-size: 16px; color: #64748b; padding: 2px 4px; user-select: none;">☰</span>
-                                            <span class="menu-branch-indicator" style="display: <?php echo $depth > 0 ? 'inline' : 'none'; ?>; font-family: monospace; font-weight: bold; color: #64748b; font-size: 13px;">└─</span>
-                                            <strong class="menu-item-title-display" style="font-size: 14px; color: #0f172a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                                            <span class="menu-drag-handle" title="Drag to reorder or nest" style="cursor: grab; font-size: 16px; color: var(--admin-text-muted); padding: 2px 4px; user-select: none;">☰</span>
+                                            <span class="menu-branch-indicator" style="display: <?php echo $depth > 0 ? 'inline' : 'none'; ?>; font-family: monospace; font-weight: bold; color: var(--admin-text-muted); font-size: 13px;">└─</span>
+                                            <strong class="menu-item-title-display" style="font-size: 14px; color: var(--admin-text-heading); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
                                                 <?php echo htmlspecialchars($item->title, ENT_QUOTES, 'UTF-8'); ?>
                                             </strong>
-                                            <span class="menu-sub-item-badge" style="display: <?php echo $depth > 0 ? 'inline-block' : 'none'; ?>; font-size: 11px; background: #e2e8f0; color: #475569; padding: 1px 6px; border-radius: 3px; font-weight: 500;">sub item</span>
-                                            <span class="menu-item-url-display" style="color: #64748b; font-size: 12px; margin-left: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 160px;">
+                                            <span class="menu-sub-item-badge" style="display: <?php echo $depth > 0 ? 'inline-block' : 'none'; ?>; font-size: 11px; background: var(--admin-surface-elevated); color: var(--admin-text-muted); padding: 1px 6px; border-radius: 3px; font-weight: 500;">sub item</span>
+                                            <span class="menu-item-url-display" style="color: var(--admin-text-muted); font-size: 12px; margin-left: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 160px;">
                                                 <?php echo htmlspecialchars($item->url ?? '', ENT_QUOTES, 'UTF-8'); ?>
                                             </span>
                                         </div>
 
                                         <!-- Right Controls: [ ↑ ] [ ↓ ] [ Edit ] [ Remove ] -->
                                         <div class="menu-item-actions" style="display: flex; align-items: center; gap: 4px; flex-shrink: 0;">
-                                            <button type="button" class="btn-menu-action btn-move-up" title="Move Up" style="padding: 2px 8px; font-size: 12px; height: 28px; border: 1px solid #cbd5e1; background: #f8fafc; color: #334155; border-radius: 4px; cursor: pointer;">↑</button>
-                                            <button type="button" class="btn-menu-action btn-move-down" title="Move Down" style="padding: 2px 8px; font-size: 12px; height: 28px; border: 1px solid #cbd5e1; background: #f8fafc; color: #334155; border-radius: 4px; cursor: pointer;">↓</button>
-                                            <button type="button" class="btn-menu-action btn-menu-edit" title="Edit" style="padding: 2px 10px; font-size: 12px; height: 28px; border: 1px solid #bfdbfe; background: #eff6ff; color: #1d4ed8; border-radius: 4px; cursor: pointer; font-weight: 500;">Edit</button>
-                                            <button type="button" class="btn-menu-action btn-menu-remove" title="Remove" style="padding: 2px 10px; font-size: 12px; height: 28px; border: 1px solid #fecaca; background: #fef2f2; color: #dc2626; border-radius: 4px; cursor: pointer; font-weight: 500;">Remove</button>
+                                            <button type="button" class="btn-menu-action btn-move-up" title="Move Up" style="padding: 2px 8px; font-size: 12px; height: 28px; border: 1px solid var(--admin-border); background: var(--admin-surface-subtle); color: var(--admin-text); border-radius: 4px; cursor: pointer;">↑</button>
+                                            <button type="button" class="btn-menu-action btn-move-down" title="Move Down" style="padding: 2px 8px; font-size: 12px; height: 28px; border: 1px solid var(--admin-border); background: var(--admin-surface-subtle); color: var(--admin-text); border-radius: 4px; cursor: pointer;">↓</button>
+                                            <button type="button" class="btn-menu-action btn-menu-edit" title="Edit" style="padding: 2px 10px; font-size: 12px; height: 28px; border: 1px solid var(--admin-info-border); background: var(--admin-info-bg); color: var(--admin-info-text); border-radius: 4px; cursor: pointer; font-weight: 500;">Edit</button>
+                                            <button type="button" class="btn-menu-action btn-menu-remove" title="Remove" style="padding: 2px 10px; font-size: 12px; height: 28px; border: 1px solid var(--admin-danger-border); background: var(--admin-danger-bg); color: var(--admin-danger-text); border-radius: 4px; cursor: pointer; font-weight: 500;">Remove</button>
                                         </div>
                                     </div>
 
                                     <!-- Collapsible Inline Editor -->
-                                    <div class="menu-item-editor" style="display: none; padding: 14px 16px; background: #f8fafc; border-top: 1px solid #e2e8f0; border-radius: 0 0 5px 5px;">
+                                    <div class="menu-item-editor" style="display: none; padding: 14px 16px; background: var(--admin-surface-subtle); border-top: 1px solid var(--admin-border); border-radius: 0 0 5px 5px;">
                                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 12px;">
                                             <div>
-                                                <label style="display: block; font-size: 12px; font-weight: 600; color: #475569; margin-bottom: 4px;">Navigation Label</label>
+                                                <label style="display: block; font-size: 12px; font-weight: 600; color: var(--admin-text-muted); margin-bottom: 4px;">Navigation Label</label>
                                                 <input type="text" class="form-control item-edit-title" value="<?php echo htmlspecialchars($item->title, ENT_QUOTES, 'UTF-8'); ?>" style="width: 100%; font-size: 13px;">
                                             </div>
                                             <div>
-                                                <label style="display: block; font-size: 12px; font-weight: 600; color: #475569; margin-bottom: 4px;">URL</label>
+                                                <label style="display: block; font-size: 12px; font-weight: 600; color: var(--admin-text-muted); margin-bottom: 4px;">URL</label>
                                                 <input type="text" class="form-control item-edit-url" value="<?php echo htmlspecialchars($item->url ?? '', ENT_QUOTES, 'UTF-8'); ?>" style="width: 100%; font-size: 13px;">
                                             </div>
                                         </div>
-                                        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: #64748b; padding-top: 4px;">
+                                        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: var(--admin-text-muted); padding-top: 4px;">
                                             <label style="display: inline-flex; align-items: center; gap: 6px; cursor: pointer; user-select: none;">
                                                 <input type="checkbox" class="item-edit-target" value="_blank" <?php echo (($item->target ?? '') === '_blank') ? 'checked' : ''; ?>>
                                                 Open link in a new tab
@@ -503,7 +503,7 @@
     placeholder.style.alignItems = 'center';
     placeholder.style.paddingLeft = '14px';
     placeholder.style.fontSize = '12px';
-    placeholder.style.color = '#2563eb';
+    placeholder.style.color = 'var(--admin-info-text)';
     placeholder.style.fontWeight = '500';
 
     list.querySelectorAll('.menu-item-row').forEach(function(row) {

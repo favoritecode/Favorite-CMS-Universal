@@ -21,10 +21,10 @@
 
 ## 📌 Current Version
 
-- **Current Version:** `v1.0.0` (Initial Official Core Release)
+- **Current Version:** `v1.1.0` (Automatic SEO & UI Improvements)
 - **Status:** Production Stable
 - **Official Repository:** [https://github.com/favoritecode/Favorite-CMS-Universal](https://github.com/favoritecode/Favorite-CMS-Universal)
-- **Official Package:** `Favorite-CMS-Universal-v1.0.0.zip`
+- **Official Package:** `Favorite-CMS-Universal-v1.1.0-update.zip`
 
 ---
 
@@ -226,7 +226,14 @@ All documentation is located in the [`docs/`](docs/README.md) directory:
 
 Official pre-built production releases are published on the GitHub Releases page:
 - **Download Latest Release:** [Favorite CMS Universal Releases](https://github.com/favoritecode/Favorite-CMS-Universal/releases)
-- **Official Package:** `Favorite-CMS-Universal-v1.0.0.zip`
+- **Official Core Update Package:** `Favorite-CMS-Universal-v1.1.0-update.zip`
+- **Developer Test Suite Archive:** `Favorite-CMS-Universal-v1.1.0-tests.zip`
+
+### Technical Improvements & Change Documentation
+- [SEO-CHANGES.md](SEO-CHANGES.md) — Comprehensive technical specification for automated search & social metadata, schema, sitemaps, slug redirects, and CSV/JSON SEO migration.
+- [UPGRADE-CHANGES.md](UPGRADE-CHANGES.md) — Detailed changelog for Core v1.1.0 upgrades, database migrations, customizer history, private drafts, and package validation.
+- [UI-CHANGES.md](UI-CHANGES.md) — Architectural notes on dark/light mode controller, semantic color system, and layout responsiveness.
+- [TESTING.md](TESTING.md) — Guide for developer test suites, in-memory SQLite fixtures, package regression, DOM verification, and visual checks.
 
 ---
 
