@@ -40,11 +40,15 @@ if (!empty($_SESSION['comment_error'])) {
 }
 ?>
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="<?php echo \FavoriteCMS\Services\Appearance::resolve(); ?>">
 <head>
+    <?php include __DIR__ . '/partials/appearance/head.php'; ?>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?php echo htmlspecialchars($title); ?> &mdash; <?php echo htmlspecialchars($siteName); ?></title>
+    <?php $fallbackSeo = \FavoriteCMS\Services\SeoMetadata::resolve(get_defined_vars()); ?>
+    <title><?php echo htmlspecialchars($fallbackSeo['title'], ENT_QUOTES, 'UTF-8'); ?></title>
+    <?php if ($fallbackSeo['description'] !== ''): ?><meta name="description" content="<?php echo htmlspecialchars($fallbackSeo['description'], ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
+    <?php echo \FavoriteCMS\Services\FrontendSeoService::renderHeadTags(get_defined_vars()); ?>
     <style>
         :root {
             --primary: #2563eb;
@@ -133,14 +137,14 @@ if (!empty($_SESSION['comment_error'])) {
             font-size: 14px;
         }
         .notice--success {
-            background: #dcfce7;
-            border: 1px solid #86efac;
-            color: #166534;
+            background: var(--cms-success-bg);
+            border: 1px solid var(--cms-success-border);
+            color: var(--cms-success-text);
         }
         .notice--error {
-            background: #fee2e2;
-            border: 1px solid #fca5a5;
-            color: #991b1b;
+            background: var(--cms-danger-bg);
+            border: 1px solid var(--cms-danger-border);
+            color: var(--cms-danger-text);
         }
         footer {
             border-top: 1px solid var(--border);
@@ -151,8 +155,10 @@ if (!empty($_SESSION['comment_error'])) {
             margin-top: 60px;
         }
     </style>
+    <style><?php readfile(__DIR__ . '/partials/appearance/frontend.css'); ?></style>
 </head>
 <body>
+<button type="button" class="cms-appearance-toggle" data-appearance-toggle aria-label="Switch appearance"><span class="theme-icon-sun" aria-hidden="true">&#9728;</span><span class="theme-icon-moon" aria-hidden="true">&#9790;</span></button>
     <header>
         <div class="container header-inner">
             <div class="site-branding">
@@ -223,7 +229,7 @@ if (!empty($_SESSION['comment_error'])) {
                     <div class="comment-list" style="margin-bottom: 32px;">
                         <?php foreach ($comments as $comment): ?>
                             <?php $commentObj = is_array($comment) ? (object)$comment : $comment; ?>
-                            <div style="background: #f8fafc; border: 1px solid var(--border); border-radius: 6px; padding: 12px 16px; margin-bottom: 12px;">
+                            <div style="background: var(--cms-surface-subtle); border: 1px solid var(--border); border-radius: 6px; padding: 12px 16px; margin-bottom: 12px;">
                                 <strong style="font-size: 13.5px;"><?php echo htmlspecialchars((string)($commentObj->author_name ?? 'Anonymous')); ?>:</strong>
                                 <p style="margin: 4px 0 0; font-size: 13.5px; color: var(--text);"><?php echo htmlspecialchars((string)($commentObj->content ?? '')); ?></p>
                             </div>
@@ -242,7 +248,7 @@ if (!empty($_SESSION['comment_error'])) {
                             <input type="hidden" name="post_slug" value="<?php echo htmlspecialchars((string)($postObj->slug ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
 
                             <div style="margin-bottom: 16px;">
-                                <label for="comment_content" style="display: block; font-size: 13.5px; font-weight: 600; margin-bottom: 6px;">Comment <span style="color: #ef4444;">*</span></label>
+                                <label for="comment_content" style="display: block; font-size: 13.5px; font-weight: 600; margin-bottom: 6px;">Comment <span style="color: var(--cms-danger-text);">*</span></label>
                                 <textarea id="comment_content" name="content" rows="4" required style="width: 100%; box-sizing: border-box; padding: 10px; border: 1px solid var(--border); border-radius: 6px; font-family: inherit; font-size: 14px;" placeholder="Share your thoughts..."></textarea>
                             </div>
 
@@ -255,7 +261,7 @@ if (!empty($_SESSION['comment_error'])) {
                         <div class="comment-auth-actions" style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
                             <a href="<?php echo htmlspecialchars($commentBasePath . '/admin/login?redirect=' . rawurlencode($commentReturnPath), ENT_QUOTES, 'UTF-8'); ?>" style="display: inline-block; background: var(--primary); color: #ffffff; padding: 8px 16px; border-radius: 6px; font-size: 13.5px; font-weight: 600; text-decoration: none;">Log in to comment</a>
                             <?php if ((int)\FavoriteCMS\Models\Setting::get('general', 'allow_registration', 1)): ?>
-                                <a href="<?php echo htmlspecialchars($commentBasePath . '/register?redirect=' . rawurlencode($commentReturnPath), ENT_QUOTES, 'UTF-8'); ?>" style="display: inline-block; background: #e2e8f0; color: #0f172a; padding: 8px 16px; border-radius: 6px; font-size: 13.5px; font-weight: 600; text-decoration: none;">Create an account</a>
+                                <a href="<?php echo htmlspecialchars($commentBasePath . '/register?redirect=' . rawurlencode($commentReturnPath), ENT_QUOTES, 'UTF-8'); ?>" style="display: inline-block; background: var(--cms-surface-elevated); color: var(--cms-text-heading); padding: 8px 16px; border-radius: 6px; font-size: 13.5px; font-weight: 600; text-decoration: none;">Create an account</a>
                             <?php endif; ?>
                         </div>
                     <?php endif; ?>

@@ -51,11 +51,11 @@ $colors = $globalTokens['colors'] ?? [];
                     </div>
                     <div>
                         <label style="display:block; font-size: 12px; font-weight: 600; margin-bottom: 4px;">Site Logo URL</label>
-                        <input type="url" name="mods[site_logo_url]" class="form-control" placeholder="https://example.com/logo.png" value="<?php echo htmlspecialchars($mods['site_logo_url'] ?? ''); ?>" style="width: 100%; padding: 7px; border: 1px solid var(--admin-border); border-radius: 6px; background: var(--admin-input-bg); color: var(--admin-input-text);">
+                        <input type="text" inputmode="url" name="mods[site_logo_url]" class="form-control" placeholder="https://example.com/logo.png" value="<?php echo htmlspecialchars($mods['site_logo_url'] ?? ''); ?>" style="width: 100%; padding: 7px; border: 1px solid var(--admin-border); border-radius: 6px; background: var(--admin-input-bg); color: var(--admin-input-text);">
                     </div>
                     <div>
                         <label style="display:block; font-size: 12px; font-weight: 600; margin-bottom: 4px;">Favicon URL</label>
-                        <input type="url" name="mods[site_favicon_url]" class="form-control" placeholder="https://example.com/favicon.png" value="<?php echo htmlspecialchars($mods['site_favicon_url'] ?? ''); ?>" style="width: 100%; padding: 7px; border: 1px solid var(--admin-border); border-radius: 6px; background: var(--admin-input-bg); color: var(--admin-input-text);">
+                        <input type="text" inputmode="url" name="mods[site_favicon_url]" class="form-control" placeholder="https://example.com/favicon.png" value="<?php echo htmlspecialchars($mods['site_favicon_url'] ?? ''); ?>" style="width: 100%; padding: 7px; border: 1px solid var(--admin-border); border-radius: 6px; background: var(--admin-input-bg); color: var(--admin-input-text);">
                     </div>
                     <div>
                         <label style="display:block; font-size: 12px; font-weight: 600; margin-bottom: 4px;">Footer Copyright</label>
@@ -103,7 +103,7 @@ $colors = $globalTokens['colors'] ?? [];
                             <span style="font-size: 12px;"><?php echo $tokenLabel; ?></span>
                             <div style="display: flex; gap: 6px; align-items: center;">
                                 <input type="color" value="<?php echo htmlspecialchars($colors[$tokenKey] ?? '#000000'); ?>" style="width: 32px; height: 28px; border: 1px solid var(--admin-border); border-radius: 4px; padding: 1px; cursor: pointer;" oninput="document.getElementById('token-<?php echo $tokenKey; ?>').value = this.value;">
-                                <input type="text" name="tokens[colors][<?php echo $tokenKey; ?>]" id="token-<?php echo $tokenKey; ?>"" value="<?php echo htmlspecialchars($colors[$tokenKey] ?? ''); ?>" style="width: 90px; padding: 4px 6px; font-size: 11px; border: 1px solid var(--admin-border); border-radius: 4px; font-family: monospace;">
+                                <input type="text" name="tokens[colors][<?php echo $tokenKey; ?>]" id="token-<?php echo $tokenKey; ?>" value="<?php echo htmlspecialchars($colors[$tokenKey] ?? ''); ?>" style="width: 90px; padding: 4px 6px; font-size: 11px; border: 1px solid var(--admin-border); border-radius: 4px; font-family: monospace;">
                             </div>
                         </div>
                     <?php endforeach; ?>

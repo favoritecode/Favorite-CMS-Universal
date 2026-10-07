@@ -318,71 +318,10 @@ class PluginManager
      */
     public function installFromZip(array $uploadedFile): array
     {
-        if (empty($uploadedFile['tmp_name']) || (!is_uploaded_file($uploadedFile['tmp_name']) && (PHP_SAPI !== 'cli' || !is_file($uploadedFile['tmp_name'])))) {
-            throw new \InvalidArgumentException("No valid upload file provided.");
-        }
-
-        $zip = new ZipArchive();
-        $res = $zip->open($uploadedFile['tmp_name']);
-        if ($res !== true) {
-            throw new \RuntimeException("Could not open ZIP archive (code {$res}).");
-        }
-
-        $pluginId = null;
-        $hasSubdir = false;
-
-        for ($i = 0; $i < $zip->numFiles; $i++) {
-            $stat = $zip->statIndex($i);
-            $filename = $stat['name'];
-
-            // Zip Slip protection
-            if (str_contains($filename, '..') || str_starts_with($filename, '/') || str_starts_with($filename, '\\')) {
-                $zip->close();
-                throw new SecurityException("Malicious path detected in ZIP archive: {$filename}");
-            }
-
-            // Read plugin ID directly from manifest if available
-            if (basename($filename) === 'plugin.json') {
-                $rawJson = $zip->getFromIndex($i);
-                if ($rawJson) {
-                    $parsed = json_decode($rawJson, true);
-                    if (is_array($parsed) && !empty($parsed['id'])) {
-                        $pluginId = preg_replace('/[^a-zA-Z0-9_\-]/', '', (string)$parsed['id']);
-                    }
-                }
-            }
-
-            $parts = explode('/', trim($filename, '/'));
-            if (count($parts) > 1 && !empty($parts[0])) {
-                $hasSubdir = true;
-            }
-        }
-
-        if (empty($pluginId)) {
-            $pluginId = 'plugin_' . bin2hex(random_bytes(4));
-        }
-
-        $targetDir = $this->pluginsPath . '/' . $pluginId;
-
-        if ($hasSubdir) {
-            $zip->extractTo($this->pluginsPath);
-        } else {
-            if (!is_dir($targetDir)) {
-                mkdir($targetDir, 0775, true);
-            }
-            $zip->extractTo($targetDir);
-        }
-        $zip->close();
-
-        // Validate the newly extracted plugin
-        $validation = $this->validatePlugin($pluginId);
-
-        return [
-            'plugin_id' => $pluginId,
-            'success'   => true,
-            'valid'     => $validation['valid'],
-            'errors'    => $validation['errors'],
-        ];
+        $package = \FavoriteCMS\Services\ExtensionPackageInstaller::install($uploadedFile, 'plugin', $this->pluginsPath);
+        // Dependency/PHP compatibility warnings retain the existing install-now/activate-later behavior.
+        $validation = $this->validatePlugin($package['id']);
+        return ['plugin_id'=>$package['id'], 'success'=>true, 'valid'=>$validation['valid'], 'errors'=>$validation['errors']];
     }
 
     protected function deleteRecursive(string $dir): void

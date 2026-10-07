@@ -53,7 +53,7 @@ class Page extends BaseModel
     public static function countByStatus(): array
     {
         $db = Container::getInstance()->get(Database::class);
-        $rows = $db->select("SELECT `status`, COUNT(*) as cnt FROM `pages` GROUP BY `status`");
+        $rows = $db->rememberSelect("SELECT `status`, COUNT(*) as cnt FROM `pages` GROUP BY `status`");
         $counts = ['all' => 0, 'published' => 0, 'draft' => 0, 'trash' => 0];
         foreach ($rows as $row) {
             $counts[$row->status] = (int)$row->cnt;
@@ -117,6 +117,7 @@ class Page extends BaseModel
             'meta_description' => $meta['meta_description'] ?? null,
             'og_title'         => $meta['og_title'] ?? null,
             'og_description'   => $meta['og_description'] ?? null,
+            'og_image_url'     => $meta['og_image_url'] ?? ($existing->og_image_url ?? null),
             'canonical_url'    => $meta['canonical_url'] ?? null,
             'robots'           => $meta['robots'] ?? 'index,follow',
         ];
@@ -131,6 +132,14 @@ class Page extends BaseModel
             $data['object_id']   = $this->id;
             $this->db->insert('seo_meta', $data);
         }
+    }
+
+    public function update(array $data): bool
+    {
+        $old = array_key_exists('slug', $data) ? static::find((int)$this->id) : null;
+        $saved = parent::update($data);
+        if ($saved && $old) \FavoriteCMS\Services\SeoRedirects::remember('page', (int)$this->id, (string)$old->slug, (string)$data['slug']);
+        return $saved;
     }
 
     public function generateSlug(string $title): string

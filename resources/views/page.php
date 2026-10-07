@@ -17,11 +17,15 @@ $title = (string)($pageObj->title ?? 'Untitled Page');
 $content = (string)($pageObj->content ?? '');
 ?>
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="<?php echo \FavoriteCMS\Services\Appearance::resolve(); ?>">
 <head>
+    <?php include __DIR__ . '/partials/appearance/head.php'; ?>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?php echo htmlspecialchars($title); ?> &mdash; <?php echo htmlspecialchars($siteName); ?></title>
+    <?php $fallbackSeo = \FavoriteCMS\Services\SeoMetadata::resolve(get_defined_vars()); ?>
+    <title><?php echo htmlspecialchars($fallbackSeo['title'], ENT_QUOTES, 'UTF-8'); ?></title>
+    <?php if ($fallbackSeo['description'] !== ''): ?><meta name="description" content="<?php echo htmlspecialchars($fallbackSeo['description'], ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
+    <?php echo \FavoriteCMS\Services\FrontendSeoService::renderHeadTags(get_defined_vars()); ?>
     <style>
         :root {
             --primary: #2563eb;
@@ -112,8 +116,10 @@ $content = (string)($pageObj->content ?? '');
             margin-top: 60px;
         }
     </style>
+    <style><?php readfile(__DIR__ . '/partials/appearance/frontend.css'); ?></style>
 </head>
 <body>
+<button type="button" class="cms-appearance-toggle" data-appearance-toggle aria-label="Switch appearance"><span class="theme-icon-sun" aria-hidden="true">&#9728;</span><span class="theme-icon-moon" aria-hidden="true">&#9790;</span></button>
     <header>
         <div class="container header-inner">
             <div class="site-branding">

@@ -1,13 +1,13 @@
 <div class="page-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
     <h1 class="page-title">Media Library</h1>
-    <div style="font-size: 13px; color: var(--wp-text-muted); background: #f8fafc; padding: 8px 14px; border-radius: 6px; border: 1px solid var(--wp-border); text-align: right;">
+    <div style="font-size: 13px; color: var(--wp-text-muted); background: var(--admin-surface-subtle); padding: 8px 14px; border-radius: 6px; border: 1px solid var(--wp-border); text-align: right;">
         <div>
-            <span>Role Allowance: <strong style="color: var(--wp-dark); text-transform: capitalize;"><?php echo htmlspecialchars($capabilities['user']['role_category'] ?? 'user'); ?></strong> (<strong><?php echo htmlspecialchars($capabilities['user']['configured_limit_formatted'] ?? $capabilities['user']['max_upload_formatted']); ?></strong>)</span>
+            <span>Role Allowance: <strong style="color: var(--admin-text-heading); text-transform: capitalize;"><?php echo htmlspecialchars($capabilities['user']['role_category'] ?? 'user'); ?></strong> (<strong><?php echo htmlspecialchars($capabilities['user']['configured_limit_formatted'] ?? $capabilities['user']['max_upload_formatted']); ?></strong>)</span>
             <span style="margin: 0 6px;">&bull;</span>
-            <span>Effective Limit: <strong style="color: #0284c7;"><?php echo htmlspecialchars($capabilities['user']['max_upload_formatted']); ?></strong></span>
+            <span>Effective Limit: <strong style="color: var(--admin-info-text);"><?php echo htmlspecialchars($capabilities['user']['max_upload_formatted']); ?></strong></span>
         </div>
         <?php if (!empty($capabilities['user']['is_server_capped']) && ($capabilities['user']['configured_limit_bytes'] ?? 0) > ($capabilities['user']['max_upload_bytes'] ?? 0)): ?>
-            <div style="font-size: 11px; color: #b45309; margin-top: 4px;">
+            <div style="font-size: 11px; color: var(--admin-warning-text); margin-top: 4px;">
                 &#9888; Server upload bottleneck: Capped at <strong><?php echo htmlspecialchars($capabilities['server']['effective_server_formatted']); ?></strong> by hosting PHP settings (<code>upload_max_filesize</code> / <code>post_max_size</code>).
             </div>
         <?php endif; ?>
@@ -15,27 +15,27 @@
 </div>
 
 <!-- Upload Zone with AJAX Progress Bar & Drag-and-Drop (Multi-File) -->
-<div class="form-card" style="margin-bottom: 24px; padding: 20px; border: 2px dashed #cbd5e1; background: #fafafa; border-radius: 8px;" id="drop-zone">
+<div class="form-card" style="margin-bottom: 24px; padding: 20px; border: 2px dashed var(--admin-border); background: var(--admin-surface-subtle); border-radius: 8px;" id="drop-zone">
     <div style="display: flex; flex-direction: column; align-items: center; text-align: center;">
         <div style="font-size: 36px; color: var(--wp-blue); margin-bottom: 8px;">&#128229;</div>
-        <h2 style="font-size: 16px; font-weight: 600; margin-bottom: 4px; color: var(--wp-dark);">Drag &amp; Drop Files Here to Upload</h2>
+        <h2 style="font-size: 16px; font-weight: 600; margin-bottom: 4px; color: var(--admin-text-heading);">Drag &amp; Drop Files Here to Upload</h2>
         <p style="font-size: 13px; color: var(--wp-text-muted); margin-bottom: 12px;">
             Supports batch uploads for video (MP4, WebM, MKV), audio (MP3, WAV), images, documents, and archives up to <strong><?php echo htmlspecialchars($capabilities['user']['max_upload_formatted']); ?></strong> each.
         </p>
 
         <form id="media-upload-form" method="POST" action="<?php echo htmlspecialchars(site_path('/admin/media/upload'), ENT_QUOTES, 'UTF-8'); ?>" enctype="multipart/form-data" style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap; justify-content: center;">
             <input type="hidden" name="_token" value="<?php echo htmlspecialchars($_SESSION['_token'] ?? '', ENT_QUOTES, 'UTF-8'); ?>">
-            <input type="file" id="media-file-input" name="files[]" multiple class="form-control" style="max-width: 340px; background: #ffffff;">
+            <input type="file" id="media-file-input" name="files[]" multiple class="form-control" style="max-width: 340px; background: var(--admin-surface);">
             <button type="submit" id="start-upload-btn" class="btn btn-primary">&#128247; Upload Files</button>
         </form>
 
         <!-- Progress Bar Container -->
         <div id="upload-progress-wrap" style="display: none; width: 100%; max-width: 460px; margin-top: 14px;">
-            <div style="display: flex; justify-content: space-between; font-size: 12px; font-weight: 600; color: #475569; margin-bottom: 4px;">
+            <div style="display: flex; justify-content: space-between; font-size: 12px; font-weight: 600; color: var(--admin-text-muted); margin-bottom: 4px;">
                 <span id="upload-filename">Uploading...</span>
                 <span id="upload-percent">0%</span>
             </div>
-            <div style="background: #e2e8f0; border-radius: 999px; height: 10px; overflow: hidden;">
+            <div style="background: var(--admin-surface-elevated); border-radius: 999px; height: 10px; overflow: hidden;">
                 <div id="upload-progress-bar" style="width: 0%; height: 100%; background: var(--wp-blue); transition: width 0.15s ease;"></div>
             </div>
             <div id="upload-status-msg" style="font-size: 12px; margin-top: 6px; text-align: center;"></div>
@@ -93,9 +93,9 @@
         <?php foreach ($mediaItems as $item): ?>
             <div class="form-card media-item-card" data-id="<?php echo (int)$item->id; ?>" style="padding: 12px; display: flex; flex-direction: column; position: relative;">
                 <input type="checkbox" class="media-select-checkbox" data-id="<?php echo (int)$item->id; ?>" title="Select this item">
-                <div style="height: 130px; background: #0f172a; border-radius: 4px; display: flex; align-items: center; justify-content: center; overflow: hidden; margin-bottom: 10px; position: relative;">
+                <div style="height: 130px; background: var(--admin-code-bg); border-radius: 4px; display: flex; align-items: center; justify-content: center; overflow: hidden; margin-bottom: 10px; position: relative;">
                     <?php if ($item->isImage()): ?>
-                        <img src="<?php echo htmlspecialchars($item->url, ENT_QUOTES, 'UTF-8'); ?>" alt="<?php echo htmlspecialchars($item->filename, ENT_QUOTES, 'UTF-8'); ?>" style="max-width: 100%; max-height: 100%; object-fit: cover;" loading="lazy">
+                        <img src="<?php echo htmlspecialchars($item->getThumbnailUrl(320, 240), ENT_QUOTES, 'UTF-8'); ?>" alt="<?php echo htmlspecialchars($item->filename, ENT_QUOTES, 'UTF-8'); ?>" style="max-width: 100%; max-height: 100%; object-fit: cover;" loading="lazy">
                     <?php elseif ($item->isVideo()): ?>
                         <video src="<?php echo htmlspecialchars($item->url, ENT_QUOTES, 'UTF-8'); ?>" style="max-width: 100%; max-height: 100%; object-fit: contain;" preload="metadata" controls></video>
                     <?php elseif ($item->isAudio()): ?>
@@ -116,7 +116,7 @@
                     </span>
                 </div>
 
-                <div style="font-weight: 600; font-size: 13px; word-break: break-all; margin-bottom: 4px; color: var(--wp-dark); line-height: 1.3;" title="<?php echo htmlspecialchars($item->filename, ENT_QUOTES, 'UTF-8'); ?>">
+                <div style="font-weight: 600; font-size: 13px; word-break: break-all; margin-bottom: 4px; color: var(--admin-text-heading); line-height: 1.3;" title="<?php echo htmlspecialchars($item->filename, ENT_QUOTES, 'UTF-8'); ?>">
                     <?php echo htmlspecialchars($item->filename, ENT_QUOTES, 'UTF-8'); ?>
                 </div>
 
@@ -126,7 +126,7 @@
 
                 <div style="margin-top: auto; display: flex; justify-content: space-between; align-items: center; font-size: 12px; border-top: 1px solid var(--wp-border); padding-top: 8px;">
                     <a href="<?php echo htmlspecialchars($item->url, ENT_QUOTES, 'UTF-8'); ?>" target="_blank" style="color: var(--wp-blue); text-decoration: none;">View File &#8599;</a>
-                    <button type="button" class="copy-url-btn" data-url="<?php echo htmlspecialchars($item->url, ENT_QUOTES, 'UTF-8'); ?>" style="background: none; border: none; color: #64748b; font-size: 11px; cursor: pointer; text-decoration: underline;">Copy URL</button>
+                    <button type="button" class="copy-url-btn" data-url="<?php echo htmlspecialchars($item->url, ENT_QUOTES, 'UTF-8'); ?>" style="background: none; border: none; color: var(--admin-text-muted); font-size: 11px; cursor: pointer; text-decoration: underline;">Copy URL</button>
                     <button type="submit" form="core-action-form" formmethod="POST" formnovalidate formaction="<?php echo htmlspecialchars(site_base_path(), ENT_QUOTES, 'UTF-8'); ?>/admin/media/delete?id=<?php echo (int)$item->id; ?>" class="core-action-link" onclick="return confirm('Delete this media file permanently?');" style="color: var(--wp-danger); text-decoration: none;">Delete</button>
                 </div>
             </div>
@@ -189,7 +189,7 @@ document.addEventListener('DOMContentLoaded', function() {
         progressBar.style.width = '0%';
         progressBar.style.backgroundColor = 'var(--wp-blue)';
         percentText.textContent = '0%';
-        statusMsg.style.color = '#334155';
+        statusMsg.style.color = 'var(--admin-text)';
         statusMsg.textContent = files.length === 1 
             ? 'Uploading ' + files[0].name + '...' 
             : 'Uploading ' + files.length + ' files...';
@@ -230,7 +230,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
 
                 if (resp.success) {
-                    statusMsg.style.color = '#16a34a';
+                    statusMsg.style.color = 'var(--admin-success-text)';
                     statusMsg.textContent = 'Upload complete! ' + (resp.total_uploaded || 1) + ' file(s) saved.';
                     setTimeout(function() { window.location.reload(); }, 1400);
                     return;
@@ -239,16 +239,16 @@ document.addEventListener('DOMContentLoaded', function() {
 
             var errMsg = 'Upload failed.';
             if (resp && resp.message) errMsg = resp.message;
-            statusMsg.style.color = '#dc2626';
+            statusMsg.style.color = 'var(--admin-danger-text)';
             statusMsg.textContent = errMsg;
-            progressBar.style.backgroundColor = '#dc2626';
+            progressBar.style.backgroundColor = 'var(--admin-danger-solid)';
         };
 
         xhr.onerror = function() {
             if (startUploadBtn) startUploadBtn.disabled = false;
-            statusMsg.style.color = '#dc2626';
+            statusMsg.style.color = 'var(--admin-danger-text)';
             statusMsg.textContent = 'Network error occurred during upload.';
-            progressBar.style.backgroundColor = '#dc2626';
+            progressBar.style.backgroundColor = 'var(--admin-danger-solid)';
         };
 
         xhr.send(formData);
@@ -265,18 +265,18 @@ document.addEventListener('DOMContentLoaded', function() {
     dropZone.addEventListener('dragover', function(e) {
         e.preventDefault();
         dropZone.style.borderColor = 'var(--wp-blue)';
-        dropZone.style.background = '#eff6ff';
+        dropZone.style.background = 'var(--admin-info-bg)';
     });
 
     dropZone.addEventListener('dragleave', function() {
-        dropZone.style.borderColor = '#cbd5e1';
-        dropZone.style.background = '#fafafa';
+        dropZone.style.borderColor = 'var(--admin-border)';
+        dropZone.style.background = 'var(--admin-surface-subtle)';
     });
 
     dropZone.addEventListener('drop', function(e) {
         e.preventDefault();
-        dropZone.style.borderColor = '#cbd5e1';
-        dropZone.style.background = '#fafafa';
+        dropZone.style.borderColor = 'var(--admin-border)';
+        dropZone.style.background = 'var(--admin-surface-subtle)';
         if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
             uploadFilesViaAjax(e.dataTransfer.files);
         }

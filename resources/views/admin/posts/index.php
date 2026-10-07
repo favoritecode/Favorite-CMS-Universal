@@ -8,7 +8,7 @@
 <ul class="subsubsub">
     <li><a href="<?php echo htmlspecialchars(site_path('/admin/posts?status=all'), ENT_QUOTES, 'UTF-8'); ?>" class="<?php echo $status === 'all' ? 'current' : ''; ?>">All (<?php echo (int)($counts['all'] ?? 0); ?>)</a> |</li>
     <li><a href="<?php echo htmlspecialchars(site_path('/admin/posts?status=published'), ENT_QUOTES, 'UTF-8'); ?>" class="<?php echo $status === 'published' ? 'current' : ''; ?>">Published (<?php echo (int)($counts['published'] ?? 0); ?>)</a> |</li>
-    <li><a href="<?php echo htmlspecialchars(site_path('/admin/posts?status=pending'), ENT_QUOTES, 'UTF-8'); ?>" class="<?php echo $status === 'pending' ? 'current' : ''; ?>" style="<?php echo ($counts['pending'] ?? 0) > 0 ? 'font-weight: 700; color: #b45309;' : ''; ?>">Pending Review (<?php echo (int)($counts['pending'] ?? 0); ?>)</a> |</li>
+    <li><a href="<?php echo htmlspecialchars(site_path('/admin/posts?status=pending'), ENT_QUOTES, 'UTF-8'); ?>" class="<?php echo $status === 'pending' ? 'current' : ''; ?>" style="<?php echo ($counts['pending'] ?? 0) > 0 ? 'font-weight: 700; color: var(--admin-warning-text);' : ''; ?>">Pending Review (<?php echo (int)($counts['pending'] ?? 0); ?>)</a> |</li>
     <li><a href="<?php echo htmlspecialchars(site_path('/admin/posts?status=draft'), ENT_QUOTES, 'UTF-8'); ?>" class="<?php echo $status === 'draft' ? 'current' : ''; ?>">Drafts (<?php echo (int)($counts['draft'] ?? 0); ?>)</a> |</li>
     <li><a href="<?php echo htmlspecialchars(site_path('/admin/posts?status=rejected'), ENT_QUOTES, 'UTF-8'); ?>" class="<?php echo $status === 'rejected' ? 'current' : ''; ?>">Rejected (<?php echo (int)($counts['rejected'] ?? 0); ?>)</a> |</li>
     <li><a href="<?php echo htmlspecialchars(site_path('/admin/posts?status=trash'), ENT_QUOTES, 'UTF-8'); ?>" class="<?php echo $status === 'trash' ? 'current' : ''; ?>">Trash (<?php echo (int)($counts['trash'] ?? 0); ?>)</a></li>
@@ -106,10 +106,10 @@
                             <?php if ($featImg && !empty($featImg->url)): ?>
                                 <img src="<?php echo htmlspecialchars($featImg->url, ENT_QUOTES, 'UTF-8'); ?>" 
                                      alt="Thumbnail" 
-                                     style="width: 44px; height: 44px; object-fit: cover; border-radius: 4px; border: 1px solid #e2e8f0;"
+                                     style="width: 44px; height: 44px; object-fit: cover; border-radius: 4px; border: 1px solid var(--admin-border);"
                                      onerror="this.style.display='none';">
                             <?php else: ?>
-                                <div style="width: 44px; height: 44px; background: #f1f5f9; border-radius: 4px; display: flex; align-items: center; justify-content: center; color: #94a3b8; font-size: 16px;">
+                                <div style="width: 44px; height: 44px; background: var(--admin-surface-subtle); border-radius: 4px; display: flex; align-items: center; justify-content: center; color: var(--admin-text-muted); font-size: 16px;">
                                     &#128247;
                                 </div>
                             <?php endif; ?>
@@ -141,8 +141,8 @@
                                     <?php endif; ?>
                                 <?php else: ?>
                                     <?php if ($post->status === 'pending' && $currentUser && $currentUser->canModeratePosts()): ?>
-                                        <button type="submit" form="core-action-form" formmethod="POST" formnovalidate formaction="<?php echo htmlspecialchars(site_base_path(), ENT_QUOTES, 'UTF-8'); ?>/admin/posts/approve?id=<?php echo (int)$post->id; ?>" class="core-action-link" style="color: #00a32a; font-weight: 700;">&#10003; Approve</button> |
-                                        <button type="submit" form="core-action-form" formmethod="POST" formnovalidate formaction="<?php echo htmlspecialchars(site_base_path(), ENT_QUOTES, 'UTF-8'); ?>/admin/posts/reject?id=<?php echo (int)$post->id; ?>" class="core-action-link" style="color: #d63638; font-weight: 600;">&#10007; Reject</button> |
+                                        <button type="submit" form="core-action-form" formmethod="POST" formnovalidate formaction="<?php echo htmlspecialchars(site_base_path(), ENT_QUOTES, 'UTF-8'); ?>/admin/posts/approve?id=<?php echo (int)$post->id; ?>" class="core-action-link" style="color: var(--admin-success-text); font-weight: 700;">&#10003; Approve</button> |
+                                        <button type="submit" form="core-action-form" formmethod="POST" formnovalidate formaction="<?php echo htmlspecialchars(site_base_path(), ENT_QUOTES, 'UTF-8'); ?>/admin/posts/reject?id=<?php echo (int)$post->id; ?>" class="core-action-link" style="color: var(--admin-danger-text); font-weight: 600;">&#10007; Reject</button> |
                                     <?php endif; ?>
                                     <?php if ($canEditThisPost): ?>
                                         <a href="<?php echo htmlspecialchars(site_path('/admin/posts/edit?id='), ENT_QUOTES, 'UTF-8'); ?><?php echo (int)$post->id; ?>">Edit</a> |
@@ -159,7 +159,7 @@
                             <?php if (!empty($cats)): ?>
                                 <div style="display: flex; gap: 4px; flex-wrap: wrap;">
                                     <?php foreach ($cats as $c): ?>
-                                        <span style="background: #e0f2fe; color: #0284c7; padding: 1px 6px; border-radius: 3px; font-size: 11px;">
+                                        <span style="background: var(--admin-info-bg); color: var(--admin-info-text); padding: 1px 6px; border-radius: 3px; font-size: 11px;">
                                             <?php echo htmlspecialchars($c->name, ENT_QUOTES, 'UTF-8'); ?>
                                         </span>
                                     <?php endforeach; ?>
@@ -170,7 +170,7 @@
                         </td>
                         <td>
                             <?php if (!empty($tags)): ?>
-                                <span style="font-size: 12px; color: #64748b;">
+                                <span style="font-size: 12px; color: var(--admin-text-muted);">
                                     <?php echo htmlspecialchars(implode(', ', array_map(fn($t) => $t->name, $tags)), ENT_QUOTES, 'UTF-8'); ?>
                                 </span>
                             <?php else: ?>
@@ -178,18 +178,18 @@
                             <?php endif; ?>
                         </td>
                         <td style="text-align: center;">
-                            <span style="display: inline-block; min-width: 22px; height: 22px; line-height: 22px; background: #f1f5f9; border-radius: 11px; font-size: 11px; font-weight: 600; color: #475569;">
+                            <span style="display: inline-block; min-width: 22px; height: 22px; line-height: 22px; background: var(--admin-surface-subtle); border-radius: 11px; font-size: 11px; font-weight: 600; color: var(--admin-text-muted);">
                                 <?php echo $commentCount; ?>
                             </span>
                         </td>
                         <td>
                             <?php
                             $badgeStyle = match ($post->status) {
-                                'published' => 'background: #dcfce7; color: #15803d;',
-                                'pending'   => 'background: #fef3c7; color: #92400e; font-weight: 700;',
-                                'rejected'  => 'background: #fee2e2; color: #991b1b;',
-                                'trash'     => 'background: #fee2e2; color: #991b1b;',
-                                default     => 'background: #f1f5f9; color: #475569;',
+                                'published' => 'background: var(--admin-success-bg); color: var(--admin-success-text);',
+                                'pending'   => 'background: var(--admin-warning-bg); color: var(--admin-warning-text); font-weight: 700;',
+                                'rejected'  => 'background: var(--admin-danger-bg); color: var(--admin-danger-text);',
+                                'trash'     => 'background: var(--admin-danger-bg); color: var(--admin-danger-text);',
+                                default     => 'background: var(--admin-surface-subtle); color: var(--admin-text-muted);',
                             };
                             $badgeLabel = match ($post->status) {
                                 'pending'   => 'Pending Review',

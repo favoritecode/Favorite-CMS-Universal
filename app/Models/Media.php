@@ -77,6 +77,8 @@ class Media extends BaseModel
             'id'             => (int)$this->id,
             'filename'       => (string)$this->filename,
             'url'            => (string)$this->url,
+            'thumbnail_url'  => $this->getThumbnailUrl(320, 240),
+            'srcset'         => $this->getResponsiveSrcset(),
             'mime_type'      => (string)$this->mime_type,
             'size'           => (int)$this->size,
             'formatted_size' => $this->getFormattedSize(),
@@ -148,12 +150,17 @@ class Media extends BaseModel
 
     public function getThumbnailUrl(int $width, int $height): string
     {
-        // Dummy implementation for thumbnail generation
-        return $this->url ?? '';
+        return \FavoriteCMS\Services\ImageVariants::thumbnail($this, $width, $height);
+    }
+
+    public function getResponsiveSrcset(): string
+    {
+        return \FavoriteCMS\Services\ImageVariants::srcset($this);
     }
 
     public function delete(): bool
     {
+        \FavoriteCMS\Services\ImageVariants::delete($this);
         if ($this->path && file_exists($this->path)) {
             unlink($this->path);
         }

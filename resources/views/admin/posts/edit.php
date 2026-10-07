@@ -8,7 +8,7 @@ $postId = (int)($post->id ?? 0);
 ?>
 <div class="page-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
     <h1 class="page-title"><?php echo $isEdit ? 'Edit Post' : 'Add New Post'; ?></h1>
-    <div style="display: flex; gap: 8px; align-items: center;">
+    <div class="editor-page-actions">
         <button type="button" id="preview-post-btn" class="btn btn-secondary" title="Preview post with active theme">
             &#128065; Preview Post
         </button>
@@ -22,8 +22,8 @@ $postId = (int)($post->id ?? 0);
 </div>
 
 <!-- Autosave Restore Banner -->
-<div id="autosave-banner" style="display: none; background: #eff6ff; border: 1px solid #93c5fd; border-left: 4px solid var(--wp-blue); padding: 10px 16px; border-radius: 4px; margin-bottom: 16px; justify-content: space-between; align-items: center;">
-    <div style="font-size: 13px; color: #1e40af;">
+<div id="autosave-banner" style="display: none; background: var(--admin-info-bg); border: 1px solid var(--admin-info-border); border-left: 4px solid var(--wp-blue); padding: 10px 16px; border-radius: 4px; margin-bottom: 16px; justify-content: space-between; align-items: center;">
+    <div style="font-size: 13px; color: var(--admin-info-text);">
         &#9888; <strong>Unsaved local draft found:</strong> A newer draft was saved in your browser from an earlier session.
     </div>
     <div style="display: flex; gap: 8px;">
@@ -60,7 +60,7 @@ $postId = (int)($post->id ?? 0);
             <!-- Permalink / Slug Section -->
             <div style="margin-bottom: 18px; font-size: 13px; color: var(--wp-text-muted); display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
                 <span><strong>Permalink:</strong> <?php echo htmlspecialchars(env('APP_URL', 'http://favorite-cms.local')); ?>/post/</span>
-                <span id="slug-display" style="color: var(--wp-dark); font-weight: 600; background: #e2e8f0; padding: 2px 6px; border-radius: 3px;">
+                <span id="slug-display" style="color: var(--admin-text-heading); font-weight: 600; background: var(--admin-surface-elevated); padding: 2px 6px; border-radius: 3px;">
                     <?php echo htmlspecialchars($post->slug ?? 'auto-generated'); ?>
                 </span>
                 <button type="button" id="edit-slug-btn" class="btn btn-secondary" style="padding: 2px 8px; font-size: 11px;">Edit</button>
@@ -76,12 +76,12 @@ $postId = (int)($post->id ?? 0);
             </div>
 
             <!-- Professional Dual-Mode Post Editor -->
-            <div class="editor-wrapper" style="background: #ffffff; border: 1px solid var(--wp-border); border-radius: 6px; overflow: hidden; margin-bottom: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+            <div class="editor-wrapper" style="background: var(--admin-surface); border: 1px solid var(--wp-border); border-radius: 6px; overflow: hidden; margin-bottom: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
                 <!-- Top Bar: Mode Switcher & Word Count -->
-                <div style="background: #f8fafc; border-bottom: 1px solid var(--wp-border); padding: 8px 12px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                <div style="background: var(--admin-surface-subtle); border-bottom: 1px solid var(--wp-border); padding: 8px 12px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
                     <!-- Mode Switcher -->
-                    <div style="display: flex; gap: 4px; background: #e2e8f0; padding: 3px; border-radius: 6px;">
-                        <button type="button" id="mode-visual-btn" class="mode-tab-btn active" style="padding: 5px 14px; font-size: 12px; font-weight: 600; border: none; border-radius: 4px; cursor: pointer; background: #ffffff; color: var(--wp-blue); box-shadow: 0 1px 2px rgba(0,0,0,0.08);">
+                    <div style="display: flex; gap: 4px; background: var(--admin-surface-elevated); padding: 3px; border-radius: 6px;">
+                        <button type="button" id="mode-visual-btn" class="mode-tab-btn active" style="padding: 5px 14px; font-size: 12px; font-weight: 600; border: none; border-radius: 4px; cursor: pointer; background: var(--admin-surface); color: var(--wp-blue); box-shadow: 0 1px 2px rgba(0,0,0,0.08);">
                             &#9998; Visual Mode
                         </button>
                         <button type="button" id="mode-code-btn" class="mode-tab-btn" style="padding: 5px 14px; font-size: 12px; font-weight: 600; border: none; border-radius: 4px; cursor: pointer; background: transparent; color: var(--wp-text-muted);">
@@ -93,12 +93,12 @@ $postId = (int)($post->id ?? 0);
                     <div style="display: flex; align-items: center; gap: 12px; font-size: 12px; color: var(--wp-text-muted);">
                         <span id="editor-word-count">Words: 0</span>
                         <span id="editor-char-count">Chars: 0</span>
-                        <span id="autosave-status" style="color: #64748b; font-style: italic;"></span>
+                        <span id="autosave-status" style="color: var(--admin-text-muted); font-style: italic;"></span>
                     </div>
                 </div>
 
                 <!-- Visual Mode Formatting Toolbar -->
-                <div id="visual-toolbar" style="background: #ffffff; border-bottom: 1px solid var(--wp-border); padding: 6px 10px; display: flex; gap: 4px; flex-wrap: wrap; align-items: center;">
+                <div id="visual-toolbar" style="background: var(--admin-surface); border-bottom: 1px solid var(--wp-border); padding: 6px 10px; display: flex; gap: 4px; flex-wrap: wrap; align-items: center;">
                     <!-- Style block dropdown -->
                     <select id="format-block-select" class="toolbar-select" title="Paragraph Format">
                         <option value="p">Paragraph</option>
@@ -147,7 +147,7 @@ $postId = (int)($post->id ?? 0);
                     <button type="button" class="rich-btn" id="insert-table-btn" title="Insert Table">&#128392; Table</button>
 
                     <!-- Media button -->
-                    <button type="button" class="rich-btn" id="open-media-modal-btn" style="background: #f0fdf4; border-color: #86efac; color: #166534; font-weight: 600;" title="Insert Media Image or File">
+                    <button type="button" class="rich-btn" id="open-media-modal-btn" style="background: var(--admin-success-bg); border-color: var(--admin-success-border); color: var(--admin-success-text); font-weight: 600;" title="Insert Media Image or File">
                         &#128247; Add Media
                     </button>
 
@@ -160,8 +160,8 @@ $postId = (int)($post->id ?? 0);
                 </div>
 
                 <!-- Code Mode Secondary Bar (Quick Tag Inserts) -->
-                <div id="code-toolbar" style="display: none; background: #ffffff; border-bottom: 1px solid var(--wp-border); padding: 6px 10px; gap: 4px; flex-wrap: wrap; align-items: center;">
-                    <span style="font-size: 11px; font-weight: 600; color: #64748b; margin-right: 4px;">HTML Inserts:</span>
+                <div id="code-toolbar" style="display: none; background: var(--admin-surface); border-bottom: 1px solid var(--wp-border); padding: 6px 10px; gap: 4px; flex-wrap: wrap; align-items: center;">
+                    <span style="font-size: 11px; font-weight: 600; color: var(--admin-text-muted); margin-right: 4px;">HTML Inserts:</span>
                     <button type="button" class="code-insert-btn" data-snip="<h2>", data-endsnip="</h2>">H2</button>
                     <button type="button" class="code-insert-btn" data-snip="<h3>", data-endsnip="</h3>">H3</button>
                     <button type="button" class="code-insert-btn" data-snip="<p>", data-endsnip="</p>">&lt;p&gt;</button>
@@ -172,30 +172,32 @@ $postId = (int)($post->id ?? 0);
                     <button type="button" class="code-insert-btn" data-snip="<ul>\n  <li>", data-endsnip="</li>\n</ul>">&lt;ul&gt;</button>
                     <button type="button" class="code-insert-btn" data-snip="<ol>\n  <li>", data-endsnip="</li>\n</ol>">&lt;ol&gt;</button>
                     <button type="button" class="code-insert-btn" data-snip="<pre><code>", data-endsnip="</code></pre>">&lt;code&gt;</button>
-                    <button type="button" class="code-insert-btn" id="open-media-code-btn" style="background: #f0fdf4; border-color: #86efac; color: #166534; font-weight: 600;">&#128247; Add Media</button>
+                    <button type="button" class="code-insert-btn" id="code-wrap-toggle" aria-pressed="false" title="Toggle code wrapping">↔ Wrap: Off</button>
+                    <button type="button" class="code-insert-btn" id="open-media-code-btn" style="background: var(--admin-success-bg); border-color: var(--admin-success-border); color: var(--admin-success-text); font-weight: 600;">&#128247; Add Media</button>
                 </div>
 
                 <!-- 1. Visual Mode Content Container (contenteditable) -->
-                <div id="visual-mode-container" style="display: block; padding: 20px 24px; min-height: 440px; background: #ffffff; cursor: text;">
+                <div id="visual-mode-container" style="display: block; height: 500px; min-height: 500px; padding: 20px 24px; background: var(--admin-surface); cursor: text; box-sizing: border-box; overflow-x: auto; overflow-y: auto;">
                     <div id="visual-editor" 
                          contenteditable="true" 
                          class="entry-content" 
-                         style="outline: none; min-height: 400px; font-size: 15px; line-height: 1.7; color: #1e293b;">
+                         style="outline: none; min-height: 440px; font-size: 15px; line-height: 1.7; color: var(--admin-text-heading);">
                         <?php echo $revision['visual'] ?? $editorContent; ?>
                     </div>
                 </div>
 
                 <!-- 2. Code Mode Container (with synchronized Line Numbers Gutter) -->
-                <div id="code-mode-container" style="display: none; background: #1e293b; position: relative;">
-                    <div style="display: flex; min-height: 440px;">
+                <div id="code-mode-container" style="display: none; height: 500px; min-height: 500px; background: var(--admin-code-bg); position: relative; overflow: hidden; box-sizing: border-box;">
+                    <div style="display: flex; width: 100%; height: 100%; min-height: 0; overflow: hidden;">
                         <!-- Gutter for Line Numbers -->
-                        <div id="code-gutter" style="width: 48px; background: #0f172a; color: #64748b; font-family: Consolas, Monaco, monospace; font-size: 13px; line-height: 1.6; padding: 14px 6px; text-align: right; user-select: none; border-right: 1px solid #334155; overflow: hidden;">
+                        <div id="code-gutter" style="flex: 0 0 48px; width: 48px; height: 100%; box-sizing: border-box; background: var(--admin-code-bg); color: var(--admin-text-muted); font-family: Consolas, Monaco, monospace; font-size: 13px; line-height: 1.6; padding: 14px 6px; text-align: right; user-select: none; border-right: 1px solid var(--admin-border); overflow: hidden;">
                             1
                         </div>
                         <!-- Source Textarea -->
                         <textarea id="code-editor" 
                                   class="code-editor-textarea" 
-                                  style="flex: 1; min-height: 440px; background: #1e293b; color: #f8fafc; font-family: Consolas, Monaco, 'Courier New', monospace; font-size: 13px; line-height: 1.6; border: none; padding: 14px; outline: none; resize: vertical; tab-size: 2; white-space: pre; overflow-x: auto;" 
+                                  wrap="off"
+                                  style="flex: 1 1 auto; width: 0; min-width: 0; height: 100%; min-height: 0; box-sizing: border-box; background: var(--admin-code-bg); color: var(--admin-code-text); font-family: Consolas, Monaco, 'Courier New', monospace; font-size: 13px; line-height: 1.6; border: none; padding: 14px; outline: none; resize: none; tab-size: 2; white-space: pre; overflow: auto;" 
                                   placeholder="Write your post HTML content here..."><?php echo htmlspecialchars($editorContent, ENT_QUOTES, 'UTF-8'); ?></textarea>
                     </div>
                 </div>
@@ -229,6 +231,11 @@ $postId = (int)($post->id ?? 0);
                     <label for="meta_description">Meta Description</label>
                     <textarea id="meta_description" name="meta_description" class="form-control" style="min-height: 60px;" placeholder="Brief description displayed in search snippets..."><?php echo htmlspecialchars($seo->meta_description ?? '', ENT_QUOTES, 'UTF-8'); ?></textarea>
                 </div>
+                <div class="form-group">
+                    <label for="og_image_url">Social image URL (optional)</label>
+                    <input type="text" inputmode="url" id="og_image_url" name="og_image_url" class="form-control" value="<?php echo htmlspecialchars($seo->og_image_url ?? '', ENT_QUOTES, 'UTF-8'); ?>" placeholder="Auto: featured image or first content image">
+                </div>
+                <?php $seoEditorItem = $post ?? null; include APP_ROOT . '/resources/views/partials/seo-editor.php'; ?>
                 <div class="form-row">
                     <div class="form-group">
                         <label for="og_title">Social (Open Graph) Title</label>
@@ -268,11 +275,11 @@ $postId = (int)($post->id ?? 0);
                 </h3>
 
                 <?php if ($post?->status === 'pending'): ?>
-                    <div style="background: #fef3c7; color: #92400e; padding: 10px; border-radius: 4px; font-size: 12px; margin-bottom: 12px; border-left: 3px solid #f59e0b;">
+                    <div style="background: var(--admin-warning-bg); color: var(--admin-warning-text); padding: 10px; border-radius: 4px; font-size: 12px; margin-bottom: 12px; border-left: 3px solid var(--admin-warning-border);">
                         &#9888; <strong>Pending Moderation:</strong> This post is awaiting review and approval by a moderator.
                     </div>
                 <?php elseif ($post?->status === 'rejected'): ?>
-                    <div style="background: #fee2e2; color: #991b1b; padding: 10px; border-radius: 4px; font-size: 12px; margin-bottom: 12px; border-left: 3px solid #ef4444;">
+                    <div style="background: var(--admin-danger-bg); color: var(--admin-danger-text); padding: 10px; border-radius: 4px; font-size: 12px; margin-bottom: 12px; border-left: 3px solid var(--admin-danger-border);">
                         &#10007; <strong>Rejected:</strong> This post was rejected during moderation. You may update and resubmit it.
                     </div>
                 <?php endif; ?>
@@ -322,8 +329,8 @@ $postId = (int)($post->id ?? 0);
 
                 <?php if ($isEdit && $post?->status === 'pending' && $currentUser && $currentUser->canModeratePosts()): ?>
                     <div style="display: flex; gap: 8px; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--wp-border);">
-                        <button type="submit" form="core-action-form" formmethod="POST" formnovalidate formaction="<?php echo htmlspecialchars(site_base_path(), ENT_QUOTES, 'UTF-8'); ?>/admin/posts/approve?id=<?php echo $postId; ?>" class="btn btn-primary" style="flex: 1; text-align: center; background: #00a32a; border-color: #00a32a; font-weight: 600;">&#10003; Approve Post</button>
-                        <button type="submit" form="core-action-form" formmethod="POST" formnovalidate formaction="<?php echo htmlspecialchars(site_base_path(), ENT_QUOTES, 'UTF-8'); ?>/admin/posts/reject?id=<?php echo $postId; ?>" class="btn btn-secondary" style="color: #d63638; font-weight: 600;">&#10007; Reject</button>
+                        <button type="submit" form="core-action-form" formmethod="POST" formnovalidate formaction="<?php echo htmlspecialchars(site_base_path(), ENT_QUOTES, 'UTF-8'); ?>/admin/posts/approve?id=<?php echo $postId; ?>" class="btn btn-primary" style="flex: 1; text-align: center; background: var(--admin-success-solid); border-color: var(--admin-success-border); font-weight: 600;">&#10003; Approve Post</button>
+                        <button type="submit" form="core-action-form" formmethod="POST" formnovalidate formaction="<?php echo htmlspecialchars(site_base_path(), ENT_QUOTES, 'UTF-8'); ?>/admin/posts/reject?id=<?php echo $postId; ?>" class="btn btn-secondary" style="color: var(--admin-danger-text); font-weight: 600;">&#10007; Reject</button>
                     </div>
                 <?php endif; ?>
 
@@ -380,8 +387,8 @@ $postId = (int)($post->id ?? 0);
                     </div>
 
                     <!-- URL Import Row (toggleable) -->
-                    <div id="feat-img-url-box" style="display: none; margin-top: 8px; padding: 10px; background: #f8fafc; border: 1px solid var(--wp-border); border-radius: 4px;">
-                        <label style="display: block; font-size: 11px; font-weight: 600; margin-bottom: 4px; color: var(--wp-dark);">Image URL (HTTP/HTTPS):</label>
+                    <div id="feat-img-url-box" style="display: none; margin-top: 8px; padding: 10px; background: var(--admin-surface-subtle); border: 1px solid var(--wp-border); border-radius: 4px;">
+                        <label style="display: block; font-size: 11px; font-weight: 600; margin-bottom: 4px; color: var(--admin-text-heading);">Image URL (HTTP/HTTPS):</label>
                         <div style="display: flex; gap: 6px;">
                             <input type="url" id="feat-img-url-input" class="form-control" placeholder="https://example.com/image.jpg" style="font-size: 12px; padding: 4px 8px; flex: 1;">
                             <button type="button" id="feat-img-url-submit-btn" class="btn btn-primary" style="font-size: 11px; padding: 4px 10px; white-space: nowrap;">Import</button>
@@ -428,16 +435,16 @@ $postId = (int)($post->id ?? 0);
 
 <!-- Live Post Preview Modal -->
 <div id="preview-modal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.65); z-index: 100000; align-items: center; justify-content: center;">
-    <div style="background: #ffffff; width: 95%; max-width: 960px; height: 90vh; border-radius: 8px; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25);">
-        <div style="padding: 12px 20px; border-bottom: 1px solid var(--wp-border); display: flex; justify-content: space-between; align-items: center; background: #f8fafc;">
-            <div style="font-weight: 700; font-size: 14px; color: var(--wp-dark); display: flex; align-items: center; gap: 8px;">
+    <div style="background: var(--admin-surface); width: 95%; max-width: 960px; height: 90vh; border-radius: 8px; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25);">
+        <div style="padding: 12px 20px; border-bottom: 1px solid var(--wp-border); display: flex; justify-content: space-between; align-items: center; background: var(--admin-surface-subtle);">
+            <div style="font-weight: 700; font-size: 14px; color: var(--admin-text-heading); display: flex; align-items: center; gap: 8px;">
                 <span>&#128065; Live Post Preview</span>
                 <span style="font-weight: normal; font-size: 11px; color: var(--wp-text-muted);">(Rendered with Theme Styling)</span>
             </div>
-            <button type="button" id="close-preview-modal" style="background: none; border: none; font-size: 22px; cursor: pointer; color: #64748b;">&times;</button>
+            <button type="button" id="close-preview-modal" style="background: none; border: none; font-size: 22px; cursor: pointer; color: var(--admin-text-muted);">&times;</button>
         </div>
-        <div style="flex: 1; overflow: hidden; background: #f1f5f9;">
-            <iframe id="preview-iframe" name="preview-iframe" style="width: 100%; height: 100%; border: none; background: #ffffff;"></iframe>
+        <div style="flex: 1; overflow: hidden; background: var(--admin-surface-subtle);">
+            <iframe id="preview-iframe" name="preview-iframe" style="width: 100%; height: 100%; border: none; background: var(--admin-surface);"></iframe>
         </div>
     </div>
 </div>
@@ -450,7 +457,7 @@ $postId = (int)($post->id ?? 0);
     transition: all 0.15s ease;
 }
 .mode-tab-btn.active {
-    background: #ffffff !important;
+    background: var(--admin-surface) !important;
     color: var(--wp-blue) !important;
     box-shadow: 0 1px 3px rgba(0,0,0,0.1);
 }
@@ -459,8 +466,8 @@ $postId = (int)($post->id ?? 0);
     border-radius: 4px;
     padding: 3px 6px;
     font-size: 12px;
-    background: #ffffff;
-    color: var(--wp-dark);
+    background: var(--admin-surface);
+    color: var(--admin-text-heading);
     cursor: pointer;
 }
 .toolbar-sep {
@@ -471,48 +478,48 @@ $postId = (int)($post->id ?? 0);
     margin: 0 4px;
 }
 .rich-btn {
-    background: #ffffff;
+    background: var(--admin-surface);
     border: 1px solid var(--wp-border);
     border-radius: 3px;
     padding: 3px 8px;
     font-size: 12px;
-    color: var(--wp-dark);
+    color: var(--admin-text-heading);
     cursor: pointer;
     line-height: 1.4;
     transition: background 0.1s ease;
 }
 .rich-btn:hover {
-    background: #f1f5f9;
+    background: var(--admin-surface-subtle);
     border-color: var(--wp-blue);
     color: var(--wp-blue);
 }
 .rich-btn.active {
-    background: #e0f2fe;
+    background: var(--admin-info-bg);
     border-color: var(--wp-blue);
     color: var(--wp-blue);
 }
 .code-insert-btn {
-    background: #f8fafc;
-    border: 1px solid #cbd5e1;
+    background: var(--admin-surface-subtle);
+    border: 1px solid var(--admin-border);
     border-radius: 3px;
     padding: 2px 6px;
     font-size: 11px;
     font-family: monospace;
-    color: #334155;
+    color: var(--admin-text);
     cursor: pointer;
 }
 .code-insert-btn:hover {
-    background: #e2e8f0;
+    background: var(--admin-surface-elevated);
     color: var(--wp-blue);
 }
 .media-filter-btn {
-    background: #ffffff;
+    background: var(--admin-surface);
     border: 1px solid var(--wp-border);
     border-radius: 3px;
     padding: 2px 8px;
     font-size: 11px;
     cursor: pointer;
-    color: #475569;
+    color: var(--admin-text-muted);
 }
 .media-filter-btn.active {
     background: var(--wp-blue);
@@ -524,7 +531,7 @@ $postId = (int)($post->id ?? 0);
     border-radius: 6px;
     cursor: pointer;
     overflow: hidden;
-    background: #ffffff;
+    background: var(--admin-surface);
     box-shadow: 0 1px 2px rgba(0,0,0,0.05);
     text-align: center;
     padding: 4px;
@@ -543,31 +550,59 @@ $postId = (int)($post->id ?? 0);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    color: #475569;
+    color: var(--admin-text-muted);
 }
 .media-picker-card:hover {
     border-color: var(--wp-blue) !important;
-    background: #f0f9ff !important;
+    background: var(--admin-info-bg) !important;
 }
 .media-picker-card.selected {
     border-color: var(--wp-blue) !important;
     box-shadow: 0 0 0 2px var(--wp-blue);
-    background: #e0f2fe !important;
+    background: var(--admin-info-bg) !important;
 }
 /* Visual Editor Styling matching Theme Content */
 #visual-editor p { margin-bottom: 1em; }
-#visual-editor h1, #visual-editor h2, #visual-editor h3, #visual-editor h4 { margin-top: 1.2em; margin-bottom: 0.5em; font-weight: 700; color: #0f172a; }
-#visual-editor blockquote { border-left: 4px solid var(--wp-blue); margin: 1em 0; padding: 8px 16px; background: #f8fafc; font-style: italic; color: #475569; }
+#visual-editor h1, #visual-editor h2, #visual-editor h3, #visual-editor h4 { margin-top: 1.2em; margin-bottom: 0.5em; font-weight: 700; color: var(--admin-text-heading); }
+#visual-editor blockquote { border-left: 4px solid var(--wp-blue); margin: 1em 0; padding: 8px 16px; background: var(--admin-surface-subtle); font-style: italic; color: var(--admin-text-muted); }
 #visual-editor ul, #visual-editor ol { margin: 1em 0 1em 24px; }
 #visual-editor li { margin-bottom: 0.3em; }
 #visual-editor table { border-collapse: collapse; width: 100%; margin: 1em 0; }
-#visual-editor th, #visual-editor td { border: 1px solid #cbd5e1; padding: 8px 12px; text-align: left; }
-#visual-editor th { background: #f1f5f9; font-weight: 600; }
+#visual-editor th, #visual-editor td { border: 1px solid var(--admin-border); padding: 8px 12px; text-align: left; }
+#visual-editor th { background: var(--admin-surface-subtle); font-weight: 600; }
 #visual-editor img { max-width: 100%; height: auto; border-radius: 4px; }
 #visual-editor img.align-center { display: block; margin: 1em auto; }
 #visual-editor img.align-left { float: left; margin: 0 1em 1em 0; }
 #visual-editor img.align-right { float: right; margin: 0 0 1em 1em; }
-#visual-editor pre { background: #1e293b; color: #f8fafc; padding: 12px 16px; border-radius: 6px; overflow-x: auto; font-family: monospace; font-size: 13px; }
+#visual-editor pre { background: var(--admin-code-bg); color: var(--admin-code-text); padding: 12px 16px; border-radius: 6px; overflow-x: auto; font-family: monospace; font-size: 13px; }
+
+/* Post editor only: clean two-axis scrollbars. */
+#visual-mode-container,
+#code-editor {
+    scrollbar-width: thin;
+    scrollbar-color: #64748b transparent;
+}
+#visual-mode-container::-webkit-scrollbar,
+#code-editor::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+#visual-mode-container::-webkit-scrollbar-track,
+#code-editor::-webkit-scrollbar-track {
+    background: transparent;
+}
+#visual-mode-container::-webkit-scrollbar-thumb,
+#code-editor::-webkit-scrollbar-thumb {
+    background: var(--admin-text-muted);
+    border-radius: 999px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+}
+#visual-mode-container::-webkit-scrollbar-thumb:hover,
+#code-editor::-webkit-scrollbar-thumb:hover {
+    background: var(--admin-text-muted);
+    background-clip: padding-box;
+}
 </style>
 
 <script>
@@ -601,7 +636,9 @@ document.addEventListener('DOMContentLoaded', function() {
     var charCountEl    = document.getElementById('editor-char-count');
     var autosaveStatus = document.getElementById('autosave-status');
 
-    var currentMode    = localStorage.getItem('favorite_post_editor_mode') || 'visual';
+    var editorStorage = { get: function(k) { try { return localStorage.getItem(k); } catch(e) { return null; } }, set: function(k,v) { try { localStorage.setItem(k,v); } catch(e) {} } };
+    var currentMode    = editorStorage.get('favorite_post_editor_mode') || 'visual';
+    var codeWrapEnabled = editorStorage.get('favorite_post_editor_code_wrap') === '1';
     var isUserEditedSlug = <?php echo ($isEdit && !empty($post->slug)) ? 'true' : 'false'; ?>;
 
     // ==========================================
@@ -659,6 +696,29 @@ document.addEventListener('DOMContentLoaded', function() {
         codeGutter.innerHTML = numbers.join('<br>');
     }
 
+    function applyCodeWrap(enabled) {
+        codeWrapEnabled = !!enabled;
+        codeEditor.setAttribute('wrap', codeWrapEnabled ? 'soft' : 'off');
+        codeEditor.style.whiteSpace = codeWrapEnabled ? 'pre-wrap' : 'pre';
+        codeEditor.style.overflowX = codeWrapEnabled ? 'hidden' : 'auto';
+        var wrapBtn = document.getElementById('code-wrap-toggle');
+        if (wrapBtn) {
+            wrapBtn.textContent = codeWrapEnabled ? '↔ Wrap: On' : '↔ Wrap: Off';
+            wrapBtn.setAttribute('aria-pressed', codeWrapEnabled ? 'true' : 'false');
+            wrapBtn.classList.toggle('active', codeWrapEnabled);
+        }
+        editorStorage.set('favorite_post_editor_code_wrap', codeWrapEnabled ? '1' : '0');
+    }
+
+    var codeWrapToggle = document.getElementById('code-wrap-toggle');
+    if (codeWrapToggle) {
+        codeWrapToggle.addEventListener('click', function() {
+            applyCodeWrap(!codeWrapEnabled);
+            codeEditor.focus();
+        });
+    }
+    applyCodeWrap(codeWrapEnabled);
+
     codeEditor.addEventListener('input', function() {
         updateCodeGutter();
         updateMetrics();
@@ -704,7 +764,7 @@ document.addEventListener('DOMContentLoaded', function() {
             modeCodeBtn.classList.add('active');
             modeVisualBtn.classList.remove('active');
             currentMode = 'code';
-            localStorage.setItem('favorite_post_editor_mode', 'code');
+            editorStorage.set('favorite_post_editor_mode', 'code');
         } else {
             // Code -> Visual sync
             var code = codeEditor.value;
@@ -718,7 +778,7 @@ document.addEventListener('DOMContentLoaded', function() {
             modeVisualBtn.classList.add('active');
             modeCodeBtn.classList.remove('active');
             currentMode = 'visual';
-            localStorage.setItem('favorite_post_editor_mode', 'visual');
+            editorStorage.set('favorite_post_editor_mode', 'visual');
         }
         updateMetrics();
     }
@@ -832,6 +892,10 @@ document.addEventListener('DOMContentLoaded', function() {
     // ==========================================
     // 5. Canonical Form Submission Sync
     // ==========================================
+    form.favoriteEditor = {
+        read: function() { syncContentToCanonical(); return canonicalContent.value; },
+        set: function(value) { codeEditor.value = value; setEditorMode('code', true); canonicalContent.value = value; updateCodeGutter(); updateMetrics(); }
+    };
     function syncContentToCanonical() {
         if (currentMode === 'visual') {
             canonicalContent.value = visualEditor.innerHTML;
@@ -845,7 +909,7 @@ document.addEventListener('DOMContentLoaded', function() {
         actionType.value = 'draft';
         statusSelect.value = 'draft';
         saveDraftSnapshot();
-        form.submit();
+        form.requestSubmit();
     });
 
     document.getElementById('publish-btn').addEventListener('click', function() {
@@ -853,7 +917,7 @@ document.addEventListener('DOMContentLoaded', function() {
         actionType.value = 'publish';
         statusSelect.value = 'published';
         saveDraftSnapshot();
-        form.submit();
+        form.requestSubmit();
     });
 
     // ==========================================
@@ -1096,22 +1160,22 @@ document.addEventListener('DOMContentLoaded', function() {
         if (tab === 'browse') {
             tabBrowseBtn.classList.add('active');
             tabUploadBtn.classList.remove('active');
-            tabBrowseBtn.style.background = '#ffffff';
+            tabBrowseBtn.style.background = 'var(--admin-surface)';
             tabBrowseBtn.style.color = 'var(--wp-blue)';
             tabBrowseBtn.style.borderColor = 'var(--wp-blue)';
-            tabUploadBtn.style.background = '#f8fafc';
-            tabUploadBtn.style.color = '#64748b';
+            tabUploadBtn.style.background = 'var(--admin-surface-subtle)';
+            tabUploadBtn.style.color = 'var(--admin-text-muted)';
             tabUploadBtn.style.borderColor = 'var(--wp-border)';
             viewBrowse.style.display = 'flex';
             viewUpload.style.display = 'none';
         } else {
             tabUploadBtn.classList.add('active');
             tabBrowseBtn.classList.remove('active');
-            tabUploadBtn.style.background = '#ffffff';
+            tabUploadBtn.style.background = 'var(--admin-surface)';
             tabUploadBtn.style.color = 'var(--wp-blue)';
             tabUploadBtn.style.borderColor = 'var(--wp-blue)';
-            tabBrowseBtn.style.background = '#f8fafc';
-            tabBrowseBtn.style.color = '#64748b';
+            tabBrowseBtn.style.background = 'var(--admin-surface-subtle)';
+            tabBrowseBtn.style.color = 'var(--admin-text-muted)';
             tabBrowseBtn.style.borderColor = 'var(--wp-border)';
             viewBrowse.style.display = 'none';
             viewUpload.style.display = 'block';
@@ -1162,13 +1226,13 @@ document.addEventListener('DOMContentLoaded', function() {
 
         var inner;
         if (m.is_image) {
-            inner = '<img src="' + escapeMediaHtml(m.url) + '" alt="' + escapeMediaHtml(m.filename) + '" loading="lazy">';
+            inner = '<img src="' + escapeMediaHtml(m.thumbnail_url || m.url) + '" alt="' + escapeMediaHtml(m.filename) + '" loading="lazy">';
         } else if (m.is_video) {
-            inner = '<div style="height: 80px; display: flex; align-items: center; justify-content: center; background: #0f172a; color: #ffffff; font-size: 24px;">&#127916;</div>';
+            inner = '<div style="height: 80px; display: flex; align-items: center; justify-content: center; background: var(--admin-code-bg); color: var(--admin-code-text); font-size: 24px;">&#127916;</div>';
         } else if (m.is_audio) {
-            inner = '<div style="height: 80px; display: flex; align-items: center; justify-content: center; background: #0f172a; color: #ffffff; font-size: 24px;">&#127925;</div>';
+            inner = '<div style="height: 80px; display: flex; align-items: center; justify-content: center; background: var(--admin-code-bg); color: var(--admin-code-text); font-size: 24px;">&#127925;</div>';
         } else {
-            inner = '<div style="height: 80px; display: flex; align-items: center; justify-content: center; background: #e2e8f0; font-size: 24px;">&#128196;</div>';
+            inner = '<div style="height: 80px; display: flex; align-items: center; justify-content: center; background: var(--admin-surface-elevated); font-size: 24px;">&#128196;</div>';
         }
         inner += '<div class="card-name">' + escapeMediaHtml(m.filename) + '</div>';
         card.innerHTML = inner;
@@ -1265,7 +1329,8 @@ document.addEventListener('DOMContentLoaded', function() {
             thumbEl.innerHTML = '<div style="padding: 24px; font-size: 32px;">&#128196;</div>';
         }
 
-        document.getElementById('selected-media-summary').textContent = 'Selected: ' + selectedMedia.name;
+        var selectedMediaSummary = document.getElementById('selected-media-summary');
+        if (selectedMediaSummary) selectedMediaSummary.textContent = 'Selected: ' + selectedMedia.name;
         confirmMediaBtn.disabled = false;
     }
 
@@ -1296,7 +1361,7 @@ document.addEventListener('DOMContentLoaded', function() {
         modalProgBar.style.width = '0%';
         modalProgPct.textContent = '0%';
         modalProgName.textContent = file.name;
-        modalStatusMsg.style.color = '#334155';
+        modalStatusMsg.style.color = 'var(--admin-text)';
         modalStatusMsg.textContent = 'Uploading file...';
 
         var xhr = new XMLHttpRequest();
@@ -1317,7 +1382,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     if (res.success && res.media) {
                         modalProgBar.style.width = '100%';
                         modalProgPct.textContent = '100%';
-                        modalStatusMsg.style.color = '#16a34a';
+                        modalStatusMsg.style.color = 'var(--admin-success-text)';
                         modalStatusMsg.textContent = 'Upload successful!';
 
                         // Add new card to grid
@@ -1334,9 +1399,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
                         var innerHtml = '';
                         if (m.is_image) {
-                            innerHtml = '<img src="' + m.url + '" alt="' + m.filename + '">';
+                            innerHtml = '<img src="' + (m.thumbnail_url || m.url) + '" alt="' + m.filename + '">';
                         } else {
-                            innerHtml = '<div style="height: 80px; display: flex; align-items: center; justify-content: center; background: #e2e8f0; font-size: 24px;">&#128196;</div>';
+                            innerHtml = '<div style="height: 80px; display: flex; align-items: center; justify-content: center; background: var(--admin-surface-elevated); font-size: 24px;">&#128196;</div>';
                         }
                         innerHtml += '<div class="card-name">' + m.filename + '</div>';
                         card.innerHTML = innerHtml;
@@ -1359,12 +1424,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (errObj.message) err = errObj.message;
             } catch(e) {}
 
-            modalStatusMsg.style.color = '#dc2626';
+            modalStatusMsg.style.color = 'var(--admin-danger-text)';
             modalStatusMsg.textContent = err;
         };
 
         xhr.onerror = function() {
-            modalStatusMsg.style.color = '#dc2626';
+            modalStatusMsg.style.color = 'var(--admin-danger-text)';
             modalStatusMsg.textContent = 'Network error occurred.';
         };
 
@@ -1378,18 +1443,18 @@ document.addEventListener('DOMContentLoaded', function() {
     modalUploadZone.addEventListener('dragover', function(e) {
         e.preventDefault();
         this.style.borderColor = 'var(--wp-blue)';
-        this.style.background = '#eff6ff';
+        this.style.background = 'var(--admin-info-bg)';
     });
 
     modalUploadZone.addEventListener('dragleave', function() {
-        this.style.borderColor = '#94a3b8';
-        this.style.background = '#ffffff';
+        this.style.borderColor = 'var(--admin-border)';
+        this.style.background = 'var(--admin-surface)';
     });
 
     modalUploadZone.addEventListener('drop', function(e) {
         e.preventDefault();
-        this.style.borderColor = '#94a3b8';
-        this.style.background = '#ffffff';
+        this.style.borderColor = 'var(--admin-border)';
+        this.style.background = 'var(--admin-surface)';
         if (e.dataTransfer.files.length > 0) {
             handleModalUpload(e.dataTransfer.files[0]);
         }
@@ -1553,3 +1618,5 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 </script>
+
+<?php $workspaceType = 'post'; $workspaceRecord = $post ?? null; include APP_ROOT . '/resources/views/admin/partials/content-workspace.php'; ?>

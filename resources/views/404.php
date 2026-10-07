@@ -7,16 +7,18 @@ $siteName = (string)\FavoriteCMS\Models\Setting::get('general', 'site_name', 'Fa
 $base = (string)($GLOBALS['favorite_cms_base_path'] ?? '');
 ?>
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="<?php echo \FavoriteCMS\Services\Appearance::resolve(); ?>">
 <head>
+    <?php include __DIR__ . '/partials/appearance/head.php'; ?>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex,follow">
     <title>404 Not Found &mdash; <?php echo htmlspecialchars($siteName); ?></title>
     <style>
         body {
             font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            background: #f8fafc;
-            color: #0f172a;
+            background: var(--cms-surface-subtle);
+            color: var(--cms-text-heading);
             margin: 0;
             padding: 40px 20px;
             display: flex;
@@ -26,8 +28,8 @@ $base = (string)($GLOBALS['favorite_cms_base_path'] ?? '');
             box-sizing: border-box;
         }
         .card {
-            background: #ffffff;
-            border: 1px solid #e2e8f0;
+            background: var(--cms-surface);
+            border: 1px solid var(--cms-border);
             border-radius: 12px;
             padding: 40px;
             max-width: 520px;
@@ -37,7 +39,7 @@ $base = (string)($GLOBALS['favorite_cms_base_path'] ?? '');
         .code {
             font-size: 72px;
             font-weight: 900;
-            color: #ef4444;
+            color: var(--cms-danger-text);
             line-height: 1;
             margin: 0 0 16px 0;
         }
@@ -47,14 +49,14 @@ $base = (string)($GLOBALS['favorite_cms_base_path'] ?? '');
             margin: 0 0 12px 0;
         }
         p {
-            color: #64748b;
+            color: var(--cms-text-muted);
             font-size: 15px;
             margin: 0 0 24px 0;
             line-height: 1.5;
         }
         a {
             display: inline-block;
-            background: #2563eb;
+            background: var(--cms-info-solid);
             color: #ffffff;
             font-weight: 600;
             padding: 10px 24px;
@@ -65,8 +67,10 @@ $base = (string)($GLOBALS['favorite_cms_base_path'] ?? '');
             background: #1d4ed8;
         }
     </style>
+    <style><?php readfile(__DIR__ . '/partials/appearance/frontend.css'); ?></style>
 </head>
 <body>
+<button type="button" class="cms-appearance-toggle" data-appearance-toggle aria-label="Switch appearance"><span class="theme-icon-sun" aria-hidden="true">&#9728;</span><span class="theme-icon-moon" aria-hidden="true">&#9790;</span></button>
     <div class="card">
         <div class="code">404</div>
         <h1>Page Not Found</h1>

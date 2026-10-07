@@ -1,0 +1,4 @@
+const {defineConfig}=require('@playwright/test');
+const baseURL=process.env.CMS_BROWSER_BASE_URL || 'http://127.0.0.1:8770';
+if(!['localhost','127.0.0.1','::1','[::1]'].includes(new URL(baseURL).hostname))throw new Error('Run the visual suite against a local disposable fixture server.');
+module.exports=defineConfig({testDir:__dirname,testMatch:'visual.spec.cjs',timeout:30000,workers:1,fullyParallel:false,reporter:[['list'],['html',{open:'never'}]],use:{baseURL,browserName:'chromium',trace:'retain-on-failure'},expect:{toHaveScreenshot:{animations:'disabled',maxDiffPixelRatio:0.002}},projects:['light','dark'].flatMap(theme=>[{name:theme+'-mobile',use:{viewport:{width:390,height:844}}},{name:theme+'-tablet',use:{viewport:{width:768,height:1024}}},{name:theme+'-desktop',use:{viewport:{width:1440,height:1000}}}])});

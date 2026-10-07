@@ -136,8 +136,8 @@ if ($eventName === 'release' && $eventPath && file_exists($eventPath)) {
     echo "Auditing " . count($assets) . " release asset(s)...\n";
     foreach ($assets as $asset) {
         $name = (string)($asset['name'] ?? '');
-        if (!preg_match('/^Favorite-CMS-Universal-v\d+\.\d+\.\d+\.zip$/i', $name)) {
-            $violations[] = "[NON-CORE RELEASE ASSET] Invalid release asset detected on release: '{$name}'. Only Favorite-CMS-Universal-vX.Y.Z.zip is allowed.";
+        if (!preg_match('/^Favorite-CMS-Universal-v\d+\.\d+\.\d+(-(?:update|tests))?\.zip(\.sha256)?$/i', $name)) {
+            $violations[] = "[NON-CORE RELEASE ASSET] Invalid release asset detected on release: '{$name}'. Only Favorite-CMS-Universal-vX.Y.Z.zip, -update.zip, -tests.zip, and checksum sidecars are allowed.";
         }
     }
 }

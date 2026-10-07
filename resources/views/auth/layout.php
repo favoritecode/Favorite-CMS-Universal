@@ -10,7 +10,7 @@
  */
 ?>
 <!DOCTYPE html>
-<html lang="en" data-admin-theme="<?php echo (isset($_COOKIE['favorite_admin_theme']) && $_COOKIE['favorite_admin_theme'] === 'light') ? 'light' : 'dark'; ?>">
+<html lang="en" data-admin-theme="<?php echo \FavoriteCMS\Services\Appearance::resolve(); ?>">
 <head>
 <?php include __DIR__ . '/../partials/standalone/head.php'; ?>
 </head>
@@ -19,7 +19,7 @@
     <div class="fc-auth__inner fc-auth__inner--account">
         <header class="fc-auth__header">
             <a class="fc-brand" href="<?php echo $e($url('/')); ?>">
-                <span class="fc-brand__mark" aria-hidden="true">&#9733;</span>
+                <img src="<?php echo $e($url('/assets/images/Favorite_Web_Icon.png')); ?>" alt="" aria-hidden="true" width="36" height="36" style="width:36px;height:36px;object-fit:contain;display:block;flex-shrink:0;">
                 <span class="fc-brand__name"><?php echo $e($siteName); ?></span>
             </a>
             <div class="fc-auth__header-actions">

@@ -1,17 +1,17 @@
 <!-- Reusable Enhanced Media Library & Direct Upload Modal -->
 <div id="media-modal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 10000; align-items: center; justify-content: center;">
-    <div style="background: #ffffff; width: 92%; max-width: 900px; height: 85vh; border-radius: 8px; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.2);">
+    <div style="background: var(--admin-surface); width: 92%; max-width: 900px; height: 85vh; border-radius: 8px; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.2);">
         <!-- Modal Header with Tabs -->
-        <div style="padding: 12px 20px; border-bottom: 1px solid var(--wp-border); display: flex; justify-content: space-between; align-items: center; background: #f8fafc;">
+        <div style="padding: 12px 20px; border-bottom: 1px solid var(--wp-border); display: flex; justify-content: space-between; align-items: center; background: var(--admin-surface-subtle);">
             <div style="display: flex; gap: 8px; align-items: center;">
-                <button type="button" id="tab-browse-media" class="modal-tab-btn active" style="padding: 6px 14px; font-size: 13px; font-weight: 600; border: 1px solid var(--wp-blue); background: #ffffff; color: var(--wp-blue); border-radius: 4px; cursor: pointer;">
+                <button type="button" id="tab-browse-media" class="modal-tab-btn active" style="padding: 6px 14px; font-size: 13px; font-weight: 600; border: 1px solid var(--wp-blue); background: var(--admin-surface); color: var(--wp-blue); border-radius: 4px; cursor: pointer;">
                     &#128193; Browse Media
                 </button>
-                <button type="button" id="tab-upload-media" class="modal-tab-btn" style="padding: 6px 14px; font-size: 13px; font-weight: 600; border: 1px solid var(--wp-border); background: #f8fafc; color: #64748b; border-radius: 4px; cursor: pointer;">
+                <button type="button" id="tab-upload-media" class="modal-tab-btn" style="padding: 6px 14px; font-size: 13px; font-weight: 600; border: 1px solid var(--wp-border); background: var(--admin-surface-subtle); color: var(--admin-text-muted); border-radius: 4px; cursor: pointer;">
                     &#128229; Upload New Media
                 </button>
             </div>
-            <button type="button" id="close-media-modal" style="background: none; border: none; font-size: 22px; cursor: pointer; color: #64748b;">&times;</button>
+            <button type="button" id="close-media-modal" style="background: none; border: none; font-size: 22px; cursor: pointer; color: var(--admin-text-muted);">&times;</button>
         </div>
 
         <!-- Modal Body 1: Browse Media Library -->
@@ -46,15 +46,15 @@
                              data-mime="<?php echo htmlspecialchars($m->mime_type ?? ''); ?>"
                              data-size="<?php echo htmlspecialchars($m->getFormattedSize()); ?>">
                             <?php if ($m->isImage()): ?>
-                                <img src="<?php echo htmlspecialchars($m->url, ENT_QUOTES, 'UTF-8'); ?>" 
+                                <img src="<?php echo htmlspecialchars($m->getThumbnailUrl(320, 240), ENT_QUOTES, 'UTF-8'); ?>" 
                                      alt="<?php echo htmlspecialchars($m->filename, ENT_QUOTES, 'UTF-8'); ?>" 
                                      loading="lazy">
                             <?php elseif ($m->isVideo()): ?>
-                                <div style="height: 80px; display: flex; align-items: center; justify-content: center; background: #0f172a; color: #ffffff; font-size: 24px;">&#127916;</div>
+                                <div style="height: 80px; display: flex; align-items: center; justify-content: center; background: var(--admin-code-bg); color: var(--admin-code-text); font-size: 24px;">&#127916;</div>
                             <?php elseif ($m->isAudio()): ?>
-                                <div style="height: 80px; display: flex; align-items: center; justify-content: center; background: #0f172a; color: #ffffff; font-size: 24px;">&#127925;</div>
+                                <div style="height: 80px; display: flex; align-items: center; justify-content: center; background: var(--admin-code-bg); color: var(--admin-code-text); font-size: 24px;">&#127925;</div>
                             <?php else: ?>
-                                <div style="height: 80px; display: flex; align-items: center; justify-content: center; background: #e2e8f0; font-size: 24px;">&#128196;</div>
+                                <div style="height: 80px; display: flex; align-items: center; justify-content: center; background: var(--admin-surface-elevated); font-size: 24px;">&#128196;</div>
                             <?php endif; ?>
                             <div class="card-name"><?php echo htmlspecialchars($m->filename, ENT_QUOTES, 'UTF-8'); ?></div>
                         </div>
@@ -72,15 +72,15 @@
             </div>
 
             <!-- Right Sidebar: Item Details & Formatting Options -->
-            <div style="width: 260px; padding: 16px; background: #f8fafc; display: flex; flex-direction: column; overflow-y: auto;">
-                <h4 style="font-size: 13px; font-weight: 700; color: #334155; margin-bottom: 10px; border-bottom: 1px solid var(--wp-border); padding-bottom: 6px;">Attachment Details</h4>
+            <div class="cms-media-details" style="width: 260px; padding: 16px; background: var(--admin-surface-subtle); display: flex; flex-direction: column; overflow-y: auto;">
+                <h4 style="font-size: 13px; font-weight: 700; color: var(--admin-text); margin-bottom: 10px; border-bottom: 1px solid var(--wp-border); padding-bottom: 6px;">Attachment Details</h4>
                 <div id="attachment-details-empty" style="color: var(--wp-text-muted); font-size: 12px; font-style: italic;">
                     Select an item from the library to view details and insert options.
                 </div>
                 <div id="attachment-details-wrap" style="display: none; font-size: 12px;">
-                    <div id="attachment-thumb" style="max-height: 120px; overflow: hidden; border-radius: 4px; margin-bottom: 10px; text-align: center; background: #ffffff; border: 1px solid var(--wp-border);"></div>
+                    <div id="attachment-thumb" style="max-height: 120px; overflow: hidden; border-radius: 4px; margin-bottom: 10px; text-align: center; background: var(--admin-surface); border: 1px solid var(--wp-border);"></div>
                     <div style="font-weight: 600; word-break: break-all; margin-bottom: 4px;" id="attachment-filename"></div>
-                    <div style="color: #64748b; margin-bottom: 10px;" id="attachment-meta"></div>
+                    <div style="color: var(--admin-text-muted); margin-bottom: 10px;" id="attachment-meta"></div>
 
                     <!-- Insertion Options for Content Mode -->
                     <div id="content-insert-options">
@@ -111,8 +111,8 @@
         </div>
 
         <!-- Modal Body 2: Upload New Media (Direct AJAX with Progress) -->
-        <div id="modal-view-upload" style="display: none; flex: 1; padding: 30px; overflow-y: auto; background: #f8fafc;">
-            <div id="modal-upload-zone" style="max-width: 500px; margin: 20px auto; border: 2px dashed #94a3b8; border-radius: 8px; padding: 40px 20px; text-align: center; background: #ffffff;">
+        <div id="modal-view-upload" style="display: none; flex: 1; padding: 30px; overflow-y: auto; background: var(--admin-surface-subtle);">
+            <div id="modal-upload-zone" style="max-width: 500px; margin: 20px auto; border: 2px dashed var(--admin-border); border-radius: 8px; padding: 40px 20px; text-align: center; background: var(--admin-surface);">
                 <div style="font-size: 44px; color: var(--wp-blue); margin-bottom: 10px;">&#128229;</div>
                 <h3 style="font-size: 16px; font-weight: 600; margin-bottom: 6px;">Drop files to upload</h3>
                 <p style="font-size: 12px; color: var(--wp-text-muted); margin-bottom: 16px;">
@@ -123,11 +123,11 @@
 
                 <!-- Upload Progress -->
                 <div id="modal-progress-wrap" style="display: none; margin-top: 20px; text-align: left;">
-                    <div style="display: flex; justify-content: space-between; font-size: 12px; font-weight: 600; color: #334155; margin-bottom: 4px;">
+                    <div style="display: flex; justify-content: space-between; font-size: 12px; font-weight: 600; color: var(--admin-text); margin-bottom: 4px;">
                         <span id="modal-progress-filename">Uploading...</span>
                         <span id="modal-progress-percent">0%</span>
                     </div>
-                    <div style="background: #e2e8f0; border-radius: 999px; height: 10px; overflow: hidden;">
+                    <div style="background: var(--admin-surface-elevated); border-radius: 999px; height: 10px; overflow: hidden;">
                         <div id="modal-progress-bar" style="width: 0%; height: 100%; background: var(--wp-blue); transition: width 0.15s ease;"></div>
                     </div>
                     <div id="modal-upload-status" style="font-size: 12px; margin-top: 6px; text-align: center;"></div>
@@ -136,7 +136,7 @@
         </div>
 
         <!-- Modal Footer Actions -->
-        <div style="padding: 12px 20px; border-top: 1px solid var(--wp-border); display: flex; justify-content: flex-end; gap: 10px; background: #ffffff;">
+        <div style="padding: 12px 20px; border-top: 1px solid var(--wp-border); display: flex; justify-content: flex-end; gap: 10px; background: var(--admin-surface);">
             <button type="button" id="cancel-media-selection" class="btn btn-secondary" style="font-size: 13px;">Cancel</button>
             <button type="button" id="confirm-media-selection" class="btn btn-primary" style="font-size: 13px;" disabled>Insert Into Post</button>
         </div>

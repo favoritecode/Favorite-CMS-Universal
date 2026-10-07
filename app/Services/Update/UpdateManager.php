@@ -447,9 +447,7 @@ class UpdateManager
                 throw new RuntimeException("Could not open package archive for extraction: {$zipPath}");
             }
             try {
-                if (!$zip->extractTo($stageDir)) {
-                    throw new RuntimeException('Could not completely extract update package.');
-                }
+                \FavoriteCMS\Services\ZipPackage::extract($zip, $stageDir, \FavoriteCMS\Services\ZipPackage::entries($zip));
             } finally {
                 $zip->close();
             }
@@ -622,10 +620,12 @@ class UpdateManager
         }
 
         $coreFiles = [
+            '.htaccess',
             'bootstrap.php',
             'index.php',
             'migrate.php',
             'public/index.php',
+            'public/.htaccess',
             'README.txt',
             'README.md',
             'LICENSE',
@@ -695,6 +695,7 @@ class UpdateManager
             'index.php',
             'migrate.php',
             'public/index.php',
+            'public/.htaccess',
             'README.txt',
             'README.md',
             'LICENSE',
@@ -781,6 +782,7 @@ class UpdateManager
 
         // 5. Root Entrypoint Files
         $coreFiles = [
+            '.htaccess',
             'bootstrap.php',
             'index.php',
             'migrate.php',
@@ -799,11 +801,37 @@ class UpdateManager
             }
         }
 
+        // Public root files (including the web-server configuration).
+        $publicRootFiles = [
+            '.htaccess',
+        ];
+        foreach ($publicRootFiles as $file) {
+            $src = $stagedRoot . '/public/' . $file;
+            $dst = $this->appRoot . '/public/' . $file;
+            if (is_file($src)) {
+                $this->copyFileVerified($src, $dst);
+            }
+        }
+
         // Public index.php
         $srcPubIndex = $stagedRoot . '/public/index.php';
         $dstPubIndex = $this->appRoot . '/public/index.php';
         if (is_file($srcPubIndex)) {
             $this->copyFileVerified($srcPubIndex, $dstPubIndex);
+        }
+
+        // Required runtime directories are not distributed with user data.
+        // Recreate them when missing so an update/repair can recover from
+        // accidental directory deletion without overwriting existing uploads.
+        $requiredRuntimeDirs = [
+            $this->appRoot . '/public/uploads',
+        ];
+        foreach ($requiredRuntimeDirs as $runtimeDir) {
+            if (!is_dir($runtimeDir)) {
+                if (!@mkdir($runtimeDir, 0775, true) && !is_dir($runtimeDir)) {
+                    throw new RuntimeException('Failed to recreate required runtime directory: ' . $runtimeDir);
+                }
+            }
         }
 
         // 6. Yellow List: Config files (inspect / merge default templates, never discard custom settings)

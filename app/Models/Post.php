@@ -142,7 +142,7 @@ class Post extends BaseModel
     public static function countByStatus(): array
     {
         $db = Container::getInstance()->get(Database::class);
-        $rows = $db->select("SELECT `status`, COUNT(*) as cnt FROM `posts` WHERE `type` = 'post' GROUP BY `status`");
+        $rows = $db->rememberSelect("SELECT `status`, COUNT(*) as cnt FROM `posts` WHERE `type` = 'post' GROUP BY `status`");
         $counts = [
             'all'       => 0,
             'published' => 0,
@@ -307,6 +307,7 @@ class Post extends BaseModel
             'meta_description' => $meta['meta_description'] ?? null,
             'og_title'         => $meta['og_title'] ?? null,
             'og_description'   => $meta['og_description'] ?? null,
+            'og_image_url'     => $meta['og_image_url'] ?? ($existing->og_image_url ?? null),
             'canonical_url'    => $meta['canonical_url'] ?? null,
             'robots'           => $meta['robots'] ?? 'index,follow',
         ];
@@ -321,6 +322,14 @@ class Post extends BaseModel
             $data['object_id']   = $this->id;
             $this->db->insert('seo_meta', $data);
         }
+    }
+
+    public function update(array $data): bool
+    {
+        $old = array_key_exists('slug', $data) ? static::find((int)$this->id) : null;
+        $saved = parent::update($data);
+        if ($saved && $old) \FavoriteCMS\Services\SeoRedirects::remember('post', (int)$this->id, (string)$old->slug, (string)$data['slug']);
+        return $saved;
     }
 
     public function generateSlug(string $title, ?int $excludeId = null): string

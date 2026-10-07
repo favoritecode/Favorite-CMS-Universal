@@ -174,6 +174,19 @@ class Kernel
         }
 
         // ---------------------------------------------------------------------
+        // Plugin Admin API Routes
+        // ---------------------------------------------------------------------
+        // Dispatch plugin /admin/api/* routes through the shared Router before
+        // the Core admin-page dispatcher. Plugin API controllers enforce their
+        // own authentication, capability checks, and API-specific CSRF rules.
+        if (str_starts_with($path, '/admin/api/')) {
+            $dynamicResp = \FavoriteCMS\Core\Router::dispatch($request);
+            if ($dynamicResp !== null) {
+                return $dynamicResp;
+            }
+        }
+
+        // ---------------------------------------------------------------------
         // Admin Routes
         // ---------------------------------------------------------------------
         if (str_starts_with($path, '/admin')) {
@@ -224,6 +237,8 @@ class Kernel
             return $frontend->submitComment($request);
         }
 
+        if (preg_match('#^/sitemap-([0-9]+)\.xml$#', $path, $sitemap)) return \FavoriteCMS\Services\SeoSitemap::render($request, (int)$sitemap[1]);
+
         if ($path === '/sitemap.xml') {
             return $frontend->sitemap($request);
         }
@@ -261,7 +276,7 @@ class Kernel
             $resp = $frontend->page($request, $pageSlug);
             $refStatus = new \ReflectionProperty($resp, 'status');
             $refStatus->setAccessible(true);
-            if ($refStatus->getValue($resp) === 200) {
+            if (in_array($refStatus->getValue($resp), [200,301], true)) {
                 return $resp;
             }
         }
@@ -339,6 +354,11 @@ class Kernel
             if (!is_string($submitted) || !is_string($stored) || $stored === '' || !hash_equals($stored, $submitted)) {
                 return Response::make('Invalid security token.', 403);
             }
+        }
+
+        // Private content workspace: central authentication, suspension and CSRF checks apply first.
+        if (preg_match('#^/admin/(posts|pages)/(autosave|workspace|snapshot)$#', $path, $workspace)) {
+            return (new \FavoriteCMS\Http\Controllers\Admin\ContentWorkspaceController())->handle($request, $workspace[1] === 'posts' ? 'post' : 'page', $workspace[2], $method);
         }
 
         // Admin Appearance Toggle (Authenticated user, CSRF validated, self-preference only)
@@ -576,6 +596,7 @@ class Kernel
             $ctrl = new CustomizeController($this->app);
             return match ($path) {
                 '/admin/customize'                  => $ctrl->index($request),
+                '/admin/customize/preview'           => $method === 'POST' ? $ctrl->preview($request) : Response::make('Method not allowed.', 405)->header('Allow','POST'),
                 '/admin/customize/save'             => $ctrl->save($request),
                 '/admin/customize/sections/reorder' => $ctrl->reorderSections($request),
                 '/admin/customize/reset'            => $ctrl->reset($request),
@@ -631,6 +652,9 @@ class Kernel
             return match ($path) {
                 '/admin/seo'        => $ctrl->index($request),
                 '/admin/seo/update' => $ctrl->update($request),
+                '/admin/seo/export' => $ctrl->export($request),
+                '/admin/seo/preview' => $ctrl->preview($request),
+                '/admin/seo/apply' => $ctrl->apply($request),
                 default             => Response::redirect('/admin/seo'),
             };
         }

@@ -431,6 +431,7 @@ class ImportEngine
                                     'updated_at'   => $p->updatedAt ?? date('Y-m-d H:i:s'),
                                 ], ['id' => $existing->id]);
                                 \FavoriteCMS\Services\ContentRevision::record(\FavoriteCMS\Models\Post::find((int)$existing->id), 'post');
+                        $this->importSeo(\FavoriteCMS\Models\Post::find((int)$existing->id), $p->metadata, $report);
                             }
 
                             $postIdMap[$p->sourceId] = (int)$existing->id;
@@ -473,6 +474,7 @@ class ImportEngine
 
                     if ($postId > 0) {
                         \FavoriteCMS\Services\ContentRevision::record(\FavoriteCMS\Models\Post::find($postId), 'post');
+                        $this->importSeo(\FavoriteCMS\Models\Post::find($postId), $p->metadata, $report);
                         $report['posts']['imported']++;
                         $postIdMap[$p->sourceId] = $postId;
                         if ($p->sourceGuid) $postIdMap[$p->sourceGuid] = $postId;
@@ -521,6 +523,7 @@ class ImportEngine
                                     'updated_at' => $pageItem->updatedAt ?? date('Y-m-d H:i:s'),
                                 ], ['id' => $existing->id]);
                                 \FavoriteCMS\Services\ContentRevision::record(\FavoriteCMS\Models\Page::find((int)$existing->id), 'page');
+                        $this->importSeo(\FavoriteCMS\Models\Page::find((int)$existing->id), $pageItem->metadata, $report);
                             }
 
                             $pageIdMap[$pageItem->sourceId] = (int)$existing->id;
@@ -558,6 +561,7 @@ class ImportEngine
 
                     if ($pageId > 0) {
                         \FavoriteCMS\Services\ContentRevision::record(\FavoriteCMS\Models\Page::find($pageId), 'page');
+                        $this->importSeo(\FavoriteCMS\Models\Page::find($pageId), $pageItem->metadata, $report);
                         $report['pages']['imported']++;
                         $pageIdMap[$pageItem->sourceId] = $pageId;
                         if ($pageItem->parentSourceId) {
@@ -852,5 +856,11 @@ class ImportEngine
         $text = strtolower($text);
 
         return $text ?: 'item';
+    }
+    private function importSeo(\FavoriteCMS\Models\Post|\FavoriteCMS\Models\Page|null $item, array $metadata, array &$report): void
+    {
+        if (!$item || !is_array($metadata['seo'] ?? null)) return;
+        try { \FavoriteCMS\Services\SeoTransfer::write($item, $metadata['seo']); }
+        catch (\Throwable $e) { $report['errors'][] = 'SEO metadata for '.$item->title.': '.$e->getMessage(); }
     }
 }

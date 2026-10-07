@@ -24,26 +24,26 @@ $token = $_SESSION['_token'] ?? '';
 </div>
 
 <?php if (!empty($isEligibleForRecovery)): ?>
-    <div class="card" style="margin-bottom: 24px; border: 2px solid #eab308; background: #fffbeb; border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);">
-        <div class="card-header" style="background: #fef08a; border-bottom: 1px solid #fde047; padding: 12px 16px;">
-            <h5 style="color: #854d0e; margin: 0; font-size: 15px; font-weight: 700; display: flex; align-items: center; gap: 8px;">
+    <div class="card" style="margin-bottom: 24px; border: 2px solid var(--admin-warning-border); background: var(--admin-warning-bg); border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);">
+        <div class="card-header" style="background: var(--admin-warning-bg); border-bottom: 1px solid var(--admin-warning-border); padding: 12px 16px;">
+            <h5 style="color: var(--admin-warning-text); margin: 0; font-size: 15px; font-weight: 700; display: flex; align-items: center; gap: 8px;">
                 <span>🛡️</span> Emergency Super Admin Role Recovery
             </h5>
         </div>
         <div class="card-body" style="padding: 16px;">
-            <p style="font-size: 13.5px; color: #713f12; margin-bottom: 12px; line-height: 1.5;">
+            <p style="font-size: 13.5px; color: var(--admin-warning-text); margin-bottom: 12px; line-height: 1.5;">
                 <strong>Notice:</strong> No active Super Admin accounts currently exist on this site. As the verified primary site administrator (User ID 1 matching site settings), you are eligible to restore your Super Admin privileges.
             </p>
-            <p style="font-size: 12.5px; color: #854d0e; margin-bottom: 16px;">
+            <p style="font-size: 12.5px; color: var(--admin-warning-text); margin-bottom: 16px;">
                 For security verification, enter your current account password below. Once restored, this emergency recovery option will automatically close.
             </p>
             <form method="POST" action="<?php echo htmlspecialchars(site_path('/admin/users/profile/recover-super-admin'), ENT_QUOTES, 'UTF-8'); ?>" style="max-width: 480px;">
                 <input type="hidden" name="_token" value="<?php echo htmlspecialchars($token, ENT_QUOTES, 'UTF-8'); ?>">
                 <div class="form-group" style="margin-bottom: 12px;">
-                    <label for="recovery_password" style="font-weight: 600; font-size: 12.5px; color: #713f12;">Confirm Your Account Password *</label>
-                    <input type="password" id="recovery_password" name="password" class="form-control" required placeholder="Enter your current password" autocomplete="current-password" style="background: #fff;">
+                    <label for="recovery_password" style="font-weight: 600; font-size: 12.5px; color: var(--admin-warning-text);">Confirm Your Account Password *</label>
+                    <input type="password" id="recovery_password" name="password" class="form-control" required placeholder="Enter your current password" autocomplete="current-password" style="background: var(--admin-surface);">
                 </div>
-                <button type="submit" class="btn btn-primary" style="background: #ca8a04; border-color: #a16207; color: #fff; font-weight: 600; padding: 8px 18px;">
+                <button type="submit" class="btn btn-primary" style="background: var(--admin-warning-solid); border-color: var(--admin-warning-border); color: #fff; font-weight: 600; padding: 8px 18px;">
                     Restore Super Admin Role
                 </button>
             </form>
@@ -80,15 +80,15 @@ $token = $_SESSION['_token'] ?? '';
                 <?php if (!empty($avatarUrl)): ?>
                     <img src="<?php echo htmlspecialchars($avatarUrl, ENT_QUOTES, 'UTF-8'); ?>"
                          alt="<?php echo htmlspecialchars($user->name ?? $user->username, ENT_QUOTES, 'UTF-8'); ?>"
-                         style="width: 110px; height: 110px; border-radius: 50%; object-fit: cover; border: 3px solid #e2e8f0; box-shadow: var(--shadow-md);">
+                         style="width: 110px; height: 110px; border-radius: 50%; object-fit: cover; border: 3px solid var(--admin-border); box-shadow: var(--shadow-md);">
                 <?php else: ?>
-                    <div style="width: 110px; height: 110px; border-radius: 50%; background: #2563eb; color: #fff; font-size: 42px; font-weight: 700; display: flex; align-items: center; justify-content: center; border: 3px solid #e2e8f0; box-shadow: var(--shadow-md);">
+                    <div style="width: 110px; height: 110px; border-radius: 50%; background: var(--admin-info-solid); color: #fff; font-size: 42px; font-weight: 700; display: flex; align-items: center; justify-content: center; border: 3px solid var(--admin-border); box-shadow: var(--shadow-md);">
                         <?php echo htmlspecialchars($initial, ENT_QUOTES, 'UTF-8'); ?>
                     </div>
                 <?php endif; ?>
             </div>
 
-            <h3 style="font-size: 16px; font-weight: 700; color: #0f172a; margin-bottom: 4px;">
+            <h3 style="font-size: 16px; font-weight: 700; color: var(--admin-text-heading); margin-bottom: 4px;">
                 <?php echo htmlspecialchars($user->name ?: $user->username, ENT_QUOTES, 'UTF-8'); ?>
             </h3>
             <p style="color: var(--wp-text-muted); font-size: 12.5px; margin-bottom: 12px;">
@@ -184,7 +184,7 @@ $token = $_SESSION['_token'] ?? '';
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
                     <div class="form-group">
                         <label for="username">Username</label>
-                        <input type="text" id="username" class="form-control" value="<?php echo htmlspecialchars($user->username ?? '', ENT_QUOTES, 'UTF-8'); ?>" readonly style="background: #f8fafc; cursor: not-allowed;">
+                        <input type="text" id="username" class="form-control" value="<?php echo htmlspecialchars($user->username ?? '', ENT_QUOTES, 'UTF-8'); ?>" readonly style="background: var(--admin-surface-subtle); cursor: not-allowed;">
                         <span style="font-size: 11.5px; color: var(--wp-text-muted); display: block; margin-top: 4px;">
                             Usernames are permanent and cannot be changed.
                         </span>
@@ -215,7 +215,7 @@ $token = $_SESSION['_token'] ?? '';
 
                 <hr style="border: 0; border-top: 1px solid var(--wp-border); margin: 24px 0 20px 0;">
 
-                <h4 style="font-size: 14px; font-weight: 600; color: #0f172a; margin-bottom: 14px;">
+                <h4 style="font-size: 14px; font-weight: 600; color: var(--admin-text-heading); margin-bottom: 14px;">
                     Security &amp; Password
                 </h4>
 
@@ -250,9 +250,9 @@ $token = $_SESSION['_token'] ?? '';
 </div>
 
 <!-- Danger Zone: Account Deletion -->
-<div class="card" style="margin-top: 24px; border: 1px solid #fca5a5; background: #fff;">
-    <div class="card-header" style="background: #fef2f2; border-bottom: 1px solid #fee2e2;">
-        <h5 style="color: #991b1b; margin: 0; font-size: 14px;">
+<div class="card" style="margin-top: 24px; border: 1px solid var(--admin-danger-border); background: var(--admin-surface);">
+    <div class="card-header" style="background: var(--admin-danger-bg); border-bottom: 1px solid var(--admin-danger-border);">
+        <h5 style="color: var(--admin-danger-text); margin: 0; font-size: 14px;">
             ⚠️ Danger Zone — Delete Account
         </h5>
     </div>
@@ -270,7 +270,7 @@ $token = $_SESSION['_token'] ?? '';
                 This administrator account cannot be deleted because it is the last remaining active site administrator.
             </p>
         <?php else: ?>
-            <p style="font-size: 13px; color: #475569; margin-bottom: 16px;">
+            <p style="font-size: 13px; color: var(--admin-text-muted); margin-bottom: 16px;">
                 Permanently delete your user account, login credentials, and active sessions. Any authored posts, pages, and media files will be preserved and safely reassigned to a site administrator so your contributions and website integrity remain intact.
             </p>
 
@@ -283,13 +283,13 @@ $token = $_SESSION['_token'] ?? '';
                 </div>
 
                 <div class="form-check" style="margin-bottom: 16px;">
-                    <label style="display: flex; align-items: flex-start; gap: 8px; font-size: 13px; cursor: pointer; color: #991b1b;">
+                    <label style="display: flex; align-items: flex-start; gap: 8px; font-size: 13px; cursor: pointer; color: var(--admin-danger-text);">
                         <input type="checkbox" name="confirm_delete" value="1" required style="margin-top: 2px; cursor: pointer;">
                         <span>I understand that this action is permanent and my account cannot be recovered.</span>
                     </label>
                 </div>
 
-                <button type="submit" class="btn btn-danger" style="background: #dc2626; border-color: #dc2626; padding: 7px 16px;">
+                <button type="submit" class="btn btn-danger" style="background: var(--admin-danger-solid); border-color: var(--admin-danger-border); padding: 7px 16px;">
                     Permanently Delete My Account
                 </button>
             </form>

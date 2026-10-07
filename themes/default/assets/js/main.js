@@ -63,18 +63,7 @@
             });
         });
 
-        var themeToggle = doc.getElementById('theme-toggle-btn');
-        if (themeToggle) {
-            themeToggle.addEventListener('click', function () {
-                var current = doc.documentElement.getAttribute('data-theme') || 'dark';
-                var next = current === 'dark' ? 'light' : 'dark';
-                doc.documentElement.setAttribute('data-theme', next);
-                try {
-                    localStorage.setItem('favorite_admin_theme', next);
-                    doc.cookie = 'favorite_admin_theme=' + next + ';path=/;max-age=31536000;SameSite=Lax';
-                } catch (e) {}
-            });
-        }
+        // Appearance toggles use the shared Core controller.
     }
 
     if (doc.readyState !== 'loading') { init(); } else { doc.addEventListener('DOMContentLoaded', init); }

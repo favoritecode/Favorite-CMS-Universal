@@ -51,6 +51,10 @@ class Engine
      */
     public function render(string $template, array $data = []): string
     {
+        $automaticSeo = \FavoriteCMS\Services\SeoMetadata::resolve($data);
+        $data['metaTitle'] = $automaticSeo['title'];
+        $data['metaDescription'] = $automaticSeo['description'];
+        if (in_array($template, ['404','search'], true)) $data['robots'] = 'noindex,follow';
         $templatePath = $this->resolveTemplate($template);
 
         // Allow plugins to filter template file path

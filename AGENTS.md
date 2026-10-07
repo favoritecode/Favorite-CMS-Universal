@@ -87,7 +87,7 @@ A future AI or developer must **NEVER** delete a legitimate master repository so
 1. **Releases are CORE ONLY:**
    Only official Favorite CMS Universal CORE releases may be tagged and published in this repository:
    - Allowed tag patterns: `v1.0.0`, `v1.0.1`, `v1.1.0`, `v2.0.0`
-   - Allowed release asset: `Favorite-CMS-Universal-vX.X.X.zip`
+   - Allowed release asset: `Favorite-CMS-Universal-vX.X.X.zip` (along with official core `-update.zip`, `-tests.zip`, and `.sha256` sidecars)
    - Forbidden release assets: `favorite-multimedia*.zip`, `Favorite-Web-Tools*.zip`, `favorite-shop*.zip`, `plugin-*.zip`, `theme-*.zip`
 2. **Historical Releases & Tags Are Immutable:**
    - **DO NOT** move, overwrite, delete, or retag `v1.0.0` or any existing release.

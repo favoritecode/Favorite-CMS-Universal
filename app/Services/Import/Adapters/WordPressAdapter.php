@@ -155,7 +155,8 @@ class WordPressAdapter implements ImporterInterface
                     if ($postId !== '' && $attachmentUrl !== '') {
                         $attachmentsMap[$postId] = $attachmentUrl;
                         $import->addMedia(new NormalizedMedia([
-                            'sourceId'  => $postId,
+                            'metadata' => ['seo'=>$seoValues],
+                        'sourceId'  => $postId,
                             'sourceUrl' => $attachmentUrl,
                             'title'     => $this->getChildText($item, 'title'),
                         ]));
@@ -198,13 +199,16 @@ class WordPressAdapter implements ImporterInterface
 
                 // Featured Image (_thumbnail_id in postmeta)
                 $featuredImageUrl = null;
+                $seoValues=[];
+                $seoKeys=['_yoast_wpseo_title'=>'meta_title','_yoast_wpseo_metadesc'=>'meta_description','_yoast_wpseo_canonical'=>'canonical_url','_yoast_wpseo_opengraph-title'=>'og_title','_yoast_wpseo_opengraph-description'=>'og_description','_yoast_wpseo_opengraph-image'=>'og_image_url','rank_math_title'=>'meta_title','rank_math_description'=>'meta_description','rank_math_canonical_url'=>'canonical_url','rank_math_facebook_title'=>'og_title','rank_math_facebook_description'=>'og_description','rank_math_facebook_image'=>'og_image_url'];
                 $postmeta = $item->getElementsByTagName('postmeta');
                 foreach ($postmeta as $pm) {
                     $key = $this->getChildText($pm, 'meta_key');
                     $val = $this->getChildText($pm, 'meta_value');
+                    if(isset($seoKeys[$key]) && !str_contains($val,'%')) $seoValues[$seoKeys[$key]]=$val;
+                    if ($key === '_yoast_wpseo_meta-robots-noindex' && $val==='1') $seoValues['robots']='noindex,follow';
                     if ($key === '_thumbnail_id' && isset($attachmentsMap[$val])) {
                         $featuredImageUrl = $attachmentsMap[$val];
-                        break;
                     }
                 }
 
@@ -254,6 +258,7 @@ class WordPressAdapter implements ImporterInterface
 
                 if ($postType === 'page') {
                     $page = new NormalizedPage([
+                        'metadata' => ['seo'=>$seoValues],
                         'sourceId'         => $postId,
                         'sourceGuid'       => $guid,
                         'sourceUrl'        => $link,
@@ -276,6 +281,7 @@ class WordPressAdapter implements ImporterInterface
                 } else {
                     // Default to post
                     $post = new NormalizedPost([
+                        'metadata' => ['seo'=>$seoValues],
                         'sourceId'         => $postId,
                         'sourceGuid'       => $guid,
                         'sourceUrl'        => $link,

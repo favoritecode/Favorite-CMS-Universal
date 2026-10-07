@@ -18,11 +18,15 @@ $base = (string)($GLOBALS['favorite_cms_base_path'] ?? '');
 $currentVersion = defined('APP_VERSION') ? APP_VERSION : '1.0.0';
 ?>
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="<?php echo \FavoriteCMS\Services\Appearance::resolve(); ?>">
 <head>
+    <?php include __DIR__ . '/partials/appearance/head.php'; ?>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?php echo htmlspecialchars($siteName); ?><?php if ($siteDesc): ?> &mdash; <?php echo htmlspecialchars($siteDesc); ?><?php endif; ?></title>
+    <?php $fallbackSeo = \FavoriteCMS\Services\SeoMetadata::resolve(get_defined_vars()); ?>
+    <title><?php echo htmlspecialchars($fallbackSeo['title'], ENT_QUOTES, 'UTF-8'); ?></title>
+    <?php if ($fallbackSeo['description'] !== ''): ?><meta name="description" content="<?php echo htmlspecialchars($fallbackSeo['description'], ENT_QUOTES, 'UTF-8'); ?>"><?php endif; ?>
+    <?php echo \FavoriteCMS\Services\FrontendSeoService::renderHeadTags(get_defined_vars()); ?>
     <style>
         :root {
             --primary: #2563eb;
@@ -98,7 +102,7 @@ $currentVersion = defined('APP_VERSION') ? APP_VERSION : '1.0.0';
         }
         .header-account-wrap a:hover { color: var(--primary); }
         .hero {
-            background: linear-gradient(135deg, #1e293b, #0f172a);
+            background: linear-gradient(135deg, var(--cms-code-bg), var(--cms-code-bg));
             color: #ffffff;
             border-radius: 12px;
             padding: 40px;
@@ -109,7 +113,7 @@ $currentVersion = defined('APP_VERSION') ? APP_VERSION : '1.0.0';
             display: inline-block;
             background: rgba(37, 99, 235, 0.25);
             border: 1px solid rgba(59, 130, 246, 0.5);
-            color: #93c5fd;
+            color: var(--cms-info-text);
             font-size: 12px;
             font-weight: 600;
             padding: 4px 10px;
@@ -123,7 +127,7 @@ $currentVersion = defined('APP_VERSION') ? APP_VERSION : '1.0.0';
             letter-spacing: -0.02em;
         }
         .hero p {
-            color: #94a3b8;
+            color: var(--cms-text-muted);
             font-size: 15px;
             margin: 0 0 20px 0;
             max-width: 640px;
@@ -202,8 +206,10 @@ $currentVersion = defined('APP_VERSION') ? APP_VERSION : '1.0.0';
             margin-top: 60px;
         }
     </style>
+    <style><?php readfile(__DIR__ . '/partials/appearance/frontend.css'); ?></style>
 </head>
 <body>
+<button type="button" class="cms-appearance-toggle" data-appearance-toggle aria-label="Switch appearance"><span class="theme-icon-sun" aria-hidden="true">&#9728;</span><span class="theme-icon-moon" aria-hidden="true">&#9790;</span></button>
     <header>
         <div class="container header-inner">
             <div class="site-branding">
@@ -256,9 +262,9 @@ $currentVersion = defined('APP_VERSION') ? APP_VERSION : '1.0.0';
                     <div style="margin-top: 40px; border-top: 1px solid var(--border); padding-top: 24px;">
                         <h3 style="font-size: 18px; font-weight: 700; margin-bottom: 16px;">Comments</h3>
                         <?php foreach ($comments as $comment): ?>
-                            <div style="background: #f8fafc; border: 1px solid var(--border); border-radius: 6px; padding: 12px 16px; margin-bottom: 12px;">
+                            <div style="background: var(--cms-surface-subtle); border: 1px solid var(--border); border-radius: 6px; padding: 12px 16px; margin-bottom: 12px;">
                                 <strong style="font-size: 13.5px;"><?php echo htmlspecialchars((string)($comment->author_name ?? 'Anonymous')); ?>:</strong>
-                                <p style="margin: 4px 0 0; font-size: 13.5px; color: #334155;"><?php echo htmlspecialchars((string)($comment->content ?? '')); ?></p>
+                                <p style="margin: 4px 0 0; font-size: 13.5px; color: var(--cms-text);"><?php echo htmlspecialchars((string)($comment->content ?? '')); ?></p>
                             </div>
                         <?php endforeach; ?>
                     </div>
@@ -314,7 +320,7 @@ $currentVersion = defined('APP_VERSION') ? APP_VERSION : '1.0.0';
                     <?php endforeach; ?>
                 <?php else: ?>
                     <div class="empty-posts">
-                        <p style="margin: 0 0 12px 0; font-size: 15px; font-weight: 600; color: #1e293b;">No posts published yet</p>
+                        <p style="margin: 0 0 12px 0; font-size: 15px; font-weight: 600; color: var(--cms-text-heading);">No posts published yet</p>
                         <p style="margin: 0; font-size: 13px;">Log in to the administration dashboard to create your first article or page.</p>
                     </div>
                 <?php endif; ?>

@@ -56,10 +56,7 @@ class CustomizeController
             $siteName = 'Favorite CMS';
         }
 
-        $adminTheme = $_SESSION['admin_theme'] ?? 'light';
-        if ($adminTheme !== 'dark') {
-            $adminTheme = 'light';
-        }
+        $adminTheme = \FavoriteCMS\Services\Appearance::resolve(current_user());
 
         $viewData = [
             'pageTitle'        => 'Customize: ' . ($manifest['name'] ?? ucfirst($themeId)),
@@ -83,6 +80,26 @@ class CustomizeController
         ob_start();
         include APP_ROOT . '/resources/views/admin/customize/shell.php';
         return Response::make((string)ob_get_clean(), 200);
+    }
+
+    public function preview(Request $request): Response
+    {
+        $tid = $this->layoutService->getActiveThemeId();
+        $mods = (array)$request->post('mods', []);
+        foreach (['site_logo_url', 'site_favicon_url'] as $key) {
+            if (isset($mods[$key])) $mods[$key] = sanitize_branding_url((string)$mods[$key]);
+        }
+        $sectionOverrides = [];
+        $enabled = (array)$request->post('sections', []);
+        $sections = $this->layoutService->getSections($tid);
+        foreach ($sections as $section) $sectionOverrides[$section['id']] = array_replace($section, ['enabled'=>!empty($enabled[$section['id']]['enabled'])]);
+        $valid = array_column($sections, 'id');
+        $order = array_values(array_filter(array_map('strval',(array)$request->post('section_order',[])), static fn($id)=>in_array($id,$valid,true)));
+        if ($order) $sectionOverrides['_section_order'] = $order;
+        $tokens = (array)$request->post('tokens', []);
+        return Setting::withPreview(['theme_mods_' . $tid=>$mods, 'theme_sections_' . $tid=>$sectionOverrides, 'theme_tokens_' . $tid=>['tokens'=>$tokens]], function() use ($request) {
+            return (new \FavoriteCMS\Http\Controllers\FrontendController($this->app))->home($request)->header('Cache-Control','private, no-store');
+        });
     }
 
     public function save(Request $request): Response

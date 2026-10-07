@@ -37,8 +37,11 @@ class FrontendSeoService
         $robots = self::resolveRobots($context, $seoMeta);
 
         // 3. Resolve Title & Description
-        $resolvedTitle = self::resolveTitle($context, $seoMeta, $siteTitle, $sep, $post, $page);
-        $resolvedDesc  = self::resolveDescription($context, $seoMeta, $siteDesc, $post, $page);
+        $metadata = SeoMetadata::resolve($context);
+        $resolvedTitle = $metadata['title'];
+        $resolvedDesc = $metadata['description'];
+        $socialTitle = $metadata['og_title'];
+        $socialDesc = $metadata['og_description'];
 
         // 4. Resolve Open Graph / Social Image
         $resolvedImage = self::resolveImage($context, $seoMeta, $post, $page);
@@ -61,9 +64,9 @@ class FrontendSeoService
         // Open Graph Tags
         $html[] = '<meta property="og:site_name" content="' . htmlspecialchars($siteTitle, ENT_QUOTES, 'UTF-8') . '">';
         $html[] = '<meta property="og:type" content="' . htmlspecialchars($ogType, ENT_QUOTES, 'UTF-8') . '">';
-        $html[] = '<meta property="og:title" content="' . htmlspecialchars($resolvedTitle, ENT_QUOTES, 'UTF-8') . '">';
-        if ($resolvedDesc !== '') {
-            $html[] = '<meta property="og:description" content="' . htmlspecialchars($resolvedDesc, ENT_QUOTES, 'UTF-8') . '">';
+        $html[] = '<meta property="og:title" content="' . htmlspecialchars($socialTitle, ENT_QUOTES, 'UTF-8') . '">';
+        if ($socialDesc !== '') {
+            $html[] = '<meta property="og:description" content="' . htmlspecialchars($socialDesc, ENT_QUOTES, 'UTF-8') . '">';
         }
         if ($canonicalUrl !== '') {
             $html[] = '<meta property="og:url" content="' . htmlspecialchars($canonicalUrl, ENT_QUOTES, 'UTF-8') . '">';
@@ -74,9 +77,9 @@ class FrontendSeoService
 
         // Twitter Card Tags
         $html[] = '<meta name="twitter:card" content="summary_large_image">';
-        $html[] = '<meta name="twitter:title" content="' . htmlspecialchars($resolvedTitle, ENT_QUOTES, 'UTF-8') . '">';
-        if ($resolvedDesc !== '') {
-            $html[] = '<meta name="twitter:description" content="' . htmlspecialchars($resolvedDesc, ENT_QUOTES, 'UTF-8') . '">';
+        $html[] = '<meta name="twitter:title" content="' . htmlspecialchars($socialTitle, ENT_QUOTES, 'UTF-8') . '">';
+        if ($socialDesc !== '') {
+            $html[] = '<meta name="twitter:description" content="' . htmlspecialchars($socialDesc, ENT_QUOTES, 'UTF-8') . '">';
         }
         if ($resolvedImage !== '') {
             $html[] = '<meta name="twitter:image" content="' . htmlspecialchars($resolvedImage, ENT_QUOTES, 'UTF-8') . '">';
@@ -213,7 +216,8 @@ class FrontendSeoService
     {
         // 1. Explicit canonical override on post/page
         if ($seoMeta && !empty($seoMeta->canonical_url)) {
-            return (string)$seoMeta->canonical_url;
+            $safe = SeoMetadata::httpUrl((string)$seoMeta->canonical_url);
+            if ($safe !== '') return $safe;
         }
 
         if (!empty($context['canonicalUrl'])) {
@@ -355,6 +359,14 @@ class FrontendSeoService
             return (string)$context['ogImage'];
         }
 
+        $item = $post ?? $page;
+        $seo = $item?->getSeoMeta();
+        if (!empty($seo->og_image_url) && ($safe = SeoMetadata::httpUrl((string)$seo->og_image_url)) !== '') return $safe;
+        if (!empty($seo->og_image_id)) {
+            $image = \FavoriteCMS\Models\Media::find((int)$seo->og_image_id);
+            if ($image && ($safe = SeoMetadata::httpUrl(self::toAbsoluteUrl((string)$image->url))) !== '') return $safe;
+        }
+
         // Featured image of post/page
         if ($post instanceof Post) {
             $featImg = $post->getFeaturedImage();
@@ -368,6 +380,10 @@ class FrontendSeoService
             }
         }
 
+        if ($item && preg_match('#<img\b[^>]*\bsrc\s*=\s*([\"\'])((?:(?!\1).)+)\1#is', (string)$item->content, $match)) {
+            $inline = html_entity_decode($match[2], ENT_QUOTES, 'UTF-8');
+            if (($safe = SeoMetadata::httpUrl(str_starts_with($inline, '/') ? $inline : self::toAbsoluteUrl($inline))) !== '') return $safe;
+        }
         // Default SEO open graph image
         $defaultOg = trim((string)Setting::get('seo', 'og_image', ''));
         if ($defaultOg !== '') {
@@ -379,12 +395,9 @@ class FrontendSeoService
 
     protected static function toAbsoluteUrl(string $url): string
     {
-        if (str_starts_with($url, 'http://') || str_starts_with($url, 'https://')) {
-            return $url;
-        }
-
-        $baseSiteUrl = self::resolveBaseUrl();
-        return $baseSiteUrl . '/' . ltrim($url, '/');
+        if (str_starts_with($url, '//')) $url = 'https:' . $url;
+        if (preg_match('/^[a-z][a-z0-9+.-]*:/i', $url)) return SeoMetadata::httpUrl($url);
+        return SeoMetadata::httpUrl('/' . ltrim($url, '/'));
     }
 
     protected static function generateJsonLd(
@@ -400,10 +413,15 @@ class FrontendSeoService
     ): string {
         $baseSiteUrl = self::resolveBaseUrl();
 
-        $graphs = [];
+        $graphs = [
+            ['@type'=>'WebSite','@id'=>$baseSiteUrl.'/#website','url'=>$baseSiteUrl.'/','name'=>$siteTitle],
+            ['@type'=>'Organization','@id'=>$baseSiteUrl.'/#organization','url'=>$baseSiteUrl.'/','name'=>$siteTitle],
+        ];
+        $logo = function_exists('get_site_logo_url') ? get_site_logo_url() : '';
+        if ($logo && ($safeLogo = SeoMetadata::httpUrl(self::toAbsoluteUrl((string)$logo))) !== '') $graphs[1]['logo'] = ['@type'=>'ImageObject','url'=>$safeLogo];
 
         if ($isHome) {
-            $graphs[] = [
+            $graphs[0] = [
                 '@type'       => 'WebSite',
                 '@id'         => $baseSiteUrl . '/#website',
                 'url'         => $baseSiteUrl . '/',
@@ -425,7 +443,7 @@ class FrontendSeoService
                 '@type'            => 'Article',
                 '@id'              => $canonicalUrl . '#article',
                 'isPartOf'         => ['@id' => $baseSiteUrl . '/#website'],
-                'headline'         => $title,
+                'headline'         => SeoMetadata::text((string)$post->title),
                 'description'      => $description,
                 'datePublished'    => $pubDate,
                 'dateModified'     => $modDate,
@@ -436,6 +454,7 @@ class FrontendSeoService
                 ],
                 'publisher'        => [
                     '@type' => 'Organization',
+                    '@id' => $baseSiteUrl . '/#organization',
                     'name'  => $siteTitle,
                 ],
             ];

@@ -73,7 +73,7 @@
                                     <?php if ($comment->status === 'pending'): ?>
                                         <button type="submit" form="core-action-form" formmethod="POST" formnovalidate formaction="<?php echo htmlspecialchars(site_base_path(), ENT_QUOTES, 'UTF-8'); ?>/admin/comments/approve?id=<?php echo (int)$comment->id; ?>" class="core-action-link" style="color: var(--wp-success); font-weight: 600;">Approve</button> |
                                     <?php elseif ($comment->status === 'approved'): ?>
-                                        <button type="submit" form="core-action-form" formmethod="POST" formnovalidate formaction="<?php echo htmlspecialchars(site_base_path(), ENT_QUOTES, 'UTF-8'); ?>/admin/comments/unapprove?id=<?php echo (int)$comment->id; ?>" class="core-action-link" style="color: #b35900;">Unapprove</button> |
+                                        <button type="submit" form="core-action-form" formmethod="POST" formnovalidate formaction="<?php echo htmlspecialchars(site_base_path(), ENT_QUOTES, 'UTF-8'); ?>/admin/comments/unapprove?id=<?php echo (int)$comment->id; ?>" class="core-action-link" style="color: var(--admin-warning-text);">Unapprove</button> |
                                     <?php endif; ?>
 
                                     <?php if ($comment->status !== 'spam'): ?>

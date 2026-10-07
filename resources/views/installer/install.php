@@ -77,7 +77,7 @@ $postLimit = (string)ini_get('post_max_size');
 $pageTitle = 'Install Favorite CMS';
 ?>
 <!DOCTYPE html>
-<html lang="en" data-admin-theme="<?php echo (isset($_COOKIE['favorite_admin_theme']) && $_COOKIE['favorite_admin_theme'] === 'light') ? 'light' : 'dark'; ?>">
+<html lang="en" data-admin-theme="<?php echo \FavoriteCMS\Services\Appearance::resolve(); ?>">
 <head>
 <?php include __DIR__ . '/../partials/standalone/head.php'; ?>
 </head>
@@ -92,7 +92,7 @@ $pageTitle = 'Install Favorite CMS';
     <aside class="fc-rail">
         <div class="fc-rail__top">
             <div class="fc-rail__brand-row">
-                <span class="fc-brand"><span class="fc-brand__mark" aria-hidden="true">&#9733;</span><span class="fc-brand__name">Favorite CMS</span></span>
+                <span class="fc-brand"><img src="<?php echo $h(function_exists('site_path') ? site_path('/assets/images/Favorite_Web_Icon.png') : '/assets/images/Favorite_Web_Icon.png'); ?>" alt="" aria-hidden="true" width="36" height="36" style="width:36px;height:36px;object-fit:contain;display:block;flex-shrink:0;"><span class="fc-brand__name">Favorite CMS</span></span>
                 <button type="button" class="fc-theme-toggle" id="fc-theme-toggle" aria-label="Toggle dark mode" title="Toggle dark mode">
                     <span class="fc-theme-icon-sun" aria-hidden="true">☀️</span>
                     <span class="fc-theme-icon-moon" aria-hidden="true">🌙</span>
