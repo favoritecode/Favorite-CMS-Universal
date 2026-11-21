@@ -1,3 +1,7 @@
+# 1.2.0 — Central control and plugin/theme catalog
+
+Free CMS/default theme; central policy client, signed updates, private SMTP/OAuth server integration and Owner-managed repository catalog. Legacy extensions remain Free until explicitly managed. Theme expiry preserves selection/settings and falls back to default. Existing migrations, content, orders, plugin state and historical releases are preserved.
+
 # Favorite CMS Universal v1.1.0
 
 **Release Date:** October 7, 2026  

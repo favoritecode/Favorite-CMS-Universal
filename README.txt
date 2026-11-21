@@ -1,5 +1,7 @@
+Favorite CMS Universal v1.1.3 adds configurable post/page permalink bases and new-upload folder organization. Existing media files and URLs are preserved.
+
 ========================================================================
-Favorite CMS Universal - Version 1.0.0
+Favorite CMS Universal - Version 1.1.0
 "One CMS. Any Website."
 ========================================================================
 

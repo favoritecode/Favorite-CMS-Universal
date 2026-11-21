@@ -55,3 +55,7 @@ desktop.ini
 *.sublime-workspace
 *.swp
 *~
+
+# Owner-approved central extension catalog
+!extensions/plugins/*.zip
+!extensions/themes/*.zip
