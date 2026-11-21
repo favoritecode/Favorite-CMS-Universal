@@ -8,6 +8,14 @@ class Media extends BaseModel
 {
     protected static string $table = 'media';
 
+    public function storageUrl(): string { return (string)($this->attributes['url'] ?? ''); }
+    public function __get(string $name)
+    {
+        if ($name === 'url') return \FavoriteCMS\Services\MediaFileUrls::url($this);
+        return parent::__get($name);
+    }
+
+
     /**
      * A bounded page of media, newest first, filtered by type category (same rules as getTypeCategory())
      * and by a filename/title search.
@@ -42,7 +50,7 @@ class Media extends BaseModel
         $image    = "`mime_type` LIKE 'image/%'";
         $video    = "`mime_type` LIKE 'video/%'";
         $audio    = "`mime_type` LIKE 'audio/%'";
-        $document = "(`mime_type` LIKE '%pdf%' OR `mime_type` LIKE '%word%' OR `mime_type` LIKE '%excel%' OR `mime_type` LIKE '%spreadsheet%' OR `mime_type` LIKE '%powerpoint%' OR `mime_type` LIKE '%presentation%' OR `mime_type` LIKE 'text/%')";
+        $document = "(`mime_type` LIKE '%pdf%' OR `mime_type` LIKE '%word%' OR `mime_type` LIKE '%excel%' OR `mime_type` LIKE '%spreadsheet%' OR `mime_type` LIKE '%powerpoint%' OR `mime_type` LIKE '%presentation%' OR `mime_type` LIKE 'text/%' OR `mime_type` LIKE '%epub%' OR `mime_type` LIKE '%mobipocket%' OR `mime_type` LIKE '%opendocument%' OR `mime_type` LIKE '%rtf%')";
         $archive  = "(`mime_type` LIKE '%zip%' OR `mime_type` LIKE '%tar%' OR `mime_type` LIKE '%gzip%' OR `mime_type` LIKE '%compressed%')";
 
         // Mirrors the precedence of getTypeCategory(): image, video, audio, document, archive, other
@@ -118,6 +126,10 @@ class Media extends BaseModel
             || str_contains($mime, 'spreadsheet') 
             || str_contains($mime, 'powerpoint') 
             || str_contains($mime, 'presentation') 
+            || str_contains($mime, 'epub')
+            || str_contains($mime, 'mobipocket')
+            || str_contains($mime, 'opendocument')
+            || str_contains($mime, 'rtf')
             || str_starts_with($mime, 'text/');
     }
 

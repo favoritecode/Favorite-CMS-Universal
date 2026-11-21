@@ -21,13 +21,28 @@ class Taxonomy extends BaseModel
         if ($name === '') {
             return null;
         }
+        $db = \FavoriteCMS\Core\Container::getInstance()->get(\FavoriteCMS\Core\Database::class);
+        // Reuse manually assigned/suffixed slugs and legacy non-Latin terms by name.
+        $row = $db->selectOne('SELECT * FROM `taxonomies` WHERE `name` = ? AND `taxonomy` = ? LIMIT 1', [$name, $taxonomy]);
+        if ($row) return new static((array)$row);
+
         $slug = str_slug($name);
+        // iconv may produce only question marks, or a lossy ASCII fragment.
+        if ($slug === '' || preg_match('/[^\x00-\x7F]/', $name)) {
+            $slug = $taxonomy . '-' . substr(hash('sha256', $name), 0, 24);
+        }
+        $slug = substr($slug, 0, 180);
         $existing = static::findBySlug($slug, $taxonomy);
-        if ($existing) {
+        if ($existing && strcasecmp((string)$existing->name, $name) === 0) {
             return $existing;
         }
 
-        $db = \FavoriteCMS\Core\Container::getInstance()->get(\FavoriteCMS\Core\Database::class);
+        // The existing schema makes slug globally unique, including categories.
+        $baseSlug = $slug;
+        $suffix = 1;
+        while ($db->selectOne('SELECT id FROM `taxonomies` WHERE `slug` = ? LIMIT 1', [$slug])) {
+            $slug = $baseSlug . '-' . $suffix++;
+        }
         $id = $db->insert('taxonomies', [
             'name'        => $name,
             'slug'        => $slug,
