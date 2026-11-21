@@ -176,6 +176,15 @@ class PluginManager
 
         $meta = $this->getPluginMetadata($pluginId, $pluginDir);
 
+        // Licensing-compatible and explicitly repository-managed extensions use central policy.
+        if (class_exists(\FavoriteCMS\Central\Client::class)) {
+            $entitlement = (new \FavoriteCMS\Central\Client())->plugin($meta);
+            if (empty($entitlement['allowed'])) {
+                $this->bootErrors[$pluginId] = 'License access required: ' . ($entitlement['reason'] ?? 'unavailable');
+                return;
+            }
+        }
+
         // Auto-register prefixable tables declared in plugin manifest
         if (!empty($meta['tables']) && is_array($meta['tables']) && $this->app->has(\FavoriteCMS\Core\Database::class)) {
             $db = $this->app->make(\FavoriteCMS\Core\Database::class);
