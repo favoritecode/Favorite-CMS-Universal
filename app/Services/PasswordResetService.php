@@ -135,6 +135,7 @@ class PasswordResetService
                 WHERE `id` = ? AND `email` = ? AND `status` = 'active'",
                 [PasswordHasher::hash($password), gmdate('Y-m-d H:i:s'), $record->user_id, $record->email])->rowCount();
             $this->db->delete('password_resets', ['user_id' => $record->user_id]);
+            if($changed===1) NotificationService::security((int)$record->user_id,'Password reset completed','Your account password was reset. Two-step verification remains enabled if configured.');
             return $changed === 1;
         });
     }

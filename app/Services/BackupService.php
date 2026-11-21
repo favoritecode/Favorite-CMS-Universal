@@ -14,6 +14,7 @@ class BackupService
 {
     protected string $backupDir;
     protected string $appRoot;
+    protected array $sqliteSnapshots = [];
 
     public function __construct(?string $backupDir = null, ?string $appRoot = null)
     {
@@ -63,6 +64,7 @@ class BackupService
 
         $tempSqlFile = $this->backupDir . "/dump_{$timestamp}_{$randomSuffix}.sql";
 
+        $this->sqliteSnapshots = [];
         try {
             // 1. Dump database to SQL file
             $dumpResult = $this->dumpDatabase($pdo, $db->prefix(), $tempSqlFile);
@@ -93,6 +95,16 @@ class BackupService
                 $this->addDirectoryToZip($zip, $appRoot . '/plugins', 'plugins', $fileInventory);
             }
 
+            // Preserve central identities and keys in protected backups, never distributable packages.
+            foreach (['favorite-central-client', 'favorite-central-private'] as $centralDirectory) {
+                if (is_dir($appRoot . '/storage/' . $centralDirectory)) {
+                    $this->addDirectoryToZip($zip, $appRoot . '/storage/' . $centralDirectory, 'storage/' . $centralDirectory, $fileInventory);
+                }
+            }
+            if (is_dir($appRoot . '/favorite-server-license')) {
+                $this->addDirectoryToZip($zip, $appRoot . '/favorite-server-license', 'favorite-server-license', $fileInventory);
+            }
+
             // 5. Build and add manifest.json
             $manifest = [
                 'manifest_version' => 1,
@@ -121,6 +133,8 @@ class BackupService
 
             // Clean up temporary SQL file
             @unlink($tempSqlFile);
+            foreach ($this->sqliteSnapshots as $snapshot) @unlink($snapshot);
+            $this->sqliteSnapshots = [];
 
             $zipSize = filesize($zipPath);
             $zipHash = hash_file('sha256', $zipPath);
@@ -135,6 +149,8 @@ class BackupService
             ];
         } catch (\Throwable $e) {
             @unlink($tempSqlFile);
+            foreach ($this->sqliteSnapshots as $snapshot) @unlink($snapshot);
+            $this->sqliteSnapshots = [];
             if (file_exists($zipPath)) {
                 @unlink($zipPath);
             }
@@ -279,6 +295,17 @@ class BackupService
                 continue;
             }
 
+            // Snapshot the integrated OAuth SQLite store consistently, including committed WAL rows.
+            if (preg_match('~^storage/favorite-central-private/oauth/database/gateway-[a-f0-9]{16}\.sqlite-(?:wal|shm)$~', $zipEntryPath)) continue;
+            if (preg_match('~^storage/favorite-central-private/oauth/database/gateway-[a-f0-9]{16}\.sqlite$~', $zipEntryPath)) {
+                $snapshot = $this->backupDir . '/oauth-snapshot-' . bin2hex(random_bytes(12)) . '.sqlite';
+                $this->sqliteSnapshots[] = $snapshot;
+                $sourceDb = new PDO('sqlite:file:' . str_replace('\\', '/', $filePath) . '?mode=ro', null, null, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
+                $sourceDb->exec('VACUUM INTO ' . $sourceDb->quote($snapshot));
+                $sourceDb = null;
+                @chmod($snapshot, 0600);
+                $filePath = $snapshot;
+            }
             $zip->addFile($filePath, $zipEntryPath);
             $inventory[$zipEntryPath] = filesize($filePath);
         }
