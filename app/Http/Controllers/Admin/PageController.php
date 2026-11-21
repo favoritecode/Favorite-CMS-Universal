@@ -103,13 +103,52 @@ class PageController
 
     public function store(Request $request): Response
     {
+        return $this->saveContent($request, false);
+    }
+
+    public function update(Request $request): Response
+    {
+        return $this->saveContent($request, true);
+    }
+
+    private function saveContent(Request $request, bool $editing): Response
+    {
+        $db = $this->app->make(Database::class);
+        $sessionBefore = $_SESSION ?? [];
+        try {
+            return \FavoriteCMS\Services\BuilderContent::run(fn() => $db->transaction(function () use ($request, $editing): Response {
+                return $editing ? $this->updateContent($request) : $this->storeContent($request);
+            }));
+        } catch (\Throwable $error) {
+            // Do not acknowledge browser drafts or consume revision tokens after a failed save.
+            $_SESSION = $sessionBefore;
+            unset($_SESSION['flash_success']);
+            $_SESSION['flash_error'] = 'Content could not be saved. Your previous content and drafts have been preserved.';
+            error_log('Favorite CMS page save failed: ' . $error->getMessage());
+            return Response::redirect($editing ? '/admin/pages/edit?id=' . (int)$request->post('id', 0) : '/admin/pages/new');
+        }
+    }
+
+    private function storeContent(Request $request): Response
+    {
         $title    = trim((string)$request->post('title', ''));
         $content  = (string)$request->post('content', '');
         $status   = (string)$request->post('status', 'draft');
         $slug     = trim((string)$request->post('slug', ''));
         $parentId = (int)$request->post('parent_id', 0);
+        if (!Page::isValidParent($parentId, 0)) {
+            $_SESSION['flash_error'] = 'Choose an existing parent page that does not create a cycle.';
+            return Response::redirect('/admin/pages/new');
+        }
         $featImg  = (int)$request->post('featured_image_id', 0);
         $order    = (int)$request->post('menu_order', 0);
+
+        try {
+            $publication=\FavoriteCMS\Services\ScheduledPublication::choice($request,User::find((int)($_SESSION['auth_user_id'] ?? 0)),null,'page');
+            $status=$publication['status'];
+        } catch(\RuntimeException $error) {
+            $_SESSION['flash_error']=$error->getMessage();return Response::redirect('/admin/pages/new');
+        }
 
         if ($title === '') {
             $_SESSION['flash_error'] = 'Page title cannot be empty.';
@@ -127,6 +166,9 @@ class PageController
             'slug'              => $finalSlug,
             'content'           => $content,
             'status'            => $status,
+            'published_at'      => $publication['published_at'],
+            'scheduled_at'      => $publication['scheduled_at'],
+            'scheduled_by'      => $publication['scheduled_by'],
             'parent_id'         => $parentId > 0 ? $parentId : null,
             'featured_image_id' => $featImg > 0 ? $featImg : null,
             'author_id'         => $authorId,
@@ -136,6 +178,7 @@ class PageController
         ]);
 
         $page = Page::find($pageId);
+        \FavoriteCMS\Services\ContentLayout::save($request, 'page', (int)$page->id);
         ContentRevision::record(Page::find((int)$page->id), 'page');
         \FavoriteCMS\Services\ContentWorkspace::capture(Page::find((int)$page->id), 'page');
         \FavoriteCMS\Services\ContentWorkspace::acknowledge($request, 'page');
@@ -185,7 +228,7 @@ class PageController
         return Response::make((string)ob_get_clean(), 200);
     }
 
-    public function update(Request $request): Response
+    private function updateContent(Request $request): Response
     {
         $id = (int)$request->post('id', 0);
         $page = Page::find($id);
@@ -199,8 +242,19 @@ class PageController
         $status   = (string)$request->post('status', 'draft');
         $slug     = trim((string)$request->post('slug', ''));
         $parentId = (int)$request->post('parent_id', 0);
+        if (!Page::isValidParent($parentId, $id)) {
+            $_SESSION['flash_error'] = 'Choose an existing parent page that does not create a cycle.';
+            return Response::redirect('/admin/pages/edit?id=' . $id);
+        }
         $featImg  = (int)$request->post('featured_image_id', 0);
         $order    = (int)$request->post('menu_order', 0);
+
+        try {
+            $publication=\FavoriteCMS\Services\ScheduledPublication::choice($request,User::find((int)($_SESSION['auth_user_id'] ?? 0)),$page,'page');
+            $status=$publication['status'];
+        } catch(\RuntimeException $error) {
+            $_SESSION['flash_error']=$error->getMessage();return Response::redirect('/admin/pages/edit?id=' . $id);
+        }
 
         if ($title === '') {
             $_SESSION['flash_error'] = 'Page title cannot be empty.';
@@ -221,18 +275,30 @@ class PageController
             $_SESSION['flash_error'] = 'This content changed in another tab or account. Your draft is preserved; reopen the editor before saving.';
             return Response::redirect('/admin/pages/edit?id=' . $id);
         }
+        try {
+            $layoutBaseline = $request->post('_layout_baseline', null);
+            if ($layoutBaseline !== null && $layoutBaseline !== \FavoriteCMS\Services\ContentLayout::get('page', (int)$page->id)) throw new \RuntimeException('The content layout changed in another tab. Reopen the editor before saving.');
+            $content = \FavoriteCMS\Services\BuilderContent::content($request, 'page', $page, $content);
+        } catch (\RuntimeException $error) {
+            $_SESSION['flash_error'] = $error->getMessage();
+            return Response::redirect('/admin/pages/edit?id=' . $id);
+        }
         \FavoriteCMS\Services\ContentWorkspace::capture($page, 'page');
         $page->update([
             'title'             => $title,
             'slug'              => $finalSlug,
             'content'           => $content,
             'status'            => $status,
+            'published_at'      => $publication['published_at'],
+            'scheduled_at'      => $publication['scheduled_at'],
+            'scheduled_by'      => $publication['scheduled_by'],
             'parent_id'         => $parentId > 0 && $parentId !== $id ? $parentId : null,
             'featured_image_id' => $featImg > 0 ? $featImg : null,
             'menu_order'        => $order,
             'updated_at'        => date('Y-m-d H:i:s'),
         ]);
 
+        \FavoriteCMS\Services\ContentLayout::save($request, 'page', (int)$page->id);
         ContentRevision::record(Page::find((int)$page->id), 'page');
         \FavoriteCMS\Services\ContentWorkspace::capture(Page::find((int)$page->id), 'page');
         \FavoriteCMS\Services\ContentWorkspace::acknowledge($request, 'page');
@@ -271,6 +337,7 @@ class PageController
 
         $fakePage = new Page([
             '_preview_content_verified' => true,
+            '_preview_sidebar_layout' => $request->post('sidebar_layout', 'right'),
             'id'                => 0,
             'title'             => $title ?: 'Preview',
             'slug'              => 'preview',
