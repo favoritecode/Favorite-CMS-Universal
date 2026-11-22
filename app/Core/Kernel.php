@@ -55,6 +55,12 @@ class Kernel
             $centralServer = APP_ROOT . '/favorite-server-license/bootstrap.php';
             if (is_file($centralServer)) {
                 require_once $centralServer;
+                // Optional private server package supplies its own fixed handlers.
+                // No files need to be installed inside the CMS public directory.
+                if (class_exists(\FavoriteCentral\Endpoints::class)) {
+                    $centralResponse = \FavoriteCentral\Endpoints::response($request, $this->app);
+                    if ($centralResponse !== null) return $centralResponse;
+                }
                 try {
                     $oauthResponse = \FavoriteCentral\OAuthGateway::response($request, APP_ROOT);
                     if ($oauthResponse !== null) return $oauthResponse;
