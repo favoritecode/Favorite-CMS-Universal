@@ -1,139 +1,50 @@
 <?php
-$currentUser = $currentUser ?? (function_exists('current_user') ? current_user() : null);
-$canManagePages = $currentUser && $currentUser->canManagePages();
-$canModerateComments = $currentUser && $currentUser->canModerateComments();
-$canManageUsers = $currentUser && $currentUser->canManageUsers();
-$canUploadMedia = $currentUser && $currentUser->canUploadMedia();
-$canManageMedia = $currentUser && $currentUser->canManageMedia();
-$canCreatePosts = $currentUser && $currentUser->canCreatePosts();
-$isAdmin = $currentUser && ($currentUser->hasRole('admin') || $currentUser->hasRole('super-admin') || $currentUser->isSuperAdmin());
-$isAuthor = $currentUser && $currentUser->hasRole('author');
+$e=static fn($v)=>htmlspecialchars(is_scalar($v)?(string)$v:'',ENT_QUOTES|ENT_SUBSTITUTE,'UTF-8');
+$href=static function($path)use($e){return $e(site_path(is_string($path)&&preg_match('~^/(?!/)[^\x00-\x1f]*$~D',$path)?$path:'/admin'));};
+$token=$e(csrf_token());$name=$currentUser->name?:$currentUser->username;
+$icon=static function($id){$path=match(true){str_contains($id,'multimedia')=>'<rect x="3" y="4" width="18" height="16" rx="3"/><path d="m10 9 5 3-5 3z"/>',str_contains($id,'shop'),str_contains($id,'digital')=>'<path d="M5 7h14l1 14H4L5 7Z"/><path d="M9 7V5a3 3 0 0 1 6 0v2"/>',str_contains($id,'app-store')=>'<rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/>',default=>'<rect x="4" y="3" width="16" height="18" rx="3"/><path d="M8 8h8M8 12h8M8 16h5"/>'};return '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">'.$path.'</svg>';};
 ?>
-<div class="page-header">
-    <h1 class="page-title">Dashboard</h1>
+<style>
+.dash-workspace{--dash-border:var(--admin-border,#64748b44);--dash-muted:var(--admin-text-muted,#94a3b8);--dash-heading:var(--admin-text-heading);--dash-surface:var(--admin-surface);--dash-accent:var(--admin-primary,#2563eb);width:100%;min-width:0;color:var(--admin-text)}
+.dash-hero{display:flex;justify-content:space-between;align-items:center;gap:20px;padding:8px 0 24px}.dash-eyebrow{color:var(--dash-muted);font-size:11px;letter-spacing:.12em;text-transform:uppercase;font-weight:700;margin-bottom:8px}.dash-hero h1{font-size:clamp(24px,3vw,32px);letter-spacing:-.04em;margin:0 0 8px;color:var(--dash-heading)}.dash-hero p{color:var(--dash-muted);margin:0;line-height:1.6}.dash-btn{display:inline-flex;justify-content:center;align-items:center;gap:8px;min-height:38px;padding:8px 14px;border:1px solid var(--dash-border);border-radius:9px;color:var(--dash-heading);background:var(--dash-surface);font-size:12px;font-weight:600;text-decoration:none;cursor:pointer}.dash-btn:hover{border-color:var(--dash-accent)}.dash-btn-primary{background:var(--dash-accent);color:#fff;border-color:transparent}.dash-controls{display:flex;gap:8px;flex-wrap:wrap}.dash-customize{border:1px solid var(--dash-border);border-radius:14px;background:var(--dash-surface);margin-bottom:26px;overflow:hidden}.dash-customize>summary{padding:16px 20px;cursor:pointer;font-weight:650;display:flex;align-items:center;justify-content:space-between;gap:12px;list-style:none}.dash-customize>summary::-webkit-details-marker{display:none}.dash-customize>summary::after{content:'+';font-size:22px;font-weight:400}.dash-customize[open]>summary::after{content:'−'}.dash-customize>summary small{font-weight:400;color:var(--dash-muted);margin-left:auto}.dash-picker{padding:0 20px 20px}.dash-picker h2{font-size:12px;color:var(--dash-muted);text-transform:uppercase;letter-spacing:.08em;margin:18px 0 12px}.dash-choices{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr));gap:10px}.dash-choice{display:flex;align-items:flex-start;gap:12px;padding:14px;border:1px solid var(--dash-border);border-radius:10px;cursor:pointer;min-width:0}.dash-choice:has(input:checked){border-color:var(--dash-accent);background:color-mix(in srgb,var(--dash-accent) 7%,transparent)}.dash-choice input{margin-top:3px;accent-color:var(--dash-accent);width:16px;height:16px;flex-shrink:0}.dash-choice strong{display:block;font-size:13px;line-height:1.5;overflow-wrap:anywhere}.dash-choice small{display:block;font-size:12px;line-height:1.6;color:var(--dash-muted);margin-top:3px}.dash-inactive{font-size:10px;color:var(--dash-muted);margin-left:6px;font-weight:400}.dash-picker-footer{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-top:20px}.dash-picker-footer p{color:var(--dash-muted);font-size:12px;margin:0}.dash-source{background:var(--dash-surface);border:1px solid var(--dash-border);border-radius:16px;padding:24px;margin-bottom:24px;min-width:0}.dash-source-head{display:flex;align-items:center;gap:14px;margin-bottom:22px}.dash-source-icon{display:grid;place-items:center;width:44px;height:44px;border-radius:12px;background:color-mix(in srgb,var(--dash-accent) 12%,transparent);color:var(--dash-accent);flex-shrink:0}.dash-drag-handle{margin-left:auto;display:grid;place-items:center;flex-shrink:0;width:64px;height:40px;border:1px solid var(--dash-border);border-radius:8px;background:transparent;color:var(--dash-muted);cursor:grab;touch-action:none}.dash-drag-handle:active{cursor:grabbing}.dash-source.is-dragging{opacity:.65;border-color:var(--dash-accent)}.dash-drag-handle:focus-visible{outline:2px solid var(--dash-accent);outline-offset:3px}#dash-order-status{font-size:12px;margin-top:6px}.dash-source-head h2{margin:0 0 4px;font-size:18px;letter-spacing:-.02em;color:var(--dash-heading)}.dash-source-head p{margin:0;font-size:12px;color:var(--dash-muted);line-height:1.6}.dash-metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,170px),1fr));gap:12px}.dash-metric{padding:17px;border:1px solid var(--dash-border);border-radius:12px;min-width:0}.dash-metric-label a{color:inherit;text-decoration:none}.dash-metric-label a:hover{color:var(--dash-accent)}.dash-metric-label{color:var(--dash-muted);font-size:12px}.dash-metric-value{font-size:29px;font-weight:750;letter-spacing:-.04em;color:var(--dash-heading);margin:7px 0;line-height:1.2}.dash-metric small{font-size:11px;line-height:1.7;color:var(--dash-muted);display:block;overflow-wrap:anywhere}.dash-source-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:20px}.dash-recent{margin-top:24px}.dash-recent h3{font-size:13px;font-weight:650;margin:0 0 12px;color:var(--dash-heading)}.dash-recent-list{list-style:none;margin:0;padding:0}.dash-recent-list li{display:flex;align-items:center;gap:12px;padding:12px 0;border-top:1px solid var(--dash-border)}.dash-recent-title{font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;flex:1;color:var(--dash-heading);text-decoration:none}.dash-recent-title:hover{color:var(--dash-accent)}.dash-status{font-size:10px;padding:4px 8px;border-radius:6px;background:color-mix(in srgb,var(--dash-accent) 9%,transparent);color:var(--dash-muted);white-space:nowrap}.dash-date{font-size:11px;color:var(--dash-muted);white-space:nowrap}.dash-notice{font-size:13px;line-height:1.8;color:var(--dash-muted);padding:14px;background:color-mix(in srgb,var(--dash-accent) 5%,transparent);border-radius:10px}.dash-empty{text-align:center;padding:56px 20px;border:1px dashed var(--dash-border);border-radius:16px}.dash-empty h2{font-size:20px;margin:14px 0 10px}.dash-empty p{color:var(--dash-muted);line-height:1.7}.dash-draft{margin-top:20px;border-top:1px solid var(--dash-border);padding-top:16px}.dash-draft summary{cursor:pointer;font-size:13px}.dash-draft .form-group{margin:12px 0}.dash-reset{margin-top:8px;text-align:right}.dash-reset button{background:none;border:0;font-size:11px;color:var(--dash-muted);cursor:pointer}.dash-btn:focus-visible,.dash-choice:focus-within,summary:focus-visible{outline:2px solid var(--dash-accent);outline-offset:3px}
+@media(max-width:600px){.dash-hero{align-items:flex-start;flex-direction:column;gap:14px}.dash-source{padding:16px}.dash-customize>summary small{display:none}.dash-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.dash-metric{padding:13px}.dash-metric-value{font-size:25px}.dash-date{display:none}.dash-metric:last-child:nth-child(odd){grid-column:1/-1}.dash-recent-list li{gap:8px}.dash-source-head h2{font-size:16px}.dash-source-actions .dash-btn{flex:1}.dash-picker{padding:0 14px 18px}.dash-choice{padding:12px}}
+
+/* Compact setup modal and balanced panel header. */
+.dash-customize{position:fixed;inset:0;margin:auto;width:min(920px,calc(100% - 32px));max-height:calc(100dvh - 48px);padding:0;border:1px solid var(--admin-border);background:var(--admin-surface);color:var(--admin-text);border-radius:16px;overflow:auto;box-shadow:0 24px 90px #0006}.dash-customize:not([open]){display:none}.dash-customize::backdrop{background:rgba(3,7,18,.65);backdrop-filter:blur(4px)}.dash-customize .dash-picker{padding:0 24px 24px}.dash-modal-head{position:sticky;top:0;z-index:1;display:flex;align-items:center;justify-content:space-between;gap:20px;padding:22px 24px;background:var(--admin-surface);border-bottom:1px solid var(--admin-border)}.dash-modal-head h2{margin:0 0 6px;font-size:20px;letter-spacing:-.03em}.dash-modal-head p{margin:0;color:var(--admin-text-muted);font-size:12px;line-height:1.6}.dash-modal-close{display:grid;place-items:center;flex-shrink:0;width:34px;height:34px;border:1px solid var(--admin-border);border-radius:9px;background:transparent;color:var(--admin-text-heading);font-size:24px;cursor:pointer}.dash-source-head{display:grid;grid-template-columns:minmax(0,1fr) 64px minmax(0,1fr);gap:16px;align-items:center}.dash-source-heading{display:flex;gap:14px;align-items:center;min-width:0}.dash-source-heading>div:last-child{min-width:0}.dash-source-heading h2{overflow-wrap:anywhere}.dash-drag-handle{margin:0;justify-self:center;grid-column:2}.dash-source-head .dash-source-actions{grid-column:3;margin:0;justify-content:flex-end;gap:6px;min-width:0}.dash-source-head .dash-source-actions .dash-btn{min-height:34px;padding:8px 11px;white-space:normal;text-align:center;line-height:1.4}
+@media(max-width:760px){.dash-source-head{grid-template-columns:minmax(0,1fr) 64px minmax(0,1fr);gap:12px}.dash-source-heading{grid-column:1/-1}.dash-source-head .dash-drag-handle{grid-row:2}.dash-source-head .dash-source-actions{grid-row:2;flex-direction:column;align-items:stretch}.dash-source-head .dash-source-actions .dash-btn{flex:none;font-size:11px}.dash-customize{width:calc(100% - 20px);max-height:calc(100dvh - 24px)}.dash-modal-head{padding:18px}.dash-customize .dash-picker{padding:0 18px 20px}}
+
+/* Show reorder controls on the hovered card; keep touch and keyboard access. */
+@media (hover:hover) and (pointer:fine){
+ .dash-source .dash-drag-handle{opacity:0;pointer-events:none}
+ .dash-source:hover .dash-drag-handle,.dash-source:has(.dash-drag-handle:focus-visible) .dash-drag-handle,.dash-source.is-dragging .dash-drag-handle{opacity:1;pointer-events:auto}
+}
+</style>
+<div class="dash-workspace" data-order-url="<?= $href('/admin/dashboard/preferences') ?>" data-order-token="<?= $token ?>">
+<header class="dash-hero"><div><div class="dash-eyebrow">Your workspace</div><h1>Welcome, <?= $e($name) ?></h1><p>CMS data appears by default. Choose installed plugins with Customize. Drag a panel’s six-dot handle to change its order.</p><p id="dash-order-status" role="status" aria-live="polite"></p></div><div class="dash-controls"><a class="dash-btn" href="<?= $href('/') ?>" target="_blank" rel="noopener">Visit site ↗</a><a class="dash-btn" href="<?= $href('/admin/users/profile') ?>">My account</a><button type="button" class="dash-btn dash-btn-primary" id="dash-customize-open" aria-haspopup="dialog" aria-controls="dashboard-customize">Customize</button></div></header>
+<dialog class="dash-customize" id="dashboard-customize" aria-labelledby="dash-customize-title"><header class="dash-modal-head"><div><h2 id="dash-customize-title">Customize dashboard</h2><p><?= count($selected) ?> sources selected · Choose the data you want to see.</p></div><button type="button" class="dash-modal-close" aria-label="Close customization">×</button></header><div class="dash-picker">
+<form method="post" action="<?= $href('/admin/dashboard/preferences') ?>"><input type="hidden" name="_token" value="<?= $token ?>"><input type="hidden" name="action" value="save">
+<?php foreach(['CMS','Plugins'] as $group): $items=array_filter($sources,static fn($source)=>$source['group']===$group);if(!$items)continue; ?><h2><?= $e($group) ?></h2><div class="dash-choices"><?php foreach($items as $id=>$source): ?><label class="dash-choice"><input type="checkbox" name="sources[]" value="<?= $e($id) ?>" <?= in_array($id,$selected,true)?'checked':'' ?>><span><strong><?= $e($source['title']) ?><?php if(!$source['active']): ?><span class="dash-inactive">Inactive</span><?php endif ?></strong><small><?= $e($source['description']) ?></small></span></label><?php endforeach ?></div><?php endforeach ?>
+<div class="dash-picker-footer"><p>Choose one or more sources. This preference applies to your account.</p><button type="submit" class="dash-btn dash-btn-primary">Save dashboard</button></div></form><form method="post" action="<?= $href('/admin/dashboard/preferences') ?>" class="dash-reset"><input type="hidden" name="_token" value="<?= $token ?>"><button name="action" value="reset">Restore default dashboard</button></form></div></dialog>
+<?php if(!$panels): ?><section class="dash-empty"><?= $icon('core-posts') ?><h2>Make this dashboard yours</h2><p>Click “Customize” above and choose the data you want to see.</p></section><?php endif ?>
+<?php foreach($panels as $panel): ?><section class="dash-source" data-dashboard-source="<?= $e($panel['id']) ?>"><header class="dash-source-head"><div class="dash-source-heading"><div class="dash-source-icon"><?= $icon($panel['id']) ?></div><div><h2><?= $e($panel['title']) ?></h2><p><?= $e($panel['description']) ?></p></div></div><button type="button" class="dash-drag-handle" aria-label="Reorder <?= $e($panel['title']) ?>" title="Drag to reorder. Keyboard: Arrow Up / Arrow Down"><svg width="22" height="16" viewBox="0 0 22 16" fill="currentColor" aria-hidden="true"><circle cx="5" cy="5" r="1.5"/><circle cx="11" cy="5" r="1.5"/><circle cx="17" cy="5" r="1.5"/><circle cx="5" cy="11" r="1.5"/><circle cx="11" cy="11" r="1.5"/><circle cx="17" cy="11" r="1.5"/></svg></button><?php if($panel['actions']): ?><nav class="dash-source-actions" aria-label="<?= $e($panel['title']) ?> shortcuts"><?php foreach($panel['actions'] as $action): ?><a class="dash-btn" href="<?= $href($action['url']??'/admin') ?>"><?= $e($action['label']??'Open') ?> →</a><?php endforeach ?></nav><?php endif ?></header>
+<?php if($panel['notice']): ?><p class="dash-notice" role="status"><?= $e($panel['notice']) ?></p><?php endif ?>
+<?php if($panel['metrics']): ?><div class="dash-metrics"><?php foreach($panel['metrics'] as $metric): ?><article class="dash-metric"><div class="dash-metric-label"><?php if(!empty($metric['url'])): ?><a href="<?= $href($metric['url']) ?>"><?= $e($metric['label']??'') ?> ↗</a><?php else: ?><?= $e($metric['label']??'') ?><?php endif ?></div><div class="dash-metric-value"><?= is_numeric($metric['value']??null)?number_format((float)$metric['value']):$e($metric['value']??'') ?></div><?php if(!empty($metric['detail'])): ?><small><?= $e($metric['detail']) ?></small><?php endif ?></article><?php endforeach ?></div><?php endif ?>
+<?php if($panel['recent']): ?><div class="dash-recent"><h3><?= $e($panel['recent_label']??'Recently updated') ?></h3><ul class="dash-recent-list"><?php foreach($panel['recent'] as $row): ?><li><a class="dash-recent-title" href="<?= $href($row['url']??'/admin') ?>" title="<?= $e($row['title']??'') ?>"><?= $e($row['title']??'Untitled') ?></a><?php if(!empty($row['status'])): ?><span class="dash-status"><?= $e(ucfirst(str_replace('_',' ',$row['status']))) ?></span><?php endif ?><?php if(!empty($row['date'])): ?><time class="dash-date"><?= $e(substr((string)$row['date'],0,16)) ?></time><?php endif ?></li><?php endforeach ?></ul></div><?php endif ?>
+
+<?php if(!empty($panel['quick_draft'])): ?><details class="dash-draft"><summary>Quick draft</summary><form method="post" action="<?= $href('/admin/posts/quick-draft') ?>"><input type="hidden" name="_token" value="<?= $token ?>"><div class="form-group"><label for="dash-draft-title">Title</label><input id="dash-draft-title" name="title" class="form-control" required></div><div class="form-group"><label for="dash-draft-content">Content</label><textarea id="dash-draft-content" name="content" class="form-control" rows="3"></textarea></div><button class="dash-btn dash-btn-primary">Save draft</button></form></details><?php endif ?>
+</section><?php endforeach ?>
 </div>
 
-<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)); gap: 16px; margin-bottom: 24px;">
-    <div class="form-card" style="padding: 16px;">
-        <h3 style="color: var(--wp-text-muted); font-size: 13px; text-transform: uppercase;"><?php echo $isAuthor ? 'My Posts' : 'Posts'; ?></h3>
-        <div style="font-size: 26px; font-weight: 700; color: var(--admin-text-heading); margin: 4px 0;"><?php echo $postsCount['all'] ?? 0; ?></div>
-        <div style="font-size: 12px; color: var(--wp-text-muted);">
-            <?php echo $postsCount['published'] ?? 0; ?> published &bull; <?php echo $postsCount['draft'] ?? 0; ?> drafts
-        </div>
-        <a href="<?php echo htmlspecialchars(site_path('/admin/posts'), ENT_QUOTES, 'UTF-8'); ?>" style="display: inline-block; margin-top: 8px; font-size: 12px;"><?php echo $isAuthor ? 'View My Posts &rarr;' : ($canCreatePosts ? 'Manage Posts &rarr;' : 'View Posts &rarr;'); ?></a>
-    </div>
-
-    <?php if ($canManagePages && $pagesCount !== null): ?>
-    <div class="form-card" style="padding: 16px;">
-        <h3 style="color: var(--wp-text-muted); font-size: 13px; text-transform: uppercase;">Pages</h3>
-        <div style="font-size: 26px; font-weight: 700; color: var(--admin-text-heading); margin: 4px 0;"><?php echo $pagesCount['all'] ?? 0; ?></div>
-        <div style="font-size: 12px; color: var(--wp-text-muted);">
-            <?php echo $pagesCount['published'] ?? 0; ?> published
-        </div>
-        <a href="<?php echo htmlspecialchars(site_path('/admin/pages'), ENT_QUOTES, 'UTF-8'); ?>" style="display: inline-block; margin-top: 8px; font-size: 12px;">Manage Pages &rarr;</a>
-    </div>
-    <?php endif; ?>
-
-    <?php if ($canModerateComments && $commentsCount !== null): ?>
-    <div class="form-card" style="padding: 16px;">
-        <h3 style="color: var(--wp-text-muted); font-size: 13px; text-transform: uppercase;">Comments</h3>
-        <div style="font-size: 26px; font-weight: 700; color: var(--admin-text-heading); margin: 4px 0;"><?php echo $commentsCount['all'] ?? 0; ?></div>
-        <div style="font-size: 12px; color: var(--wp-text-muted);">
-            <?php echo $commentsCount['pending'] ?? 0; ?> pending moderation
-        </div>
-        <a href="<?php echo htmlspecialchars(site_path('/admin/comments'), ENT_QUOTES, 'UTF-8'); ?>" style="display: inline-block; margin-top: 8px; font-size: 12px;">Moderate Comments &rarr;</a>
-    </div>
-    <?php endif; ?>
-
-    <?php if ($canManageUsers && $userCount !== null): ?>
-    <div class="form-card" style="padding: 16px;">
-        <h3 style="color: var(--wp-text-muted); font-size: 13px; text-transform: uppercase;">Users & Media</h3>
-        <div style="font-size: 26px; font-weight: 700; color: var(--admin-text-heading); margin: 4px 0;"><?php echo (int)$userCount; ?> Users</div>
-        <div style="font-size: 12px; color: var(--wp-text-muted);">
-            <?php echo (int)$mediaCount; ?> media files
-        </div>
-        <a href="<?php echo htmlspecialchars(site_path('/admin/users'), ENT_QUOTES, 'UTF-8'); ?>" style="display: inline-block; margin-top: 8px; font-size: 12px;">Manage Users &rarr;</a>
-    </div>
-    <?php elseif ($canManageMedia): ?>
-    <div class="form-card" style="padding: 16px;">
-        <h3 style="color: var(--wp-text-muted); font-size: 13px; text-transform: uppercase;">Media</h3>
-        <div style="font-size: 26px; font-weight: 700; color: var(--admin-text-heading); margin: 4px 0;"><?php echo (int)$mediaCount; ?> Files</div>
-        <div style="font-size: 12px; color: var(--wp-text-muted);">
-            Media library files
-        </div>
-        <a href="<?php echo htmlspecialchars(site_path('/admin/media'), ENT_QUOTES, 'UTF-8'); ?>" style="display: inline-block; margin-top: 8px; font-size: 12px;">Media Library &rarr;</a>
-    </div>
-    <?php endif; ?>
-
-    <?php if (!$canManagePages && !$canManageUsers && $currentUser): ?>
-    <div class="form-card" style="padding: 16px;">
-        <h3 style="color: var(--wp-text-muted); font-size: 13px; text-transform: uppercase;">My Account</h3>
-        <div style="font-size: 18px; font-weight: 700; color: var(--admin-text-heading); margin: 8px 0 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-            <?php echo htmlspecialchars($currentUser->name ?: $currentUser->username, ENT_QUOTES, 'UTF-8'); ?>
-        </div>
-        <div style="font-size: 12px; color: var(--wp-text-muted);">
-            Role: <?php echo htmlspecialchars(ucwords(str_replace(['-', '_'], ' ', $currentUser->getPrimaryRoleSlug() ?: 'User')), ENT_QUOTES, 'UTF-8'); ?>
-        </div>
-        <a href="<?php echo htmlspecialchars(site_path('/admin/users/profile'), ENT_QUOTES, 'UTF-8'); ?>" style="display: inline-block; margin-top: 8px; font-size: 12px;">Edit Profile &rarr;</a>
-    </div>
-    <?php endif; ?>
-</div>
-
-<div class="form-row">
-    <!-- At a Glance & Quick Links -->
-    <div class="form-card">
-        <h2 style="font-size: 16px; margin-bottom: 12px; font-weight: 600;">Welcome to Favorite CMS!</h2>
-        <p style="color: var(--wp-text-muted); font-size: 13px; margin-bottom: 16px;">
-            We've assembled some quick links to get you started customizing and building your site:
-        </p>
-        <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px;">
-            <?php if ($canCreatePosts): ?>
-                <a href="<?php echo htmlspecialchars(site_path('/admin/posts/new'), ENT_QUOTES, 'UTF-8'); ?>" class="btn btn-primary">+ Write Your First Post</a>
-            <?php endif; ?>
-            <?php if ($canManagePages): ?>
-                <a href="<?php echo htmlspecialchars(site_path('/admin/pages/new'), ENT_QUOTES, 'UTF-8'); ?>" class="btn btn-secondary">+ Add an About Page</a>
-            <?php endif; ?>
-            <?php if ($isAdmin): ?>
-                <a href="<?php echo htmlspecialchars(site_path('/admin/themes'), ENT_QUOTES, 'UTF-8'); ?>" class="btn btn-secondary">Customize Theme</a>
-            <?php endif; ?>
-            <a href="/" target="_blank" class="btn btn-secondary">View Your Site &rarr;</a>
-        </div>
-
-        <h3 style="font-size: 14px; margin-bottom: 10px; font-weight: 600;">Recent Published Posts</h3>
-        <?php if (empty($recentPosts)): ?>
-            <p style="color: var(--wp-text-muted); font-size: 12px;">No posts published yet.</p>
-        <?php else: ?>
-            <ul style="list-style: none; font-size: 13px;">
-                <?php foreach ($recentPosts as $p): ?>
-                    <li style="padding: 6px 0; border-bottom: 1px solid var(--admin-border); display: flex; justify-content: space-between;">
-                        <?php if ($currentUser && $currentUser->canEditPost($p)): ?>
-                            <a href="<?php echo htmlspecialchars(site_path('/admin/posts/edit?id='), ENT_QUOTES, 'UTF-8'); ?><?php echo (int)$p->id; ?>"><?php echo htmlspecialchars($p->title, ENT_QUOTES, 'UTF-8'); ?></a>
-                        <?php else: ?>
-                            <a href="<?php echo htmlspecialchars(site_path('/post/'), ENT_QUOTES, 'UTF-8'); ?><?php echo htmlspecialchars($p->slug ?: (string)$p->id, ENT_QUOTES, 'UTF-8'); ?>" target="_blank"><?php echo htmlspecialchars($p->title, ENT_QUOTES, 'UTF-8'); ?></a>
-                        <?php endif; ?>
-                        <span style="color: var(--wp-text-muted); font-size: 12px;"><?php echo format_date($p->published_at ?? $p->created_at, 'M j, Y'); ?></span>
-                    </li>
-                <?php endforeach; ?>
-            </ul>
-        <?php endif; ?>
-    </div>
-
-    <?php if ($canCreatePosts): ?>
-    <!-- Quick Draft -->
-    <div class="form-card">
-        <h2 style="font-size: 16px; margin-bottom: 12px; font-weight: 600;">Quick Draft</h2>
-        <form method="POST" action="<?php echo htmlspecialchars(site_path('/admin/posts/quick-draft'), ENT_QUOTES, 'UTF-8'); ?>">
-            <input type="hidden" name="_token" value="<?php echo htmlspecialchars($_SESSION['_token'] ?? '', ENT_QUOTES, 'UTF-8'); ?>">
-            <div class="form-group">
-                <label for="draft_title">Title</label>
-                <input type="text" id="draft_title" name="title" class="form-control" placeholder="What's on your mind?" required>
-            </div>
-            <div class="form-group">
-                <label for="draft_content">Content</label>
-                <textarea id="draft_content" name="content" class="form-control" rows="4" placeholder="Draft your ideas here..."></textarea>
-            </div>
-            <button type="submit" class="btn btn-primary">Save Draft</button>
-        </form>
-    </div>
-    <?php endif; ?>
-</div>
+<script>(()=>{'use strict';const modal=document.getElementById('dashboard-customize'),opener=document.getElementById('dash-customize-open');if(modal&&opener){let oldOverflow='';opener.addEventListener('click',()=>{oldOverflow=document.documentElement.style.overflow;document.documentElement.style.overflow='hidden';modal.showModal();});modal.querySelector('.dash-modal-close').addEventListener('click',()=>modal.close());modal.addEventListener('click',e=>{if(e.target===modal){const r=modal.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)modal.close();}});modal.addEventListener('close',()=>{document.documentElement.style.overflow=oldOverflow;opener.focus();});}const root=document.querySelector('.dash-workspace');if(!root)return;const status=document.getElementById('dash-order-status');let busy=false,drag=null;
+const panels=()=>[...root.querySelectorAll('[data-dashboard-source]')];const order=()=>panels().map(p=>p.dataset.dashboardSource);
+function restore(ids){const map=new Map(panels().map(p=>[p.dataset.dashboardSource,p]));for(const id of ids)if(map.has(id))root.append(map.get(id));}
+async function save(previous){const ids=order();if(ids.join('|')===previous.join('|'))return;busy=true;status.textContent='Saving dashboard order…';try{const data=new FormData();data.set('_token',root.dataset.orderToken);data.set('action','reorder');ids.forEach(id=>data.append('order[]',id));const res=await fetch(root.dataset.orderUrl,{method:'POST',body:data,credentials:'same-origin',headers:{Accept:'application/json'}});const result=await res.json();if(!res.ok||!result.success)throw Error(result.message||'Could not save dashboard order.');status.textContent='Dashboard order saved.';}catch(error){restore(previous);status.textContent=error.message||'Could not save order. Please try again.';}finally{busy=false;}}
+for(const handle of root.querySelectorAll('.dash-drag-handle')){
+ handle.addEventListener('pointerdown',e=>{if(busy||e.button!==0)return;drag={panel:handle.closest('[data-dashboard-source]'),previous:order(),start:e.clientY,moved:false,handle,id:e.pointerId};handle.setPointerCapture(e.pointerId);});
+ handle.addEventListener('keydown',e=>{if(busy||!['ArrowUp','ArrowDown'].includes(e.key))return;e.preventDefault();const panel=handle.closest('[data-dashboard-source]'),list=panels(),i=list.indexOf(panel),previous=order();if(e.key==='ArrowUp'&&i>0)root.insertBefore(panel,list[i-1]);else if(e.key==='ArrowDown'&&i<list.length-1)root.insertBefore(list[i+1],panel);else return;handle.focus();save(previous);});
+}
+ document.addEventListener('pointermove',e=>{if(!drag||drag.id!==e.pointerId)return;if(!drag.moved&&Math.abs(e.clientY-drag.start)<6)return;drag.moved=true;drag.panel.classList.add('is-dragging');e.preventDefault();const rest=panels().filter(p=>p!==drag.panel);const next=rest.find(p=>e.clientY<p.getBoundingClientRect().top+p.getBoundingClientRect().height/2);if(next)root.insertBefore(drag.panel,next);else root.append(drag.panel);if(e.clientY<90)scrollBy(0,-18);else if(e.clientY>innerHeight-90)scrollBy(0,18);});
+ const end=e=>{if(!drag||drag.id!==e.pointerId)return;const old=drag;drag=null;old.panel.classList.remove('is-dragging');if(e.type==='pointercancel')restore(old.previous);else if(old.moved)save(old.previous);};
+ document.addEventListener('pointerup',end);document.addEventListener('pointercancel',end);
+})();
+</script>

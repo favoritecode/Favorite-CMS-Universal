@@ -491,6 +491,12 @@ class UserController
             return Response::redirect('/admin/users/profile');
         }
 
+        if (($password !== '' || strtolower($email)!==strtolower((string)$user->email)) &&
+            (!(new \FavoriteCMS\Services\AuthRateLimiter())->allow('profile-credentials:'.$user->id,10,900) || !$user->verifyPassword((string)$request->post('current_password','')))) {
+            $_SESSION['flash_error']='Enter your current password to change your email or password.';
+            return Response::redirect('/admin/users/profile');
+        }
+
         $targetEmail = (string)$user->email;
         $emailNotice = '';
 
@@ -502,7 +508,7 @@ class UserController
                 return Response::redirect('/admin/users/profile');
             }
 
-            if (EmailVerificationService::isRequired()) {
+            if (EmailVerificationService::isRequired() || \FavoriteCMS\Services\AccountSecurity::state((int)$user->id)->method !== 'off') {
                 $db = $this->app->make(Database::class);
                 $verifService = new EmailVerificationService($db);
                 $verifToken = $verifService->createVerificationToken($user, $email);
@@ -523,8 +529,8 @@ class UserController
 
         // Password update check
         if ($password !== '') {
-            if (strlen($password) < 6) {
-                $_SESSION['flash_error'] = 'New password must be at least 6 characters long.';
+            if (strlen($password) < 8) {
+                $_SESSION['flash_error'] = 'New password must be at least 8 characters long.';
                 return Response::redirect('/admin/users/profile');
             }
             if ($passwordConfirm !== '' && $password !== $passwordConfirm) {
@@ -542,6 +548,8 @@ class UserController
         // (Role and status are excluded from $data)
 
         $user->update($data);
+        if($password!=='') \FavoriteCMS\Services\NotificationService::security((int)$user->id,'Password changed','Your account password was changed from the profile screen.');
+        if(strtolower($email)!==strtolower((string)$user->email)) \FavoriteCMS\Services\NotificationService::security((int)$user->id,'Email change requested','An email address change was requested.');
         $_SESSION['auth_user_name'] = $name;
 
         if ($emailNotice !== '') {

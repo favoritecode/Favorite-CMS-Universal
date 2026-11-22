@@ -59,6 +59,10 @@ class ThemeManager
         return $themes;
     }
 
+    protected function entitlement(string $id):array{
+        $path=$this->themesPath.'/'.$id.'/theme.json';$manifest=is_file($path)?json_decode((string)file_get_contents($path),true):[];$manifest=is_array($manifest)?$manifest:[];$manifest['id']=$id;
+        return (new \FavoriteCMS\Central\Client())->theme($manifest);
+    }
     public function getActiveTheme(): string
     {
         try {
@@ -67,6 +71,7 @@ class ThemeManager
             if (!is_dir($this->themesPath . '/' . $activeTheme) && is_dir($this->themesPath . '/default')) {
                 return 'default';
             }
+            if($activeTheme!=='default'&&empty($this->entitlement($activeTheme)['allowed']))return 'default';
             return $activeTheme;
         } catch (\Throwable) {
             return 'default';
@@ -78,6 +83,7 @@ class ThemeManager
      */
     public function activateTheme(string $themeId): bool
     {
+        if(!preg_match('/^[A-Za-z0-9_-]{1,80}$/',$themeId))throw new \InvalidArgumentException('Invalid theme identity.');
         $targetDir = $this->themesPath . '/' . $themeId;
         if (!is_dir($targetDir)) {
             throw new \InvalidArgumentException("Theme directory does not exist: {$themeId}");
@@ -88,6 +94,7 @@ class ThemeManager
             throw new \RuntimeException("Theme '{$themeId}' is invalid: missing required index.php template.");
         }
 
+        if($themeId!=='default'&&empty($this->entitlement($themeId)['allowed']))throw new \RuntimeException('Theme access requires an active trial or license. Open Licenses & connection.');
         $previous = $this->getActiveTheme();
 
         try {

@@ -13,6 +13,7 @@ $headingTag = ($headingTag ?? 'h2') === 'h1' ? 'h1' : 'h2';
 $actions = is_array($actions ?? null) ? $actions : [];
 ?>
 <section class="empty-state">
+    <?php if (empty($code)): ?><div class="empty-state__mark" aria-hidden="true"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5M9 12h7M9 16h5"/></svg></div><?php endif; ?>
     <?php if (!empty($code)): ?>
         <p class="empty-state__code" aria-hidden="true"><?php echo fcd_e($code); ?></p>
     <?php endif; ?>

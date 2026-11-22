@@ -66,6 +66,22 @@ if (is_dir($root . '/release')) {
     }
 }
 
+// Owner-authorized catalog artifacts must remain separate from CMS runtime.
+foreach (['plugins'=>'plugin','themes'=>'theme'] as $folder=>$kind) {
+    foreach (glob($root.'/extensions/'.$folder.'/*') ?: [] as $file) {
+        if (basename($file)==='README.md') continue;
+        if (!is_file($file) || !preg_match('/^[A-Za-z0-9_.-]+\.zip$/',basename($file)) || filesize($file)>104857600) {$violations[]='[CATALOG] Invalid artifact: '.basename($file);continue;}
+        if (!class_exists(ZipArchive::class)) {$violations[]='[CATALOG] PHP zip is required.';continue;}
+        $zip=new ZipArchive();if($zip->open($file,ZipArchive::RDONLY)!==true){$violations[]='[CATALOG] Unreadable ZIP.';continue;}
+        try {require_once $root.'/app/Services/ZipPackage.php';\FavoriteCMS\Services\ZipPackage::entries($zip);$found=0;$bytes=0;
+            for($i=0;$i<$zip->numFiles;$i++){$stat=$zip->statIndex($i);$name=$stat['name'];$bytes+=(int)$stat['size'];
+                if($bytes>536870912||preg_match('~(^|/)(?:\.env(?:\..*)?|storage|private|favorite-server-license|favorite-central-private)(/|$)|\.(?:db|sqlite|key|pem|log)$~i',$name))throw new RuntimeException('Private/runtime content in catalog ZIP.');
+                if(preg_match('~^(?:[^/]+/)?(?:plugin|theme)\.json$~',$name)){$found++;$manifest=json_decode($zip->getFromIndex($i),true);if(basename($name)!==$kind.'.json'||!preg_match('/^[a-z][a-z0-9-]{2,72}$/',$manifest['id']??'')||!preg_match('/^\d+\.\d+\.\d+(?:[-+][A-Za-z0-9.-]+)?$/',$manifest['version']??''))throw new RuntimeException('Manifest identity/kind/version mismatch.');}
+            }if($found!==1)throw new RuntimeException('Exactly one primary manifest required.');
+        }catch(Throwable $e){$violations[]='[CATALOG] '.basename($file).': '.$e->getMessage();}finally{$zip->close();}
+    }
+}
+
 // 3. Check for tracked or committed real .env files with secrets
 if (file_exists($root . '/.env')) {
     $envContent = (string)file_get_contents($root . '/.env');

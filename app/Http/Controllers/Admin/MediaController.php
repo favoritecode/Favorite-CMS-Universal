@@ -25,7 +25,9 @@ class MediaController
     }
 
     /** Media cards shown per Media Library page. */
-    protected const PER_PAGE = 12;
+    protected const PER_PAGE = 24;
+
+    public const PAGE_SIZES = [12, 24, 48, 96];
 
     /** Media returned per batch to editor media pickers. */
     public const PICKER_BATCH = 24;
@@ -35,11 +37,16 @@ class MediaController
         $category = trim((string)$request->get('category', 'all'));
         $search   = trim((string)$request->get('s', ''));
 
+        // Independent of public blog post counts and editor picker batches.
+        $requestedSize = $request->get('per_page', self::PER_PAGE);
+        $perPage = is_scalar($requestedSize) ? (int)$requestedSize : self::PER_PAGE;
+        if (!in_array($perPage, self::PAGE_SIZES, true)) $perPage = self::PER_PAGE;
+
         // Filter and paginate in SQL instead of loading the whole media table
         $totalItems  = Media::countFiltered($category, $search);
-        $totalPages  = max(1, (int)ceil($totalItems / self::PER_PAGE));
+        $totalPages  = max(1, (int)ceil($totalItems / $perPage));
         $currentPage = min(max(1, (int)$request->get('p', 1)), $totalPages);
-        $mediaItems  = Media::filtered($category, $search, self::PER_PAGE, ($currentPage - 1) * self::PER_PAGE);
+        $mediaItems  = Media::filtered($category, $search, $perPage, ($currentPage - 1) * $perPage);
 
         $currentUser = isset($_SESSION['auth_user_id']) ? User::find((int)$_SESSION['auth_user_id']) : null;
         if ($currentUser && !$currentUser->canManageMedia()) {
@@ -57,6 +64,7 @@ class MediaController
             'currentPage'  => $currentPage,
             'totalPages'   => $totalPages,
             'totalItems'   => $totalItems,
+            'perPage'      => $perPage,
             'contentView'  => APP_ROOT . '/resources/views/admin/media/index.php',
         ];
 
@@ -92,6 +100,11 @@ class MediaController
             }
         }
 
+        // Batch is authoritative when supplied. Older clients may also send
+        // the first batch item as `file`; it must not be processed twice.
+        if ($normalized !== []) return $normalized;
+
+        // Legacy single-file / file[] clients remain supported.
         // Check $source['file']
         if (!empty($source['file'])) {
             if (is_array($source['file']['name'])) {
@@ -182,7 +195,7 @@ class MediaController
         }
 
         // Single file upload backward compatibility
-        $isSingleUpload = (count($files) === 1 && !empty($_FILES['file']) && !is_array($_FILES['file']['name']));
+        $isSingleUpload = (count($files) === 1 && empty($_FILES['files']) && !empty($_FILES['file']) && !is_array($_FILES['file']['name']));
 
         if ($isSingleUpload) {
             $file = $files[0];

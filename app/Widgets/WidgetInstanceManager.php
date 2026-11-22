@@ -22,8 +22,7 @@ class WidgetInstanceManager
     public function getActiveThemeId(): string
     {
         try {
-            $active = Setting::get('theme', 'active_theme', 'default');
-            return is_string($active) && $active !== '' ? $active : 'default';
+            return (new \FavoriteCMS\Themes\ThemeManager(app()))->getActiveTheme();
         } catch (\Throwable) {
             return 'default';
         }

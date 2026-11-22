@@ -42,7 +42,7 @@ class FrontendController
         }
 
         // Show latest posts with pagination
-        $perPage     = $this->postsPerPage();
+        $perPage     = $this->postsPerPage('home');
         $currentPage = $this->currentPage($request);
         $totalPosts  = (int)(Post::countByStatus()['published'] ?? 0);
         $totalPages  = max(1, (int)ceil($totalPosts / $perPage));
@@ -153,7 +153,7 @@ class FrontendController
      */
     protected function renderTermArchive(Request $request, Taxonomy $term, string $type, string $archiveTitle): Response
     {
-        $perPage     = $this->postsPerPage();
+        $perPage     = $this->postsPerPage('archive');
         $currentPage = $this->currentPage($request);
         $totalPosts  = $term->countPublishedPosts();
         $totalPages  = max(1, (int)ceil($totalPosts / $perPage));
@@ -184,7 +184,7 @@ class FrontendController
         $rawQuery = $request->get('q', '');
         $query = is_string($rawQuery) ? trim($rawQuery) : '';
 
-        $perPage     = $this->postsPerPage();
+        $perPage     = $this->postsPerPage('search');
         $currentPage = $this->currentPage($request);
         $totalPosts  = $query !== '' ? Post::countSearchPublished($query) : 0;
         $totalPages  = max(1, (int)ceil($totalPosts / $perPage));
@@ -341,9 +341,11 @@ class FrontendController
         }
     }
 
-    protected function postsPerPage(): int
+    protected function postsPerPage(string $context = 'home'): int
     {
-        return max(1, min(self::MAX_POSTS_PER_PAGE, (int)Setting::get('reading', 'posts_per_page', 10)));
+        $fallback = (int)Setting::get('reading', 'posts_per_page', 10);
+        $override = in_array($context, ['home','archive','search'], true) ? (int)Setting::get('reading', $context . '_posts_per_page', 0) : 0;
+        return max(1, min(self::MAX_POSTS_PER_PAGE, $override > 0 ? $override : $fallback));
     }
 
     protected function currentPage(Request $request): int

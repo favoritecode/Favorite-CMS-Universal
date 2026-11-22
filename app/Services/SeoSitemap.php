@@ -13,7 +13,13 @@ final class SeoSitemap {
   $robotList=$sqlite?"',' || ".$robotValue." || ','":"CONCAT(',',".$robotValue.",',')";
   $parts=preg_match('/(?:^|[ ,])(noindex|none)(?:$|[ ,])/i',$global)?[]:["SELECT 'home' AS kind, 0 AS id, '' AS slug, NULL AS modified"];
   foreach(['posts'=>'post','pages'=>'page'] as $table=>$type){
-   $path="'".str_replace("'","''",$base.'/'.$type.'/')."'";
+   $permalinkBase = $type === 'post'
+    ? (string)Setting::get('permalinks','post_base','post')
+    : (string)Setting::get('permalinks','page_base','page');
+   if($type==='post' && !in_array($permalinkBase,['post','blog'],true)){$permalinkBase='post';}
+   if($type==='page' && !in_array($permalinkBase,['page','root'],true)){$permalinkBase='page';}
+   if($type==='page' && $permalinkBase==='root'){$path="'".str_replace("'","''",$base.'/')."'";}
+   else{$path="'".str_replace("'","''",$base.'/'.$permalinkBase.'/')."'";}
    $canonical=$sqlite?$path.' || c.`slug`':'CONCAT('.$path.',c.`slug`)';
    $contentType=$type==='post'?" AND c.`type`='post'":'';
    $parts[]="SELECT '{$type}' AS kind,c.`id`,c.`slug`,c.`updated_at` AS modified FROM `{$table}` c LEFT JOIN `seo_meta` s ON s.`object_type`='{$type}' AND s.`object_id`=c.`id` WHERE c.`status`='published'{$contentType} AND {$robotList} NOT LIKE '%,noindex,%' AND {$robotList} NOT LIKE '%,none,%' AND (TRIM(COALESCE(s.`canonical_url`,''))='' OR s.`canonical_url`={$canonical})";
@@ -36,7 +42,10 @@ final class SeoSitemap {
    $rows=$db->select($sql.' ORDER BY kind,id LIMIT ? OFFSET ?',[self::CHUNK,($number-1)*self::CHUNK]);
    $xml.='<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">';
    foreach($rows as $row){
-    $url=$base.($row->kind==='home'?'/':'/'.$row->kind.'/'.rawurlencode((string)$row->slug));
+    if($row->kind==='home'){$url=$base.'/';}
+    elseif($row->kind==='post'){$url=$base.(new \FavoriteCMS\Models\Post(['slug'=>(string)$row->slug]))->url();}
+    elseif($row->kind==='page'){$url=$base.(new \FavoriteCMS\Models\Page(['slug'=>(string)$row->slug]))->url();}
+    else{$url=$base.'/'.$row->kind.'/'.rawurlencode((string)$row->slug);}
     $xml.='<url><loc>'.$escape($url).'</loc>';
     if(!empty($row->modified)){try{$date=(new \DateTimeImmutable((string)$row->modified))->format(DATE_W3C);$xml.='<lastmod>'.$escape($date).'</lastmod>';}catch(\Throwable){}}
     $xml.='</url>';

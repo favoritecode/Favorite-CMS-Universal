@@ -1,3 +1,17 @@
+
+<style>
+/* Small, scoped, theme-variable-aware CMS page action menu. */
+.fpb-edit-picker{display:inline-block;position:relative;vertical-align:baseline}
+.fpb-edit-picker summary{display:inline-flex;align-items:center;gap:3px;cursor:pointer;color:var(--wp-blue,var(--admin-primary,#2271b1));list-style:none;border-radius:4px;padding:2px 3px}
+.fpb-edit-picker summary::-webkit-details-marker{display:none}
+.fpb-edit-picker summary:focus-visible{outline:2px solid var(--wp-blue,var(--admin-primary,#2271b1));outline-offset:2px}
+.fpb-edit-picker-menu{display:none;min-width:205px;max-width:min(270px,calc(100vw - 16px));padding:5px;z-index:9999;border:1px solid var(--admin-border,var(--wp-border,#64748b));background:var(--admin-surface,var(--wp-card-bg,var(--wp-bg,#fff)));color:var(--admin-text,var(--wp-text,#111));border-radius:7px;box-shadow:0 8px 22px rgba(0,0,0,.2)}
+.fpb-edit-picker[open] .fpb-edit-picker-menu{display:block;position:fixed;left:var(--fpb-menu-x,0px);top:var(--fpb-menu-y,0px)}
+.fpb-edit-picker-menu a{display:block;padding:9px 10px;text-decoration:none;border-radius:4px;white-space:normal;color:inherit!important;font-size:12px;line-height:1.35}
+.fpb-edit-picker-menu a:hover,.fpb-edit-picker-menu a:focus-visible{background:var(--admin-surface-subtle,var(--wp-hover-bg,rgba(127,127,127,.18)));text-decoration:none}
+@media (max-width:600px){.fpb-edit-picker-menu{min-width:190px}}
+</style>
+
 <div class="page-header">
     <h1 class="page-title">Posts</h1>
     <?php if ($currentUser && $currentUser->canCreatePosts()): ?>
@@ -8,6 +22,7 @@
 <ul class="subsubsub">
     <li><a href="<?php echo htmlspecialchars(site_path('/admin/posts?status=all'), ENT_QUOTES, 'UTF-8'); ?>" class="<?php echo $status === 'all' ? 'current' : ''; ?>">All (<?php echo (int)($counts['all'] ?? 0); ?>)</a> |</li>
     <li><a href="<?php echo htmlspecialchars(site_path('/admin/posts?status=published'), ENT_QUOTES, 'UTF-8'); ?>" class="<?php echo $status === 'published' ? 'current' : ''; ?>">Published (<?php echo (int)($counts['published'] ?? 0); ?>)</a> |</li>
+    <li><a href="<?php echo htmlspecialchars(site_path('/admin/posts?status=scheduled'),ENT_QUOTES,'UTF-8'); ?>" class="<?php echo $status==='scheduled'?'current':''; ?>">Scheduled (<?php echo (int)($counts['scheduled']??0); ?>)</a> |</li>
     <li><a href="<?php echo htmlspecialchars(site_path('/admin/posts?status=pending'), ENT_QUOTES, 'UTF-8'); ?>" class="<?php echo $status === 'pending' ? 'current' : ''; ?>" style="<?php echo ($counts['pending'] ?? 0) > 0 ? 'font-weight: 700; color: var(--admin-warning-text);' : ''; ?>">Pending Review (<?php echo (int)($counts['pending'] ?? 0); ?>)</a> |</li>
     <li><a href="<?php echo htmlspecialchars(site_path('/admin/posts?status=draft'), ENT_QUOTES, 'UTF-8'); ?>" class="<?php echo $status === 'draft' ? 'current' : ''; ?>">Drafts (<?php echo (int)($counts['draft'] ?? 0); ?>)</a> |</li>
     <li><a href="<?php echo htmlspecialchars(site_path('/admin/posts?status=rejected'), ENT_QUOTES, 'UTF-8'); ?>" class="<?php echo $status === 'rejected' ? 'current' : ''; ?>">Rejected (<?php echo (int)($counts['rejected'] ?? 0); ?>)</a> |</li>
@@ -145,7 +160,22 @@
                                         <button type="submit" form="core-action-form" formmethod="POST" formnovalidate formaction="<?php echo htmlspecialchars(site_base_path(), ENT_QUOTES, 'UTF-8'); ?>/admin/posts/reject?id=<?php echo (int)$post->id; ?>" class="core-action-link" style="color: var(--admin-danger-text); font-weight: 600;">&#10007; Reject</button> |
                                     <?php endif; ?>
                                     <?php if ($canEditThisPost): ?>
-                                        <a href="<?php echo htmlspecialchars(site_path('/admin/posts/edit?id='), ENT_QUOTES, 'UTF-8'); ?><?php echo (int)$post->id; ?>">Edit</a> |
+                                        <?php
+                                        $simplePostEditUrl = site_path('/admin/posts/edit?id=' . (int)$post->id);
+                                        $builderPostEditUrl = \FavoriteCMS\Core\Hook::applyFilters('favorite_page_builder_post_edit_url', '', (int)$post->id);
+                                        $builderPostEditUrl = is_string($builderPostEditUrl) && str_starts_with($builderPostEditUrl, '/') && !str_starts_with($builderPostEditUrl, '//') ? $builderPostEditUrl : '';
+                                        ?>
+                                        <?php if ($builderPostEditUrl !== ''): ?>
+                                            <details class="fpb-edit-picker">
+                                                <summary>Edit <span aria-hidden="true">▾</span></summary>
+                                                <div class="fpb-edit-picker-menu">
+                                                    <a href="<?php echo htmlspecialchars($simplePostEditUrl, ENT_QUOTES, 'UTF-8'); ?>">Simple Edit</a>
+                                                    <a href="<?php echo htmlspecialchars($builderPostEditUrl, ENT_QUOTES, 'UTF-8'); ?>">Favorite Page Builder Edit</a>
+                                                </div>
+                                            </details> |
+                                        <?php else: ?>
+                                            <a href="<?php echo htmlspecialchars($simplePostEditUrl, ENT_QUOTES, 'UTF-8'); ?>">Edit</a> |
+                                        <?php endif; ?>
                                     <?php endif; ?>
                                     <a href="<?php echo htmlspecialchars(site_path('/post/'), ENT_QUOTES, 'UTF-8'); ?><?php echo htmlspecialchars($post->slug, ENT_QUOTES, 'UTF-8'); ?>" target="_blank">View Post</a>
                                     <?php if ($canDeleteThisPost): ?>
@@ -206,10 +236,10 @@
                         </td>
                         <td>
                             <div style="font-size: 13px;">
-                                <?php echo format_date($post->published_at ?? $post->created_at, 'Y/m/d'); ?>
+                                <?php echo format_date(($post->status==='scheduled'?$post->scheduled_at:($post->published_at??$post->created_at)), 'Y/m/d'); ?>
                             </div>
                             <div style="font-size: 11px; color: var(--wp-text-muted);">
-                                <?php echo format_date($post->published_at ?? $post->created_at, 'g:i a'); ?>
+                                <?php echo format_date(($post->status==='scheduled'?$post->scheduled_at:($post->published_at??$post->created_at)), 'g:i a'); ?>
                             </div>
                         </td>
                     </tr>
@@ -245,3 +275,24 @@ document.addEventListener('DOMContentLoaded', function() {
         <?php endif; ?>
     </div>
 <?php endif; ?>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    initAdminMultiSelect('pages-bulk-form', { itemType: 'page' });
+    const pickers = Array.from(document.querySelectorAll('.fpb-edit-picker'));
+    pickers.forEach(picker => picker.addEventListener('toggle', () => {
+        if (!picker.open) return;
+        pickers.forEach(other => { if (other !== picker) other.open = false; });
+        const anchor = picker.querySelector('summary');
+        const menu = picker.querySelector('.fpb-edit-picker-menu');
+        const rect = anchor.getBoundingClientRect();
+        const menuWidth = Math.min(270, Math.max(205, menu.offsetWidth));
+        picker.style.setProperty('--fpb-menu-x', Math.max(8, Math.min(rect.left, window.innerWidth - menuWidth - 8)) + 'px');
+        const menuHeight = menu.offsetHeight;
+        picker.style.setProperty('--fpb-menu-y', (rect.bottom + menuHeight + 8 < window.innerHeight ? rect.bottom + 4 : Math.max(8, rect.top - menuHeight - 4)) + 'px');
+    }));
+    document.addEventListener('click', event => {pickers.forEach(picker => {if (picker.open && !picker.contains(event.target)) picker.open=false;});});
+    document.addEventListener('keydown', event => {if(event.key==='Escape') pickers.forEach(picker=>picker.open=false);});
+});
+</script>
+

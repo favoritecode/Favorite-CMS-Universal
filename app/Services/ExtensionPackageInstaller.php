@@ -8,8 +8,22 @@ use RuntimeException;
 final class ExtensionPackageInstaller
 {
     public static function install(array $upload,string $type,string $baseDirectory): array {
+        return self::installPackage($upload,$type,$baseDirectory,null);
+    }
+    /** Local files enter this path only after publisher signature and complete ZIP digest verification. */
+    public static function installVerified(string $path,array $envelope,string $baseDirectory):array {
+        $c=(new \FavoriteCMS\Central\Client())->config();
+        $keys=($c['public_keys']??[])+[($c['key_id']??'')=>($c['public_key']??'')];
+        $key=$keys[$envelope['key_id']??'']??'';
+        if(!$key||!\FavoriteCMS\Central\Crypto::verify($envelope,$key))throw new RuntimeException('Plugin publisher signature is invalid.');
+        $m=$envelope['payload'];
+        if(($m['product_id']??'')==='favorite-cms-universal'||!is_file($path)||!hash_equals((string)($m['sha256']??''),hash_file('sha256',$path))||filesize($path)!==(int)($m['size']??0))throw new RuntimeException('Plugin package integrity is invalid.');
+        $type=($m['kind']??'plugin')==='theme'?'theme':'plugin';
+        return self::installPackage(['tmp_name'=>$path,'name'=>$m['product_id'].'.zip','error'=>UPLOAD_ERR_OK],$type,$baseDirectory,$m);
+    }
+    private static function installPackage(array $upload,string $type,string $baseDirectory,?array $trusted):array {
         $file=(string)($upload['tmp_name'] ?? '');
-        if(($upload['error'] ?? UPLOAD_ERR_OK)!==UPLOAD_ERR_OK || $file==='' || (!is_uploaded_file($file) && (PHP_SAPI!=='cli' || !is_file($file))))throw new RuntimeException('No valid ZIP file uploaded.');
+        if(($upload['error'] ?? UPLOAD_ERR_OK)!==UPLOAD_ERR_OK || $file==='' || ($trusted===null && !is_uploaded_file($file) && (PHP_SAPI!=='cli' || !is_file($file))))throw new RuntimeException('No valid ZIP file uploaded.');
         $zip=new ZipArchive();if($zip->open($file,ZipArchive::RDONLY)!==true)throw new RuntimeException('Could not open ZIP archive.');
         $stage=null;$backup=null;$committed=false;$lock=null;
         try {
@@ -52,6 +66,7 @@ final class ExtensionPackageInstaller
             $fallback=preg_replace('/[^A-Za-z0-9_-]/','',(string)$fallback);
             $id=(string)($manifest['id'] ?? ($fallback!==''?$fallback:$type.'_'.substr(hash_file('sha256',$file),0,12)));
             if(!preg_match('/^[A-Za-z0-9][A-Za-z0-9_-]{0,99}$/D',$id))throw new RuntimeException('Extension ID must contain only letters, numbers, underscores and hyphens.');
+            if($trusted!==null&&(($manifest['id']??'')!==($trusted['manifest_id']??$trusted['product_id'])||($manifest['version']??'')!==$trusted['version']))throw new RuntimeException('Plugin package identity differs from its signed release.');
             if(!is_dir($baseDirectory) && !mkdir($baseDirectory,0755,true))throw new RuntimeException('Could not create extension directory.');
             $base=realpath($baseDirectory);$target=$base.'/'.$id;
             $lock=fopen($base.'/.install.lock','c');if(!$lock || !flock($lock,LOCK_EX|LOCK_NB))throw new RuntimeException('Another extension installation is in progress. Retry shortly.');

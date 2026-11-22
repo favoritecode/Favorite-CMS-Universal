@@ -16,7 +16,7 @@ final class ImageVariants
         if (!defined('APP_ROOT')) return null;
         $root=realpath(APP_ROOT . '/public/uploads'); $file=realpath((string)$media->path);
         if (!$root || !$file || !is_file($file) || !self::contained($file, $root)) return null;
-        if (!preg_match('#^/?uploads/[^?\#]+$#D',(string)$media->url) && !preg_match('#/uploads/[^?\#]+$#D',(string)$media->url)) return null;
+        if (!preg_match('#^/?uploads/[^?\#]+$#D',$media->storageUrl()) && !preg_match('#/uploads/[^?\#]+$#D',$media->storageUrl())) return null;
         return $file;
     }
     public static function all(Media $media): array {
@@ -57,16 +57,16 @@ final class ImageVariants
                     imagecopyresampled($scaled,$source,0,0,0,0,$width,$height,$info[0],$info[1]);
                     $temporary=tempnam($directory,'thumb-');
                     $saved=match($extension){'webp'=>imagewebp($scaled,$temporary,82),'png'=>imagepng($scaled,$temporary,6),default=>imagejpeg($scaled,$temporary,85)};
-                    imagedestroy($scaled);
+                    unset($scaled);
                     if($saved) { if(!@rename($temporary,$target)) { if(is_file($temporary))unlink($temporary); if(!is_file($target))continue; } } else { unlink($temporary); continue; }
                 }
-                $url=rtrim(str_replace('\\','/',dirname((string)$media->url)),'/').'/.fc-thumbnails/'.basename($directory).'/'.basename($target);
+                $url=rtrim(str_replace('\\','/',dirname($media->storageUrl())),'/').'/.fc-thumbnails/'.basename($directory).'/'.basename($target);
                 $variants[]=['width'=>$width,'height'=>$height,'url'=>$url,'path'=>$target];
             }
         } catch(\Throwable $error) {
             // Optional optimization must not break an upload or page render.
             error_log('Favorite CMS thumbnail skipped: '.$error->getMessage());
-        } finally { if($source)imagedestroy($source); }
+        } finally { unset($source); }
         return self::$memo[$key]=$variants;
     }
     public static function thumbnail(Media $media,int $width,int $height): string {

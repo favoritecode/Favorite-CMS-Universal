@@ -229,6 +229,7 @@ class Post extends BaseModel
 
     public function syncTaxonomies(array $taxonomyIds, string $taxonomy = 'category'): void
     {
+        unset($this->preloaded['taxonomies:' . $taxonomy]);
         // First delete existing taxonomy bindings for this type
         $existing = $this->getTaxonomies($taxonomy);
         foreach ($existing as $tax) {
@@ -251,30 +252,18 @@ class Post extends BaseModel
 
     public function syncTags(string $tagString): void
     {
-        // Tag string e.g. "php, cms, news"
-        $tags = array_filter(array_map('trim', explode(',', $tagString)));
-        $tagIds = [];
-        foreach ($tags as $tagName) {
-            if ($tagName === '') continue;
-            $slug = str_slug($tagName);
-            $tax = Taxonomy::findBySlug($slug, 'tag');
-            if (!$tax) {
-                $taxId = $this->db->insert('taxonomies', [
-                    'name'        => $tagName,
-                    'slug'        => $slug,
-                    'taxonomy'    => 'tag',
-                    'description' => '',
-                    'post_count'  => 0,
-                    'created_at'  => date('Y-m-d H:i:s'),
-                    'updated_at'  => date('Y-m-d H:i:s'),
-                ]);
-            } else {
-                $taxId = (int)$tax->id;
+        // A savepoint keeps replacement atomic even inside a caller transaction.
+        $this->db->transaction(function () use ($tagString): void {
+            $tagIds = [];
+            foreach (explode(',', $tagString) as $tagName) {
+                $tagName = trim($tagName);
+                if ($tagName === '') continue;
+                $tax = Taxonomy::findOrCreate($tagName, 'tag');
+                if ($tax === null) throw new \RuntimeException('Unable to save tag.');
+                $tagIds[] = (int)$tax->id;
             }
-            $tagIds[] = $taxId;
-        }
-
-        $this->syncTaxonomies($tagIds, 'tag');
+            $this->syncTaxonomies(array_values(array_unique($tagIds)), 'tag');
+        });
     }
 
     public function getFeaturedImage(): ?Media
@@ -370,7 +359,11 @@ class Post extends BaseModel
 
     public function url(): string
     {
-        return '/post/' . $this->slug;
+        $base = \FavoriteCMS\Models\Setting::get('permalinks', 'post_base', 'post');
+        if (!in_array($base, ['post', 'blog'], true)) {
+            $base = 'post';
+        }
+        return '/' . $base . '/' . rawurlencode((string)$this->slug);
     }
 
     public function permalink(): string

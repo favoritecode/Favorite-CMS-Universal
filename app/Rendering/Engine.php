@@ -16,12 +16,7 @@ class Engine
     {
         $this->app = $app;
         try {
-            $theme = Setting::get('theme', 'active_theme', 'default');
-            $activeTheme = is_string($theme) && $theme !== '' ? $theme : 'default';
-            if (!is_dir(APP_ROOT . '/themes/' . $activeTheme) && is_dir(APP_ROOT . '/themes/default')) {
-                $activeTheme = 'default';
-            }
-            $this->activeTheme = $activeTheme;
+            $this->activeTheme = (new \FavoriteCMS\Themes\ThemeManager($this->app))->getActiveTheme();
         } catch (\Throwable) {
             $this->activeTheme = 'default';
         }
@@ -70,8 +65,34 @@ class Engine
             throw new \RuntimeException("Template not found: {$template}");
         }
 
-        $html = $this->evaluateTemplate($templatePath, $data);
+        $record = $template === 'single' ? ($data['post'] ?? null) : ($template === 'page' ? ($data['page'] ?? null) : null);
+        $html = is_object($record)
+            ? \FavoriteCMS\Services\ContentLayout::render($record, $template === 'single' ? 'post' : 'page', $this->activeTheme, fn() => $this->evaluateTemplate($templatePath, $data))
+            : $this->evaluateTemplate($templatePath, $data);
+        // Optional, fail-open public chrome integration. With no plugin/filter the
+        // rendered output is byte-for-byte unchanged from previous versions.
+        try {
+            $filtered = \FavoriteCMS\Core\Hook::applyFilters('favorite_cms_public_html', $html, $template, $data);
+            if (is_string($filtered) && $filtered !== '') $html = $filtered;
+        } catch (\Throwable $e) {
+            error_log('Favorite CMS public HTML filter: ' . $e->getMessage());
+        }
+        $html = $this->injectSingleFeaturedImageStyles($html, $template);
         return $this->injectBackToTop($html);
+    }
+
+    /** Preserve the entire main post image in the bundled/official theme shells. */
+    protected function injectSingleFeaturedImageStyles(string $html, string $template): string
+    {
+        if ($template !== 'single' || !in_array($this->activeTheme, ['default', 'favorite-web'], true)
+            || stripos($html, '</head>') === false || str_contains($html, 'cms-single-featured-image-fit')) {
+            return $html;
+        }
+        $style = '<style id="cms-single-featured-image-fit">'
+            . '.site-main--singular .entry--post > .entry-media{height:auto;max-height:none;aspect-ratio:auto}'
+            . '.site-main--singular .entry--post > .entry-media > img{display:block;width:100%;height:auto;max-width:100%;max-height:none;object-fit:contain}'
+            . '</style>';
+        return (string)preg_replace('/<\/head>/i', $style . "\n</head>", $html, 1);
     }
 
     /**

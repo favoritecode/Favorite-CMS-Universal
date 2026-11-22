@@ -17,7 +17,7 @@
 $base = (string)($GLOBALS['favorite_cms_base_path'] ?? '');
 ?>
 
-<div class="wrap" style="max-width: 1040px; margin: 0 auto; padding-bottom: 40px;">
+<div class="wrap cms-core-updates" style="width:100%; max-width:none; min-width:0; margin:0; padding-bottom:40px;">
     <!-- Header -->
     <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; flex-wrap: wrap; gap: 12px;">
         <div>
@@ -156,7 +156,7 @@ $base = (string)($GLOBALS['favorite_cms_base_path'] ?? '');
 
                             <p style="font-size: 13px; color: var(--admin-success-text); margin-bottom: 12px;">
                                 <?php if (!empty($discovery['repair_available']) && empty($discovery['update_available'])): ?>
-                                The current Core package is available again and can be re-applied to restore any missing Core files. Published on
+                                The current Core package can be re-applied to restore <?php echo count((array)($discovery['missing_core_files'] ?? [])); ?> missing Core file(s).
                             <?php else: ?>
                                 A newer version of Favorite CMS Universal is ready. Published on <?php echo htmlspecialchars(date('M j, Y', strtotime((string)$discovery['published_at']))); ?>.
                             <?php endif; ?>
@@ -178,11 +178,14 @@ $base = (string)($GLOBALS['favorite_cms_base_path'] ?? '');
                             </form>
                         </div>
                     <?php else: ?>
+                        <?php if (!empty($discovery['repair_inspection_error'])): ?>
+                            <div class="notice notice-warning">Missing-file inspection could not be completed. Retry the check or upload the official Core ZIP to repair files.</div>
+                        <?php endif; ?>
                         <div style="text-align: center; padding: 24px 16px;">
                             <div style="font-size: 36px; margin-bottom: 10px;">✅</div>
-                            <h4 style="margin: 0 0 6px 0; color: var(--admin-text-heading); font-size: 16px;">Your Core is Up to Date</h4>
+                            <h4 style="margin: 0 0 6px 0; color: var(--admin-text-heading); font-size: 16px;">No Newer Core Release Found</h4>
                             <p style="color: var(--admin-text-muted); font-size: 13px; margin: 0;">
-                                You are running the latest version of Favorite CMS Universal (v<?php echo htmlspecialchars($currentVersion); ?>).
+                                Installed version: Favorite CMS Universal v<?php echo htmlspecialchars($currentVersion); ?>.
                             </p>
                         </div>
                     <?php endif; ?>

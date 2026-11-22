@@ -222,7 +222,7 @@ class MediaMigrator
             // 3. MIME Verification
             $finfo = finfo_open(FILEINFO_MIME_TYPE);
             $mime = finfo_file($finfo, $tempFile);
-            finfo_close($finfo);
+            unset($finfo);
 
             if (!is_string($mime) || !array_key_exists($mime, $this->allowedMimeTypes)) {
                 @unlink($tempFile);

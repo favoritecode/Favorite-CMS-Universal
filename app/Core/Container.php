@@ -27,7 +27,7 @@ class Container
         return static::$instance = $container;
     }
 
-    public function bind(string $abstract, Closure|string $concrete = null, bool $shared = false): void
+    public function bind(string $abstract, Closure|string|null $concrete = null, bool $shared = false): void
     {
         if (is_null($concrete)) {
             $concrete = $abstract;
@@ -36,7 +36,7 @@ class Container
         $this->bindings[$abstract] = compact('concrete', 'shared');
     }
 
-    public function singleton(string $abstract, Closure|string $concrete = null): void
+    public function singleton(string $abstract, Closure|string|null $concrete = null): void
     {
         $this->bind($abstract, $concrete, true);
     }

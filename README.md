@@ -21,10 +21,10 @@
 
 ## 📌 Current Version
 
-- **Current Version:** `v1.1.0` (Automatic SEO & UI Improvements)
+- **Current Version:** `v1.2.0` (Central control and extension catalog)
 - **Status:** Production Stable
 - **Official Repository:** [https://github.com/favoritecode/Favorite-CMS-Universal](https://github.com/favoritecode/Favorite-CMS-Universal)
-- **Official Package:** `Favorite-CMS-Universal-v1.1.0-update.zip`
+- **Official Package:** `Favorite-CMS-Universal-v1.2.0.zip`
 
 ---
 
@@ -91,7 +91,7 @@ Unlike modern frameworks that require Node.js background workers, continuous ter
 
 Installing Favorite CMS Universal takes less than two minutes:
 
-1. **Download:** Get `Favorite-CMS-Universal-v1.0.0.zip` from the [Releases](https://github.com/favoritecode/Favorite-CMS-Universal/releases) page.
+1. **Download:** Get `Favorite-CMS-Universal-v1.2.0.zip` from the [Releases](https://github.com/favoritecode/Favorite-CMS-Universal/releases) page.
 2. **Upload & Extract:** Upload the ZIP archive to your web root (`public_html/` or `htdocs/`) or any subdirectory, then extract it.
 3. **Open in Browser:** Navigate to your domain (e.g. `http://example.com/` or `http://localhost/site/`). If the CMS is not yet installed, it will automatically redirect to the web setup wizard (`/install`).
 4. **Environment Check:** The wizard validates PHP version, extensions, and directory write permissions.
@@ -226,7 +226,7 @@ All documentation is located in the [`docs/`](docs/README.md) directory:
 
 Official pre-built production releases are published on the GitHub Releases page:
 - **Download Latest Release:** [Favorite CMS Universal Releases](https://github.com/favoritecode/Favorite-CMS-Universal/releases)
-- **Official Core Update Package:** `Favorite-CMS-Universal-v1.1.0-update.zip`
+- **Official Core Update Package:** `Favorite-CMS-Universal-v1.2.0.zip`
 - **Developer Test Suite Archive:** `Favorite-CMS-Universal-v1.1.0-tests.zip`
 
 ### Technical Improvements & Change Documentation
@@ -241,3 +241,17 @@ Official pre-built production releases are published on the GitHub Releases page
 
 Favorite CMS Universal is open-source software licensed under the [MIT License](LICENSE).
 Feel free to use, modify, and distribute it for personal and commercial projects.
+
+
+## Central Server and License — CMS 1.2.0
+
+Adds the central client, signed updates and repository-managed plugin/theme licensing. CMS and its default theme remain Free. Existing unmanaged extensions remain Free; importing a legacy extension into the repository catalog initially preserves Free access. Only an explicit Owner policy changes that access. Supported new extensions use the configured trial/paid policy.
+
+Extract the Server 1.0.0 ZIP beside app/ and bootstrap.php in the CMS root; it contains only favorite-server-license/ and adds nothing to public/. Apply CMS 1.2.0 through Admin → Updates, then open /favorite-central-setup/ to install/repair the private controls. No second CMS or database is needed. Server includes SMTP/OAuth, license/payment controls and a commit-pinned GitHub extension catalog. Upload catalog ZIPs on main under extensions/plugins/ and extensions/themes/ in Favorite-CMS-Universal; they are never bundled inside the CMS runtime ZIP.
+
+From Server → Repository catalog, refresh, validate/import and open Trial, price & policy. Existing policies, license purchases and activation choices survive package refresh. A paid theme that loses entitlement temporarily renders the Free default without deleting its stored selection/settings. Theme renewals restore the selected theme. Plugin boot is blocked on denied entitlement; stored plugin data is preserved. The central Owner installation remains entitled to its infrastructure.
+
+Private SMTP credentials, signing keys, database and server code are excluded from the public CMS ZIP. Follow INSTALL-BN.md on the server repository, including protected backup and OAuth migration before deleting the old standalone gateway folder.
+
+Catalog upload folders: [plugins](extensions/plugins/) and [themes](extensions/themes/). This Owner-authorized scoped catalog exception is described in AGENTS.md. Catalog ZIPs are excluded from the public CMS runtime ZIP. Private server source and SMTP credentials stay in Favorite-Server-and-License.
+

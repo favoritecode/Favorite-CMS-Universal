@@ -22,6 +22,16 @@ if (!empty($bodyClass) && is_string($bodyClass)) {
     $bodyClasses[] = $bodyClass;
 }
 $themePreference = \FavoriteCMS\Services\Appearance::resolve();
+// Only expose store destinations supplied by an installed, active plugin.
+$headerStoreUrl = null;
+try {
+    $headerPlugins = (new \FavoriteCMS\Plugins\PluginManager(app()))->getInstalledPlugins();
+    foreach (['favorite-digital' => '/store', 'favorite-shop' => '/shop'] as $pluginId => $storePath) {
+        $plugin = $headerPlugins[$pluginId] ?? [];
+        if (!empty($plugin['valid']) && !empty($plugin['active']) && !empty($plugin['compatible'])) { $headerStoreUrl = $storePath; break; }
+    }
+} catch (\Throwable) { /* A plain Core installation has no store shortcut. */ }
+
 ?>
 <!DOCTYPE html>
 <html lang="<?php echo fcd_e(function_exists('site_language') ? site_language() : 'en'); ?>" class="no-js" data-theme="<?php echo $themePreference; ?>">
@@ -68,16 +78,17 @@ if (class_exists(\FavoriteCMS\Services\FrontendSeoService::class)) {
 ?>
 <a class="skip-link" href="#main-content">Skip to content</a>
 
-<header class="site-header" role="banner">
+<header class="site-header site-header--official" role="banner">
     <div class="container header-bar">
         <a href="<?php echo fcd_e(fcd_url('/')); ?>" class="site-branding" aria-label="<?php echo fcd_e($siteTitle); ?> Homepage">
             <?php if (!empty($siteLogoUrl) && is_string($siteLogoUrl)): ?>
-                <img src="<?php echo fcd_e(fcd_url($siteLogoUrl)); ?>" alt="<?php echo fcd_e($siteTitle); ?>" class="site-custom-logo" decoding="async">
+                <img src="<?php echo fcd_e(fcd_url($siteLogoUrl)); ?>" alt="<?php echo fcd_e($siteTitle); ?>" class="site-custom-logo" decoding="sync" fetchpriority="high">
+                <?php if (str_ends_with((string)parse_url($siteLogoUrl, PHP_URL_PATH), '/Favorite_Web_Icon.png')): ?><span class="brand-text"><span class="site-title"><?php echo fcd_e($siteTitle); ?></span><?php if(trim((string)$siteTagline)!==''): ?><span class="site-tagline"><?php echo fcd_e($siteTagline); ?></span><?php endif; ?></span><?php endif; ?>
             <?php else: ?>
                 <span class="site-logo-icon" aria-hidden="true">&#9733;</span>
                 <span class="brand-text">
                     <span class="site-title"><?php echo fcd_e($siteTitle); ?></span>
-                    <?php if (!empty($siteTagline)): ?>
+                    <?php if (trim((string)$siteTagline) !== ''): ?>
                         <span class="site-tagline"><?php echo fcd_e($siteTagline); ?></span>
                     <?php endif; ?>
                 </span>
@@ -111,10 +122,14 @@ if (class_exists(\FavoriteCMS\Services\FrontendSeoService::class)) {
 
             <div class="header-theme-toggle-wrap">
                 <button type="button" class="theme-toggle-btn" id="theme-toggle-btn" aria-label="Toggle dark mode" title="Toggle dark mode">
-                    <span class="theme-icon-sun" aria-hidden="true">☀️</span>
-                    <span class="theme-icon-moon" aria-hidden="true">🌙</span>
+                    <svg class="icon theme-icon-sun" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"/></svg>
+                    <svg class="icon theme-icon-moon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8Z"/></svg>
                 </button>
             </div>
+
+            <?php if ($headerStoreUrl !== null): ?>
+                <a class="button button--store button--small" href="<?php echo fcd_e(fcd_url($headerStoreUrl)); ?>">Store</a>
+            <?php endif; ?>
 
             <?php if ($currentUser): ?>
                 <?php if (function_exists('current_user_can') && current_user_can('publish_posts')): ?>

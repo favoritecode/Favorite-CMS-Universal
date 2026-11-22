@@ -115,7 +115,9 @@ abstract class BaseModel
             return false;
         }
         $data['updated_at'] = (new \DateTime())->format('Y-m-d H:i:s');
-        return $this->db->update(static::$table, $data, ['id' => $this->attributes['id']]) > 0;
+        $updated = $this->db->update(static::$table, $data, ['id' => $this->attributes['id']]) > 0;
+        if ($updated) $this->fill($data);
+        return $updated;
     }
 
     public function delete(): bool
