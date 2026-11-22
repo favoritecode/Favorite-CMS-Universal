@@ -26,14 +26,42 @@ if($seoPreview && ($seoPreview['expires']??0)<time()){unset($_SESSION['seo_impor
   <?php endforeach; ?>
  </div>
 </div>
-<div class="form-card">
- <h2 style="font-size:18px;margin-bottom:12px;">Import SEO only</h2>
- <p class="description">CSV/JSON · UTF-8 · up to 500 items / 5 MB. Required: object_type (post/page) and id, slug or URL. Optional: meta_title, meta_description, og_title, og_description, og_image_url, canonical_url, robots. Blank cells keep existing values and automatic fallback. Export a page above for a CSV template.</p>
+<div class="form-card seo-import-card">
+ <style>
+  .seo-import-card{overflow:hidden}
+  .seo-import-heading{align-items:center!important;margin-bottom:20px!important}
+  .seo-import-heading h2{font-size:20px!important;letter-spacing:-.02em}
+  .seo-import-badge{min-height:38px;padding:0 14px!important;justify-content:center;box-shadow:inset 0 1px 0 rgba(255,255,255,.03)}
+  .seo-import-controls{grid-template-columns:minmax(0,1fr) 220px!important;align-items:center!important;gap:22px!important}
+  .seo-import-file-wrap{padding:14px 15px 12px;border:1px solid var(--admin-border);border-radius:12px;background:var(--admin-surface-subtle);transition:border-color .18s ease,box-shadow .18s ease}
+  .seo-import-file-wrap:focus-within{border-color:var(--admin-primary,#3b82f6);box-shadow:0 0 0 3px rgba(59,130,246,.12)}
+  .seo-import-file-wrap .form-group{margin:0!important}
+  .seo-import-file-wrap label[for="seo_file"]{display:block;margin-bottom:9px;font-weight:700}
+  .seo-import-file{display:block;width:100%;max-width:100%;min-height:46px;padding:6px 8px;border:1px dashed var(--admin-border);border-radius:9px;background:var(--admin-surface);color:var(--admin-text);font-size:13px;box-sizing:border-box}
+  .seo-import-file::file-selector-button{margin-right:12px;padding:9px 13px;border:1px solid var(--admin-border);border-radius:7px;background:var(--admin-surface-subtle);color:var(--admin-text);font-weight:700;cursor:pointer;transition:background .18s ease,border-color .18s ease}
+  .seo-import-file::file-selector-button:hover{border-color:var(--admin-primary,#3b82f6);background:rgba(59,130,246,.12)}
+  .seo-import-overwrite{display:flex;align-items:flex-start;gap:9px;margin-top:12px;line-height:1.5;color:var(--admin-text-muted);font-size:13px}
+  .seo-import-overwrite input{margin-top:3px;flex:0 0 auto}
+  .seo-import-submit{width:100%;min-height:52px!important;align-self:center;border-radius:11px!important}
+  @media(max-width:760px){.seo-import-controls{grid-template-columns:minmax(0,1fr)!important;gap:14px!important}.seo-import-submit{width:100%}.seo-import-heading{align-items:flex-start!important}.seo-import-badge{align-self:flex-start}}
+  @media(max-width:480px){.seo-import-file-wrap{padding:12px}.seo-import-heading h2{font-size:18px!important}}
+ </style>
+ <div class="seo-import-heading" style="display:flex;align-items:flex-start;justify-content:space-between;gap:20px;margin-bottom:18px;">
+  <div style="min-width:0;flex:1;">
+   <h2 style="font-size:18px;margin:0 0 10px;">Import SEO only</h2>
+   <p class="description" style="margin:0;max-width:100%;">CSV/JSON · UTF-8 · up to 500 items / 5 MB. Required: object_type (post/page) and id, slug or URL. Optional: meta_title, meta_description, og_title, og_description, og_image_url, canonical_url, robots. Blank cells keep existing values and automatic fallback. Export a page above for a CSV template.</p>
+  </div>
+  <span class="seo-import-badge" style="flex:0 0 auto;display:inline-flex;align-items:center;gap:7px;padding:8px 11px;border:1px solid var(--admin-border);border-radius:999px;background:var(--admin-surface-subtle);color:var(--admin-text-muted);font-size:11px;font-weight:700;white-space:nowrap;">CSV / JSON · 500 max</span>
+ </div>
  <form method="POST" enctype="multipart/form-data" action="<?php echo $seoEscape(site_path('/admin/seo/preview')); ?>">
   <input type="hidden" name="_token" value="<?php echo $seoEscape($_SESSION['_token']??''); ?>">
-  <div class="form-group"><label for="seo_file">SEO metadata file</label><input id="seo_file" type="file" name="seo_file" accept=".csv,.json" required></div>
-  <label><input type="checkbox" name="overwrite" value="1"> Replace existing non-empty metadata (preview required)</label>
-  <p style="margin-top:12px;"><button class="btn btn-primary" type="submit">Preview changes</button></p>
+  <div class="seo-import-controls" style="display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:end;gap:16px;">
+   <div class="seo-import-file-wrap" style="min-width:0;">
+    <div class="form-group"><label for="seo_file">SEO metadata file</label><input id="seo_file" class="seo-import-file" type="file" name="seo_file" accept=".csv,.json" required></div>
+    <label class="seo-import-overwrite"><input type="checkbox" name="overwrite" value="1"> <span>Replace existing non-empty metadata (preview required)</span></label>
+   </div>
+   <button class="btn btn-primary seo-import-submit" type="submit" style="display:inline-flex;align-items:center;justify-content:center;gap:9px;padding:0 20px;font-weight:750;white-space:nowrap;box-shadow:0 6px 18px rgba(37,99,235,.24);">Preview changes <span aria-hidden="true">→</span></button>
+  </div>
  </form>
  <?php if($seoPreview): ?>
   <hr style="margin-block:18px;border-color:var(--admin-border);"><h3>Import preview</h3>

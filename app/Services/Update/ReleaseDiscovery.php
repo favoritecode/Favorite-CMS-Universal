@@ -51,6 +51,7 @@ class ReleaseDiscovery
             'checksum_url'      => '',
             'core_inventory'    => [],
             'missing_core_files'=> [],
+            'repair_inspection_error' => null,
             'cached'            => false,
             'error'             => null,
         ];
@@ -62,7 +63,7 @@ class ReleaseDiscovery
                 $cachedData = json_decode((string)file_get_contents($this->cacheFile), true);
                 if (is_array($cachedData)) {
                     $cachedVersion = (string)($cachedData['latest_version'] ?? '');
-                    $cacheHasRepairInventory = array_key_exists('core_inventory', $cachedData);
+                    $cacheHasRepairInventory = !empty($cachedData['core_inventory']);
                     $cacheNeedsFreshRepairInventory = (
                         $this->validator->compareVersions($cachedVersion, $currentVersion) === 0
                         && !$cacheHasRepairInventory
@@ -71,24 +72,33 @@ class ReleaseDiscovery
                         @unlink($this->cacheFile);
                     } else {
                         $cachedData['cached'] = true;
-                    $cachedData['current_version'] = $currentVersion;
-                    $cachedData['update_available'] = $this->validator->isNewer(
-                        $cachedData['latest_version'] ?? '',
-                        $currentVersion
-                    );
-                    $sameVersion = $this->validator->compareVersions(
-                        (string)($cachedData['latest_version'] ?? ''),
-                        $currentVersion
-                    ) === 0;
-                    $cachedData['missing_core_files'] = $sameVersion
-                        ? $this->detectMissingCoreFiles((array)($cachedData['core_inventory'] ?? []))
-                        : [];
-                    $cachedData['repair_available'] = (
-                        $sameVersion
-                        && !empty($cachedData['download_url'])
-                        && !empty($cachedData['core_inventory'])
-                        && !empty($cachedData['missing_core_files'])
-                    );
+                        $cachedData['current_version'] = $currentVersion;
+                        $cachedData['update_available'] = $this->validator->isNewer(
+                            $cachedData['latest_version'] ?? '',
+                            $currentVersion
+                        );
+                        $sameVersion = $this->validator->compareVersions(
+                            (string)($cachedData['latest_version'] ?? ''),
+                            $currentVersion
+                        ) === 0;
+                        $cachedData['missing_core_files'] = $sameVersion
+                            ? $this->detectMissingCoreFiles((array)($cachedData['core_inventory'] ?? []))
+                            : [];
+                        $cachedData['repair_available'] = (
+                            $sameVersion
+                            && !empty($cachedData['download_url'])
+                            && !empty($cachedData['core_inventory'])
+                            && !empty($cachedData['missing_core_files'])
+                        );
+
+                        // Older builds stored optional repair-inspection failures as a top-level
+                        // discovery error. That makes an otherwise successful update check look
+                        // broken for the whole cache TTL. Repair inspection is best-effort only.
+                        if (($cachedData['error'] ?? null) === 'The current Core release could not be safely inspected for repair status.') {
+                            $cachedData['repair_inspection_error'] = $cachedData['error'];
+                            $cachedData['error'] = null;
+                        }
+
                         return $cachedData;
                     }
                 }
@@ -125,37 +135,59 @@ class ReleaseDiscovery
             && $this->validator->compareVersions($cleanVersion, $currentVersion) === 0
         );
 
-        // Find the Core ZIP and its official checksum sidecar.
+        // Find the Core ZIP and its exact checksum sidecar. Releases may also contain
+        // plugin/theme/test ZIPs, so never treat those as Core and never borrow another
+        // archive's checksum sidecar.
         $zipAssetName = '';
         if (!empty($release['assets']) && is_array($release['assets'])) {
+            $candidates = [];
             foreach ($release['assets'] as $asset) {
                 $assetName = (string)($asset['name'] ?? '');
-                if (preg_match('/^Favorite-CMS-Universal.*\.zip$/i', $assetName)
-                    && !preg_match('/[-_](?:tests|plugin|theme).*\.zip$/i', $assetName)) {
-                    $result['download_url'] = (string)($asset['browser_download_url'] ?? '');
-                    $result['package_name'] = $assetName;
-                    $result['package_size'] = (int)($asset['size'] ?? 0);
-                    $zipAssetName = $assetName;
-                    break;
+                if (!preg_match('/^Favorite-CMS-Universal.*\.zip$/i', $assetName)) {
+                    continue;
+                }
+                if (preg_match('/[-_](?:tests?|plugins?|themes?|assets?|source)(?:[-_.]|$)/i', $assetName)) {
+                    continue;
+                }
+
+                // Prefer a release archive whose filename contains the current tag/version.
+                // Keep a deterministic fallback for legacy Favorite-CMS-Universal*.zip names.
+                $score = 10;
+                if (stripos($assetName, $cleanVersion) !== false || stripos($assetName, $tagName) !== false) {
+                    $score += 20;
+                }
+                if (preg_match('/^Favorite-CMS-Universal(?:[-_]?v?' . preg_quote($cleanVersion, '/') . ')?\.zip$/i', $assetName)) {
+                    $score += 20;
+                }
+                $candidates[] = ['score' => $score, 'asset' => $asset];
+            }
+
+            if ($candidates !== []) {
+                usort($candidates, static function (array $a, array $b): int {
+                    return $b['score'] <=> $a['score'];
+                });
+                $coreAsset = $candidates[0]['asset'];
+                $zipAssetName = (string)($coreAsset['name'] ?? '');
+                $result['download_url'] = (string)($coreAsset['browser_download_url'] ?? '');
+                $result['package_name'] = $zipAssetName;
+                $result['package_size'] = (int)($coreAsset['size'] ?? 0);
+                // GitHub publishes a digest for release assets on supported releases.
+                // Use it even when no separate checksum file has been attached.
+                if (preg_match('/^sha256:([a-f0-9]{64})$/i', (string)($coreAsset['digest'] ?? ''), $digestMatch)) {
+                    $result['sha256'] = strtolower($digestMatch[1]);
                 }
             }
 
             if ($zipAssetName !== '') {
-                $exactChecksumName = $zipAssetName . '.sha256';
+                $checksumNames = [
+                    strtolower($zipAssetName . '.sha256'),
+                    strtolower($zipAssetName . '.sha256.txt'),
+                ];
                 foreach ($release['assets'] as $asset) {
                     $assetName = (string)($asset['name'] ?? '');
-                    if ($assetName === $exactChecksumName) {
+                    if (in_array(strtolower($assetName), $checksumNames, true)) {
                         $result['checksum_url'] = (string)($asset['browser_download_url'] ?? '');
                         break;
-                    }
-                }
-                if ($result['checksum_url'] === '') {
-                    foreach ($release['assets'] as $asset) {
-                        $assetName = (string)($asset['name'] ?? '');
-                        if (preg_match('/\.zip\.sha256$/i', $assetName) && !preg_match('/[-_]tests/i', $assetName)) {
-                            $result['checksum_url'] = (string)($asset['browser_download_url'] ?? '');
-                            break;
-                        }
                     }
                 }
             }
@@ -184,13 +216,20 @@ class ReleaseDiscovery
                 if (!$packageValidation['valid']) {
                     throw new RuntimeException('Repair package validation failed: ' . implode('; ', $packageValidation['errors']));
                 }
+                if ($this->validator->compareVersions((string)$packageValidation['version'], $cleanVersion) !== 0) {
+                    throw new RuntimeException('Repair package version does not match the GitHub release.');
+                }
                 $result['core_inventory'] = $this->buildCoreInventory($inventoryZip, $packageValidation['root_prefix']);
                 $result['missing_core_files'] = $this->detectMissingCoreFiles($result['core_inventory']);
             } catch (Throwable $e) {
                 $result['core_inventory'] = [];
                 $result['missing_core_files'] = [];
-                // Do not manufacture a repair state when the package cannot be safely inspected.
-                $result['error'] = 'The current Core release could not be safely inspected for repair status.';
+
+                // Update discovery already succeeded at this point. Same-version repair
+                // inspection is optional and can fail because a host temporarily blocks large
+                // outbound downloads, a release asset is being replaced, or no checksum is
+                // available yet. Do not turn that into a false Core Update failure.
+                $result['repair_inspection_error'] = 'The current Core release could not be safely inspected for repair status.';
             } finally {
                 if (is_file($inventoryZip)) {
                     @unlink($inventoryZip);
@@ -342,6 +381,10 @@ class ReleaseDiscovery
                     CURLOPT_TIMEOUT        => 120,
                     CURLOPT_USERAGENT      => 'Favorite-CMS-Universal/' . (defined('APP_VERSION') ? APP_VERSION : '1.0.0'),
                     CURLOPT_FAILONERROR    => true,
+                    CURLOPT_NOPROGRESS     => false,
+                    CURLOPT_XFERINFOFUNCTION => static function ($handle, $total, $downloaded) use ($maxSizeBytes): int {
+                        return ($total > $maxSizeBytes || $downloaded > $maxSizeBytes) ? 1 : 0;
+                    },
                 ]);
 
                 $success = curl_exec($ch);
@@ -372,7 +415,7 @@ class ReleaseDiscovery
                     throw new RuntimeException("Could not connect to download URL: {$downloadUrl}");
                 }
 
-                $written = stream_copy_to_stream($srcStream, $fp);
+                $written = stream_copy_to_stream($srcStream, $fp, $maxSizeBytes + 1);
                 fclose($srcStream);
                 fclose($fp);
 

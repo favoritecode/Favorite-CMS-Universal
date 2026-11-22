@@ -83,7 +83,7 @@ class AvatarService
         $finfo = finfo_open(FILEINFO_MIME_TYPE);
         $detectedMime = $finfo ? finfo_file($finfo, $tmpPath) : mime_content_type($tmpPath);
         if ($finfo) {
-            finfo_close($finfo);
+            unset($finfo);
         }
 
         $detectedMime = strtolower((string)$detectedMime);

@@ -215,6 +215,8 @@ class AccountMenu
             return;
         }
 
+        static::registerItem(['id'=>'security','label'=>'Security & email','url'=>'/admin/account/security','icon'=>'settings','order'=>15,'plugin'=>'core']);
+
         // 1. Profile (Single account management destination)
         static::registerItem([
             'id'         => 'profile',

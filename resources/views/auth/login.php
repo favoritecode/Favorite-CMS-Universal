@@ -27,6 +27,15 @@ $registerHref = $url('/register') . ($redirect !== null ? '?redirect=' . rawurle
         <div class="fc-alert fc-alert--info" role="status" id="auth-alert"><p><?php echo $e($flash); ?></p></div>
     <?php endif; ?>
 
+    <?php if (!empty($rememberedUser)): ?>
+    <form class="fc-form" method="POST" action="<?= $e($url('/admin/login')) ?>" style="margin-bottom:24px">
+        <input type="hidden" name="_token" value="<?= $e($token) ?>">
+        <input type="hidden" name="action" value="remembered">
+        <?php if ($redirect !== null): ?><input type="hidden" name="redirect" value="<?= $e($redirect) ?>"><?php endif; ?>
+        <button type="submit" class="fc-btn fc-btn--secondary fc-btn--block">Continue as <?= $e($rememberedUser->name ?? $rememberedUser->username) ?></button>
+        <p class="fc-auth__help">Saved on this browser. Two-step verification still applies. Or sign in below with another account.</p>
+    </form>
+    <?php endif; ?>
     <form class="fc-form" method="POST" action="<?php echo $e($url('/admin/login')); ?>" data-enhance-form>
         <input type="hidden" name="_token" value="<?php echo $e($token); ?>">
         <?php if ($redirect !== null): ?>
@@ -36,6 +45,9 @@ $registerHref = $url('/register') . ($redirect !== null ? '?redirect=' . rawurle
         <?php echo $field(['id' => 'login', 'label' => 'Username or email', 'value' => $oldLogin, 'required' => true, 'autocomplete' => 'username', 'attrs' => ['autofocus' => $oldLogin === '', 'autocapitalize' => 'none', 'spellcheck' => 'false', 'data-error' => 'Enter your username or email address.']]); ?>
         <?php echo $field(['id' => 'password', 'label' => 'Password', 'type' => 'password', 'required' => true, 'autocomplete' => 'current-password', 'toggle' => true, 'attrs' => ['autofocus' => $oldLogin !== '', 'data-error' => 'Enter your password.']]); ?>
 
+        <?php if (!empty($rememberEnabled)): ?>
+        <label class="fc-check"><input type="checkbox" name="remember" value="1"><span>Remember me on this device<span style="display:block;font-size:12px;margin-top:4px">Skip the password step for up to 30 days. Two-step verification still applies. Use only on a private device.</span></span></label>
+        <?php endif; ?>
         <div class="fc-auth__form-link"><a href="<?php echo $e($url('/forgot-password')); ?>">Forgot password?</a></div>
         <button type="submit" class="fc-btn fc-btn--primary fc-btn--block" data-busy-label="Logging in...">Log in</button>
     </form>

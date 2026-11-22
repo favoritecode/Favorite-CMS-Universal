@@ -116,6 +116,34 @@ class PostController
 
     public function store(Request $request): Response
     {
+        return $this->saveContent($request, false);
+    }
+
+    public function update(Request $request): Response
+    {
+        return $this->saveContent($request, true);
+    }
+
+    private function saveContent(Request $request, bool $editing): Response
+    {
+        $db = $this->app->make(Database::class);
+        $sessionBefore = $_SESSION ?? [];
+        try {
+            return \FavoriteCMS\Services\BuilderContent::run(fn() => $db->transaction(function () use ($request, $editing): Response {
+                return $editing ? $this->updateContent($request) : $this->storeContent($request);
+            }));
+        } catch (\Throwable $error) {
+            // Do not acknowledge browser drafts or consume revision tokens after a failed save.
+            $_SESSION = $sessionBefore;
+            unset($_SESSION['flash_success']);
+            $_SESSION['flash_error'] = 'Content could not be saved. Your previous content and drafts have been preserved.';
+            error_log('Favorite CMS post save failed: ' . $error->getMessage());
+            return Response::redirect($editing ? '/admin/posts/edit?id=' . (int)$request->post('id', 0) : '/admin/posts/new');
+        }
+    }
+
+    private function storeContent(Request $request): Response
+    {
         $currentUser = isset($_SESSION['auth_user_id']) ? User::find((int)$_SESSION['auth_user_id']) : null;
         if (!$currentUser || !$currentUser->canCreatePosts()) {
             $_SESSION['flash_error'] = 'Your account is suspended and cannot create new posts.';
@@ -132,16 +160,11 @@ class PostController
         $catIds      = (array)$request->post('categories', []);
         $tagsStr     = trim((string)$request->post('tags', ''));
 
-        if ($actionType === 'draft') {
-            $status = 'draft';
-        } elseif ($actionType === 'publish') {
-            $status = 'published';
-        }
-
-        // Enforce moderation workflow for non-moderator/admin normal users
-        $canDirectPublish = $currentUser->canDirectPublish();
-        if (!$canDirectPublish && ($status === 'published' || $actionType === 'publish')) {
-            $status = 'pending';
+        try {
+            $publication=\FavoriteCMS\Services\ScheduledPublication::choice($request,$currentUser,null,'post');
+            $status=$publication['status'];
+        } catch(\RuntimeException $error) {
+            $_SESSION['flash_error']=$error->getMessage();return Response::redirect('/admin/posts/new');
         }
 
         if ($title === '') {
@@ -153,7 +176,7 @@ class PostController
         $finalSlug = $postModel->generateSlug($slug !== '' ? $slug : $title);
 
         $now = date('Y-m-d H:i:s');
-        $publishedAt = ($status === 'published') ? $now : null;
+
         $authorId = (int)$currentUser->id;
         $content = ContentSanitizer::clean($content, $authorId);
 
@@ -167,12 +190,15 @@ class PostController
             'type'              => 'post',
             'author_id'         => $authorId,
             'featured_image_id' => $featImg > 0 ? $featImg : null,
-            'published_at'      => $publishedAt,
+            'published_at'      => $publication['published_at'],
+            'scheduled_at'      => $publication['scheduled_at'],
+            'scheduled_by'      => $publication['scheduled_by'],
             'created_at'        => $now,
             'updated_at'        => $now,
         ]);
 
         $post = Post::find($postId);
+        \FavoriteCMS\Services\ContentLayout::save($request, 'post', (int)$post->id);
         ContentRevision::record(Post::find((int)$post->id), 'post');
         \FavoriteCMS\Services\ContentWorkspace::capture(Post::find((int)$post->id), 'post');
         \FavoriteCMS\Services\ContentWorkspace::acknowledge($request, 'post');
@@ -195,6 +221,8 @@ class PostController
 
         if ($status === 'pending') {
             $_SESSION['flash_success'] = 'Post submitted successfully and is awaiting review by a moderator.';
+        } elseif ($status === 'scheduled') {
+            $_SESSION['flash_success'] = 'Scheduled for ' . format_date($publication['scheduled_at'], 'M j, Y g:i a') . ' (' . \FavoriteCMS\Core\DateTime::getTimezone() . ').';
         } elseif ($status === 'published') {
             $_SESSION['flash_success'] = 'Post published successfully!';
         } else {
@@ -254,7 +282,7 @@ class PostController
         return Response::make((string)ob_get_clean(), 200);
     }
 
-    public function update(Request $request): Response
+    private function updateContent(Request $request): Response
     {
         $currentUser = isset($_SESSION['auth_user_id']) ? User::find((int)$_SESSION['auth_user_id']) : null;
         if (!$currentUser || !$currentUser->isActive()) {
@@ -284,16 +312,11 @@ class PostController
         $catIds     = (array)$request->post('categories', []);
         $tagsStr    = trim((string)$request->post('tags', ''));
 
-        if ($actionType === 'draft') {
-            $status = 'draft';
-        } elseif ($actionType === 'publish') {
-            $status = 'published';
-        }
-
-        // Enforce moderation workflow for non-moderator/admin normal users
-        $canDirectPublish = $currentUser->canDirectPublish();
-        if (!$canDirectPublish && ($status === 'published' || $actionType === 'publish')) {
-            $status = 'pending';
+        try {
+            $publication=\FavoriteCMS\Services\ScheduledPublication::choice($request,$currentUser,$post,'post');
+            $status=$publication['status'];
+        } catch(\RuntimeException $error) {
+            $_SESSION['flash_error']=$error->getMessage();return Response::redirect('/admin/posts/edit?id=' . $id);
         }
 
         if ($title === '') {
@@ -303,11 +326,6 @@ class PostController
 
         $finalSlug = $post->generateSlug($slug !== '' ? $slug : $title, $id);
         $now = date('Y-m-d H:i:s');
-        $publishedAt = $post->published_at;
-        if ($status === 'published' && empty($publishedAt)) {
-            $publishedAt = $now;
-        }
-
         $actor = User::find((int)($_SESSION['auth_user_id'] ?? 0));
         try {
             $content = ContentRevision::clean($content, $post, 'post', $actor, (string)$request->post('_content_revision', ''));
@@ -321,6 +339,14 @@ class PostController
             $_SESSION['flash_error'] = 'This content changed in another tab or account. Your draft is preserved; reopen the editor before saving.';
             return Response::redirect('/admin/posts/edit?id=' . $id);
         }
+        try {
+            $layoutBaseline = $request->post('_layout_baseline', null);
+            if ($layoutBaseline !== null && $layoutBaseline !== \FavoriteCMS\Services\ContentLayout::get('post', (int)$post->id)) throw new \RuntimeException('The content layout changed in another tab. Reopen the editor before saving.');
+            $content = \FavoriteCMS\Services\BuilderContent::content($request, 'post', $post, $content);
+        } catch (\RuntimeException $error) {
+            $_SESSION['flash_error'] = $error->getMessage();
+            return Response::redirect('/admin/posts/edit?id=' . $id);
+        }
         \FavoriteCMS\Services\ContentWorkspace::capture($post, 'post');
         $post->update([
             'title'             => $title,
@@ -329,10 +355,13 @@ class PostController
             'excerpt'           => $excerpt,
             'status'            => $status,
             'featured_image_id' => $featImg > 0 ? $featImg : null,
-            'published_at'      => $publishedAt,
+            'published_at'      => $publication['published_at'],
+            'scheduled_at'      => $publication['scheduled_at'],
+            'scheduled_by'      => $publication['scheduled_by'],
             'updated_at'        => $now,
         ]);
 
+        \FavoriteCMS\Services\ContentLayout::save($request, 'post', (int)$post->id);
         ContentRevision::record(Post::find((int)$post->id), 'post');
         \FavoriteCMS\Services\ContentWorkspace::capture(Post::find((int)$post->id), 'post');
         \FavoriteCMS\Services\ContentWorkspace::acknowledge($request, 'post');
@@ -353,6 +382,8 @@ class PostController
 
         if ($status === 'pending') {
             $_SESSION['flash_success'] = 'Post submitted successfully and is awaiting review by a moderator.';
+        } elseif ($status === 'scheduled') {
+            $_SESSION['flash_success'] = 'Scheduled for ' . format_date($publication['scheduled_at'], 'M j, Y g:i a') . ' (' . \FavoriteCMS\Core\DateTime::getTimezone() . ').';
         } elseif ($status === 'published') {
             $_SESSION['flash_success'] = 'Post published successfully!';
         } else {
@@ -424,6 +455,7 @@ class PostController
 
         $fakePost = new Post([
             '_preview_content_verified' => true,
+            '_preview_sidebar_layout' => $request->post('sidebar_layout', 'right'),
             'id'                => 0,
             'title'             => $title ?: 'Preview',
             'slug'              => 'preview',

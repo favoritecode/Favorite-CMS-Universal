@@ -29,15 +29,18 @@ class SeoController
             'robots_txt'                 => Setting::get('seo', 'robots_txt', $defaultRobots),
             'google_site_verification'   => Setting::get('seo', 'google_site_verification', ''),
             'bing_site_verification'     => Setting::get('seo', 'bing_site_verification', ''),
+            'verification_entries'       => $this->verificationEntries(),
             'ga4_enabled'                => (int)Setting::get('seo', 'ga4_enabled', 0),
             'ga4_measurement_id'         => Setting::get('seo', 'ga4_measurement_id', ''),
             'gtm_enabled'                => (int)Setting::get('seo', 'gtm_enabled', 0),
             'gtm_container_id'           => Setting::get('seo', 'gtm_container_id', ''),
+            'meta_pixel_enabled'          => (int)Setting::get('seo', 'meta_pixel_enabled', 0),
+            'meta_pixel_id'               => Setting::get('seo', 'meta_pixel_id', ''),
         ];
 
         $viewData = [
             'pageTitle'   => 'Search Engine Optimization (SEO)',
-            'activeMenu'  => 'seo',
+            'activeMenu'  => 'settings',
             'seo'         => $seo,
             'seoDashboard' => $this->dashboardItems($request),
             'contentView' => APP_ROOT . '/resources/views/admin/seo/index.php',
@@ -62,6 +65,32 @@ class SeoController
         Setting::set('seo', 'google_site_verification', $gsc);
         Setting::set('seo', 'bing_site_verification', $bing);
 
+        // Optional provider list: store validated meta name/content pairs while retaining legacy Google/Bing keys.
+        if ($request->post('verification_entries_present')) {
+            $rawEntries = $request->post('verification_entries', []);
+            $entries = [];
+            if (is_array($rawEntries)) {
+                foreach (array_slice($rawEntries, 0, 25) as $entry) {
+                    if (!is_array($entry)) continue;
+                    $title = trim(strip_tags((string)($entry['title'] ?? '')));
+                    $metaName = trim((string)($entry['meta_name'] ?? ''));
+                    $key = trim(strip_tags((string)($entry['key'] ?? '')));
+                    if ($title === '' && $metaName === '' && $key === '') continue;
+                    if ($title === '' || !preg_match('/^[a-zA-Z][a-zA-Z0-9:._-]{0,99}$/', $metaName) || $key === '' || strlen($key) > 1000) continue;
+                    $entries[] = ['title' => substr($title, 0, 100), 'meta_name' => $metaName, 'key' => $key];
+                }
+            }
+            Setting::set('seo', 'verification_entries', json_encode($entries, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+            foreach ($entries as $entry) {
+                if ($entry['meta_name'] === 'google-site-verification') { $gsc = $entry['key']; break; }
+            }
+            foreach ($entries as $entry) {
+                if ($entry['meta_name'] === 'msvalidate.01') { $bing = $entry['key']; break; }
+            }
+            Setting::set('seo', 'google_site_verification', $gsc);
+            Setting::set('seo', 'bing_site_verification', $bing);
+        }
+
         // Google Analytics 4 (GA4)
         $ga4Enabled = $request->post('ga4_enabled') ? 1 : 0;
         $rawGa4Id = trim((string)$request->post('ga4_measurement_id', ''));
@@ -76,9 +105,32 @@ class SeoController
         Setting::set('seo', 'gtm_enabled', $gtmEnabled, 'integer');
         Setting::set('seo', 'gtm_container_id', $gtmId);
 
+        // Meta Pixel (Facebook Pixel) — validate numeric Pixel ID only.
+        $pixelEnabled = $request->post('meta_pixel_enabled') ? 1 : 0;
+        $rawPixelId = trim((string)$request->post('meta_pixel_id', ''));
+        $pixelId = preg_match('/^[0-9]{5,20}$/', $rawPixelId) ? $rawPixelId : '';
+        Setting::set('seo', 'meta_pixel_enabled', $pixelEnabled, 'integer');
+        Setting::set('seo', 'meta_pixel_id', $pixelId);
+
         $_SESSION['flash_success'] = 'SEO settings updated.';
-        return Response::redirect('/admin/seo');
+        return Response::redirect('/admin/settings/seo');
     }
+    private function verificationEntries(): array
+    {
+        $raw = Setting::get('seo', 'verification_entries', '');
+        if (is_string($raw) && $raw !== '') {
+            $decoded = json_decode($raw, true);
+            if (is_array($decoded)) return array_values(array_filter($decoded, static fn($row) => is_array($row)));
+        }
+        $entries = [];
+        $google = trim((string)Setting::get('seo', 'google_site_verification', ''));
+        $bing = trim((string)Setting::get('seo', 'bing_site_verification', ''));
+        if ($google !== '') $entries[] = ['title' => 'Google Search Console', 'meta_name' => 'google-site-verification', 'key' => $google];
+        else $entries[] = ['title' => 'Google Search Console', 'meta_name' => 'google-site-verification', 'key' => ''];
+        if ($bing !== '') $entries[] = ['title' => 'Bing Webmaster Tools', 'meta_name' => 'msvalidate.01', 'key' => $bing];
+        return $entries;
+    }
+
     private function dashboardItems(Request $request): array
     {
         $kind=$request->get('kind')==='page'?'page':'post';$class=$kind==='post'?\FavoriteCMS\Models\Post::class:\FavoriteCMS\Models\Page::class;
@@ -114,7 +166,7 @@ class SeoController
             $preview['nonce']=bin2hex(random_bytes(16));$preview['expires']=time()+1800;
             $_SESSION['seo_import_preview']=$preview;
         }catch(\Throwable $e){$_SESSION['flash_error']=$e->getMessage();}
-        return Response::redirect('/admin/seo');
+        return Response::redirect('/admin/settings/seo');
     }
     public function apply(Request $request): Response
     {
@@ -125,6 +177,6 @@ class SeoController
             $count=\FavoriteCMS\Services\SeoTransfer::apply($preview);
             unset($_SESSION['seo_import_preview']);$_SESSION['flash_success']='SEO metadata updated for '.$count.' items. Content and publication status were retained.';
         }catch(\Throwable $e){$_SESSION['flash_error']=$e->getMessage();}
-        return Response::redirect('/admin/seo');
+        return Response::redirect('/admin/settings/seo');
     }
 }

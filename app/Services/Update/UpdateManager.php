@@ -275,7 +275,13 @@ class UpdateManager
         ];
         $unwritable = [];
         foreach ($writablePaths as $label => $dir) {
-            if (!is_dir($dir) || !is_writable($dir)) {
+            // Missing Core directories can be recreated from the package. Check
+            // their nearest existing parent without changing the live site here.
+            $writableParent = $dir;
+            while (!file_exists($writableParent) && dirname($writableParent) !== $writableParent) {
+                $writableParent = dirname($writableParent);
+            }
+            if (!is_dir($writableParent) || !is_writable($writableParent)) {
                 $unwritable[] = $label;
             }
         }
@@ -375,6 +381,9 @@ class UpdateManager
 
         $targetVersion = $validation['version'];
         $rootPrefix = $validation['root_prefix'];
+        if (!empty($options['expected_version']) && $this->validator->compareVersions((string)$targetVersion, (string)$options['expected_version']) !== 0) {
+            throw new RuntimeException('Downloaded Core package version does not match the selected GitHub release. Refresh the update check and retry.');
+        }
 
         // 2. Acquire Concurrency Lock
         if (!$this->acquireLock($sessionId, $targetVersion)) {
@@ -691,6 +700,7 @@ class UpdateManager
 
         // 3. Restore root and entrypoint files
         $coreFiles = [
+            '.htaccess',
             'bootstrap.php',
             'index.php',
             'migrate.php',

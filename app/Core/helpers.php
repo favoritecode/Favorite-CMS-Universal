@@ -8,7 +8,7 @@ use FavoriteCMS\Core\Response;
 use FavoriteCMS\Core\Container;
 
 if (!function_exists('app')) {
-    function app(string $abstract = null)
+    function app(?string $abstract = null)
     {
         $container = Container::getInstance();
         if (is_null($abstract)) {
@@ -163,7 +163,7 @@ if (!function_exists('old')) {
 }
 
 if (!function_exists('session')) {
-    function session(string $key = null, mixed $default = null): mixed
+    function session(?string $key = null, mixed $default = null): mixed
     {
         if (is_null($key)) {
             return $_SESSION;
@@ -899,7 +899,7 @@ if (!function_exists('active_theme_id')) {
     function active_theme_id(): string
     {
         try {
-            $theme = (string)\FavoriteCMS\Models\Setting::get('theme', 'active_theme', 'default');
+            $theme = (new \FavoriteCMS\Themes\ThemeManager(app()))->getActiveTheme();
         } catch (\Throwable) {
             $theme = 'default';
         }

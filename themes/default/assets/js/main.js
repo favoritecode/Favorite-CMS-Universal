@@ -29,6 +29,28 @@
             }
         }
 
+        // Collapse crowded desktop headers rather than stretching the bar or overflowing.
+        var header = doc.querySelector('.site-header--official');
+        var bar = header && header.querySelector('.header-bar');
+        if (header && bar && panel) {
+            var layoutFrame = 0;
+            var fitHeader = function () {
+                cancelAnimationFrame(layoutFrame);
+                layoutFrame = requestAnimationFrame(function () {
+                    header.classList.remove('is-compact');
+                    if (window.innerWidth < 1024) { return; }
+                    var nav = header.querySelector('.main-nav');
+                    if (panel.scrollWidth > panel.clientWidth + 2 || bar.scrollWidth > bar.clientWidth + 2 || (nav && nav.getBoundingClientRect().height > 46)) {
+                        header.classList.add('is-compact');
+                    }
+                });
+            };
+            window.addEventListener('resize', fitHeader, {passive: true});
+            header.querySelectorAll('img').forEach(function (img) { img.addEventListener('load', fitHeader); img.addEventListener('error', fitHeader); });
+            if (doc.fonts && doc.fonts.ready) { doc.fonts.ready.then(fitHeader); }
+            fitHeader();
+        }
+
         var wrappers = '.post-card__media, .entry-media, .featured-post-card__media, .widget-recent-posts__thumb';
         doc.querySelectorAll('.post-card__media img, .entry-media img, .featured-post-card__media img, .widget-recent-posts__thumb img').forEach(function (img) {
             var hide = function () { var w = img.closest(wrappers); if (w) { w.classList.add('is-broken'); } };

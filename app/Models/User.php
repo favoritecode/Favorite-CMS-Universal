@@ -276,6 +276,17 @@ class User extends BaseModel
         return true;
     }
 
+    public function delete(): bool
+    {
+        if (empty($this->id)) return false;
+        return $this->db->transaction(function (): bool {
+            foreach (['notification_outbox','notification_events','account_security','remembered_logins'] as $table) {
+                if ($this->db->tableExists($table)) $this->db->delete($table, ['user_id'=>(int)$this->id]);
+            }
+            return parent::delete();
+        });
+    }
+
     public function deleteAccount(int $fallbackAdminId): void
     {
         $action = function() use ($fallbackAdminId) {

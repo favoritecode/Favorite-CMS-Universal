@@ -269,7 +269,7 @@ code { font-family: var(--fc-font-mono); font-size: 0.85em; background: var(--fc
 }
 .fc-auth__inner { width: 100%; max-width: 440px; display: grid; gap: var(--fc-space-5); }
 .fc-auth__inner--wide { max-width: 640px; }
-.fc-auth__header { display: flex; justify-content: center; }
+.fc-auth__header { display: flex; justify-content: space-between; align-items: center; gap: 24px; }
 .fc-auth__card { background: var(--fc-surface); border: 1px solid var(--fc-border); border-radius: var(--fc-radius-lg); box-shadow: var(--fc-shadow-md); padding: clamp(var(--fc-space-6), 5vw, var(--fc-space-10)); display: grid; gap: var(--fc-space-5); }
 .fc-auth__title { font-size: var(--fc-text-xl); letter-spacing: -.02em; }
 .fc-auth__subtitle { color: var(--fc-muted); margin-top: 6px; font-size: var(--fc-text-sm); }

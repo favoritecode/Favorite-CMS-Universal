@@ -15,7 +15,7 @@ return [
     */
 
     'google_oauth' => [
-        'gateway_url' => env('FAVORITE_OAUTH_GATEWAY_URL'),
+        'gateway_url' => env('FAVORITE_OAUTH_GATEWAY_URL') ?: 'https://oauth.favoriteweb.net',
     ],
 ];
 

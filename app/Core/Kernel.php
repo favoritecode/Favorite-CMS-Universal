@@ -49,9 +49,27 @@ class Kernel
             $urls = new UrlResolver();
             $request->setBasePath($urls->basePath($request));
             $GLOBALS['favorite_cms_base_path'] = $request->basePath();
-            (new InstallerSession($urls))->start($request);
-
             $path = $request->path();
+
+            // Private gateway endpoints retain their own OAuth/HMAC protocol and no CMS session dependency.
+            $centralServer = APP_ROOT . '/favorite-server-license/bootstrap.php';
+            if (is_file($centralServer)) {
+                require_once $centralServer;
+                // Optional private server package supplies its own fixed handlers.
+                // No files need to be installed inside the CMS public directory.
+                if (class_exists(\FavoriteCentral\Endpoints::class)) {
+                    $centralResponse = \FavoriteCentral\Endpoints::response($request, $this->app);
+                    if ($centralResponse !== null) return $centralResponse;
+                }
+                try {
+                    $oauthResponse = \FavoriteCentral\OAuthGateway::response($request, APP_ROOT);
+                    if ($oauthResponse !== null) return $oauthResponse;
+                } catch (\Throwable $e) {
+                    if (str_starts_with($path, '/favorite-central-oauth')) return Response::json(['error'=>'gateway_unavailable'],503);
+                }
+            }
+
+            (new InstallerSession($urls))->start($request);
 
             // 1. Installer: If not installed, handle installation
             if (!$this->app->isInstalled()) {
@@ -70,15 +88,21 @@ class Kernel
                 return $maintenance->renderResponse($request);
             }
 
+            \FavoriteCMS\Central\Bridge::boot();
+            $centralRestriction = \FavoriteCMS\Central\Bridge::policyResponse($request);
+            if ($centralRestriction !== null) return $centralRestriction;
+
+            // Run due publications before plugins resolve linked content routes.
+            \FavoriteCMS\Services\ScheduledPublication::runDue($this->app->make(Database::class));
+
+            \FavoriteCMS\Services\NotificationService::boot();
+
             // Boot active plugins safely
             (new PluginManager($this->app))->bootActivePlugins();
 
             // Load active theme functions.php if available
             try {
-                $activeTheme = \FavoriteCMS\Models\Setting::get('theme', 'active_theme', 'default');
-                if (!is_dir(APP_ROOT . '/themes/' . $activeTheme) && is_dir(APP_ROOT . '/themes/default')) {
-                    $activeTheme = 'default';
-                }
+                $activeTheme = (new \FavoriteCMS\Themes\ThemeManager($this->app))->getActiveTheme();
                 $themeFunctions = APP_ROOT . '/themes/' . $activeTheme . '/functions.php';
                 if (file_exists($themeFunctions)) {
                     include_once $themeFunctions;
@@ -110,7 +134,13 @@ class Kernel
             }
 
             // 2. Dispatch request
-            return $this->dispatch($request);
+            $specificRedirect = \FavoriteCMS\Services\UrlRedirects::resolve($request);
+            if ($specificRedirect) return $specificRedirect;
+            $response = $this->dispatch($request);
+            if ($response->getStatusCode() === 404 && !str_contains(strtolower((string)$response->getHeader('Content-Type')), 'json')) {
+                return \FavoriteCMS\Services\NotFoundRedirect::resolve($request) ?? $response;
+            }
+            return $response;
 
         } catch (\Throwable $e) {
             return $this->handleException($e);
@@ -129,6 +159,15 @@ class Kernel
                 (new InstallerSession(new UrlResolver()))->regenerate();
                 return Response::redirect('/admin/login');
             }
+            if ($sessionUser) {
+                $factor=\FavoriteCMS\Services\AccountSecurity::state((int)$sessionUser->id);
+                if ($factor->method!=='off' && ($_SESSION['auth_two_step']??'')!==($sessionUser->id.':'.$factor->revision)) {
+                    $_SESSION=[];(new InstallerSession(new UrlResolver()))->regenerate();
+                    $_SESSION['login_flash']='Please sign in and verify your two-step code.';
+                    return Response::redirect('/admin/login');
+                }
+            }
+
         }
 
         if (in_array($path, ['/forgot-password', '/reset-password'], true)) {
@@ -214,6 +253,11 @@ class Kernel
         // ---------------------------------------------------------------------
         // Public Frontend Routes
         // ---------------------------------------------------------------------
+        if (preg_match('#^/media-download/([1-9][0-9]*)$#D', $path, $download)) {
+            return \FavoriteCMS\Services\DownloadMedia::response($request, (int)$download[1]);
+        }
+        $fileAlias = \FavoriteCMS\Services\MediaFileUrls::response($request);
+        if ($fileAlias !== null) return $fileAlias;
         $frontend = new FrontendController($this->app);
 
         if ($path === '/' || $path === '') {
@@ -247,16 +291,36 @@ class Kernel
             return $frontend->robots($request);
         }
 
-        // /post/{slug}
+        // Legacy /post/{slug} URLs remain supported even when the canonical base is /blog/.
         if (preg_match('#^/post/([a-zA-Z0-9_\-]+)/?$#', $path, $m)) {
             if ($method === 'POST') {
                 return $frontend->submitComment($request, $m[1]);
             }
+            $post = \FavoriteCMS\Models\Post::findBySlug($m[1]);
+            if ($post && $post->status === 'published' && $post->url() !== $path) {
+                return Response::redirect($post->url(), 301);
+            }
             return $frontend->post($request, $m[1]);
         }
 
-        // /page/{slug}
-        if (preg_match('#^/page/([a-zA-Z0-9_\-]+)$#', $path, $m)) {
+        // Alternate configurable /blog/{slug} post permalink.
+        if (preg_match('#^/blog/([a-zA-Z0-9_\-]+)/?$#', $path, $m)) {
+            if ($method === 'POST') {
+                return $frontend->submitComment($request, $m[1]);
+            }
+            $post = \FavoriteCMS\Models\Post::findBySlug($m[1]);
+            if ($post && $post->status === 'published') {
+                if ($post->url() !== $path) { return Response::redirect($post->url(), 301); }
+                return $frontend->post($request, $m[1]);
+            }
+        }
+
+        // Legacy /page/{slug} URLs remain supported when root-level pages are enabled.
+        if (preg_match('#^/page/([a-zA-Z0-9_\-]+)/?$#', $path, $m)) {
+            $page = \FavoriteCMS\Models\Page::findBySlug($m[1]);
+            if ($page && $page->status === 'published' && $page->url() !== $path) {
+                return Response::redirect($page->url(), 301);
+            }
             return $frontend->page($request, $m[1]);
         }
 
@@ -273,10 +337,12 @@ class Kernel
         // Fallback check for single page by direct slug e.g. /about
         $pageSlug = trim($path, '/');
         if (!empty($pageSlug)) {
+            $rootPage = \FavoriteCMS\Models\Page::findBySlug($pageSlug);
+            if ($rootPage && $rootPage->status === 'published' && $rootPage->url() !== $path) {
+                return Response::redirect($rootPage->url(), 301);
+            }
             $resp = $frontend->page($request, $pageSlug);
-            $refStatus = new \ReflectionProperty($resp, 'status');
-            $refStatus->setAccessible(true);
-            if (in_array($refStatus->getValue($resp), [200,301], true)) {
+            if (in_array($resp->getStatusCode(), [200,301], true)) {
                 return $resp;
             }
         }
@@ -287,6 +353,7 @@ class Kernel
     protected function dispatchAdmin(Request $request, string $path, string $method): Response
     {
         // Auth routes
+        if ($path === '/admin/two-step') return $this->twoStep($request);
         if ($path === '/admin/login') {
             return $method === 'POST' ? $this->processLogin($request) : $this->showLogin($request);
         }
@@ -323,6 +390,7 @@ class Kernel
                 '/admin/',
                 '/admin/users/profile',
                 '/admin/users/profile/update',
+                '/admin/account/security',
                 '/admin/logout',
             ];
             if (!in_array($path, $allowedForSuspended, true)) {
@@ -356,6 +424,8 @@ class Kernel
             }
         }
 
+        if ($path === '/admin/account/security') return (new \FavoriteCMS\Http\Controllers\Admin\AccountSecurityController())->handle($request);
+
         // Private content workspace: central authentication, suspension and CSRF checks apply first.
         if (preg_match('#^/admin/(posts|pages)/(autosave|workspace|snapshot)$#', $path, $workspace)) {
             return (new \FavoriteCMS\Http\Controllers\Admin\ContentWorkspaceController())->handle($request, $workspace[1] === 'posts' ? 'post' : 'page', $workspace[2], $method);
@@ -382,8 +452,24 @@ class Kernel
             return Response::json(['success' => true, 'theme' => $theme]);
         }
 
+        if ($path === '/admin/dashboard/preferences') {
+            if($method!=='POST')return Response::make('Method not allowed.',405)->header('Allow','POST');
+            return (new DashboardController($this->app))->index($request);
+        }
+
         if ($path === '/admin' || $path === '/admin/') {
             return (new DashboardController($this->app))->index($request);
+        }
+
+        // Page Builder registered endpoints use the authenticated admin router.
+        // Dispatch only this plugin namespace here, after existing session, role,
+        // suspension and CSRF guards. The normal CMS admin-page fallback stays intact
+        // when Favorite Page Builder is disabled or no route is registered.
+        if (str_starts_with($path, '/admin/page/favorite-page-builder-')) {
+            $builderResponse = \FavoriteCMS\Core\Router::dispatch($request);
+            if ($builderResponse !== null) {
+                return $builderResponse;
+            }
         }
 
         // Dynamic Plugin Admin Pages: /admin/page/{slug}
@@ -629,9 +715,17 @@ class Kernel
             if (!$currentUser->canManageSettings()) {
                 return Response::make('<h1>403 Access Denied</h1><p>You do not have permission to access settings.</p>', 403);
             }
+            if (preg_match('#^/admin/settings/redirects(?:/(new|edit|store|update|toggle|delete))?$#D', $path, $redirectRoute)) {
+                return (new \FavoriteCMS\Http\Controllers\Admin\RedirectController($this->app))->handle($request, $redirectRoute[1] ?? 'index');
+            }
             $ctrl = new SettingController($this->app);
             return match ($path) {
                 '/admin/settings'                   => $ctrl->index($request),
+                '/admin/settings/seo'                => (new SeoController($this->app))->index($request),
+                '/admin/settings/seo/update'         => (new SeoController($this->app))->update($request),
+                '/admin/settings/seo/export'         => (new SeoController($this->app))->export($request),
+                '/admin/settings/seo/preview'        => (new SeoController($this->app))->preview($request),
+                '/admin/settings/seo/apply'          => (new SeoController($this->app))->apply($request),
                 '/admin/settings/update'            => $ctrl->update($request),
                 '/admin/settings/test-email'        => $ctrl->sendTestEmail($request),
                 '/admin/settings/test-smtp'         => $ctrl->testSmtpConnection($request),
@@ -744,6 +838,8 @@ class Kernel
             'flash'               => $error === '' ? (string)$flashMsg : '',
             'oldLogin'            => trim((string)$request->post('login', '')),
             'registrationEnabled' => $registrationEnabled,
+            'rememberedUser' => \FavoriteCMS\Services\RememberedLogin::candidate(),
+            'rememberEnabled' => \FavoriteCMS\Services\RememberedLogin::enabled(),
         ]);
     }
 
@@ -768,16 +864,27 @@ class Kernel
         ob_start();
         include APP_ROOT . '/resources/views/auth/layout.php';
 
-        return Response::make((string)ob_get_clean(), $status);
+        return Response::make((string)ob_get_clean(), $status)->header('Cache-Control','no-store')->header('Referrer-Policy','no-referrer');
     }
 
     protected function processLogin(Request $request): Response
     {
+        if(!empty($_SESSION['auth_user_id']))return $this->showLogin($request);
         $token  = (string)$request->post('_token', '');
         $stored = (string)($_SESSION['_token'] ?? '');
         if ($stored === '' || !hash_equals($stored, $token)) {
             return $this->showLogin($request, 'Invalid security token. Please try again.');
         }
+
+        unset($_SESSION['remember_choice'],$_SESSION['remember_expires']);
+        if($request->post('action')==='remembered'){
+            $limiter=new \FavoriteCMS\Services\AuthRateLimiter();
+            if(!$limiter->allow('remember-login:'.(string)($request->server()['REMOTE_ADDR']??'unknown'),30))return $this->showLogin($request,'Too many attempts. Please try again later.');
+            $remembered=\FavoriteCMS\Services\RememberedLogin::candidate(true);
+            if(!$remembered)return $this->showLogin($request,'This saved sign-in has expired. Please enter your password.');
+            return $this->startVerifiedPasswordLogin($request,$remembered);
+        }
+        \FavoriteCMS\Services\RememberedLogin::forget();
 
         $login    = trim((string)$request->post('login', ''));
         $password = (string)$request->post('password', '');
@@ -801,6 +908,7 @@ class Kernel
             );
 
             if (!$user || !PasswordHasher::verify($password, (string)$user->password)) {
+                if ($user) \FavoriteCMS\Services\NotificationService::security((int)$user->id,'Failed sign-in attempt','A sign-in attempt with an incorrect password was detected. IP: '.$ip,true);
                 return $this->showLogin($request, 'Error: The password you entered for the username or email is incorrect.');
             }
 
@@ -827,6 +935,35 @@ class Kernel
                 return $this->showLogin($request, 'Your email address is not yet verified. Please check your inbox or resend verification link.');
             }
 
+            $_SESSION['remember_choice']=$request->post('remember')==='1'&&\FavoriteCMS\Services\RememberedLogin::enabled();
+            return $this->startVerifiedPasswordLogin($request,User::find((int)$user->id));
+
+        } catch (\Throwable $e) {
+            return $this->showLogin($request, 'Authentication is temporarily unavailable. Please try again later.');
+        }
+    }
+
+    /** Reused only after password validation or one-use remembered credential validation. */
+    protected function startVerifiedPasswordLogin(Request $request, User $user): Response
+    {
+        $security=\FavoriteCMS\Services\AccountSecurity::state((int)$user->id);
+        if($security->method!=='off'){
+            (new InstallerSession(new UrlResolver()))->regenerate();
+            $_SESSION['two_step_redirect']=$this->requestedRedirect($request);
+            try{\FavoriteCMS\Services\AccountSecurity::begin($user);}catch(\Throwable $error){$_SESSION['two_step_error']=$error->getMessage();}
+            return Response::redirect('/admin/two-step')->header('Cache-Control','no-store');
+        }
+        return $this->completeLogin($request,$user);
+    }
+
+    protected function completeLogin(Request $request, object $user, ?string $returnPath=null): Response
+    {
+        $factor=\FavoriteCMS\Services\AccountSecurity::state((int)$user->id);
+        $proof=$_SESSION['two_step']??[];
+        if($factor->method!=='off' && (empty($proof['verified']) || ($proof['purpose']??'')!=='login' || (int)($proof['user_id']??0)!==(int)$user->id || (int)($proof['revision']??-1)!==(int)$factor->revision))return Response::redirect('/admin/login');
+        if($factor->method!=='off')$_SESSION['auth_two_step']=$user->id.':'.$factor->revision;else unset($_SESSION['auth_two_step']);
+        $db=$this->app->make(Database::class);
+        unset($_SESSION['two_step'],$_SESSION['two_step_redirect'],$_SESSION['two_step_error']);
             (new InstallerSession(new UrlResolver()))->regenerate();
             $_SESSION['auth_version']    = (int)($user->auth_version ?? 0);
             $_SESSION['auth_user_id']    = $user->id;
@@ -844,18 +981,42 @@ class Kernel
                 $_SESSION['admin_theme'] = $savedAdminTheme;
             }
 
+            \FavoriteCMS\Services\NotificationService::security((int)$user->id,'Successful sign-in','IP: '.(string)($request->server()['REMOTE_ADDR']??'unknown'));
             $db->execute("UPDATE `users` SET `last_login_at` = ? WHERE `id` = ?", [date('Y-m-d H:i:s'), $user->id]);
 
+            if(!empty($_SESSION['remember_choice']))\FavoriteCMS\Services\RememberedLogin::issue($userModel);
+            unset($_SESSION['remember_choice'],$_SESSION['remember_expires']);
             if ($user->status === 'suspended') {
                 $_SESSION['flash_error'] = 'Your account is currently suspended. Site activity and content creation are restricted.';
                 return Response::redirect('/admin/users/profile');
             }
 
-            return Response::redirect($this->requestedRedirect($request) ?? '/admin');
+            return Response::redirect($returnPath ?? $this->requestedRedirect($request) ?? '/admin');
 
-        } catch (\Throwable $e) {
-            return $this->showLogin($request, 'Authentication is temporarily unavailable. Please try again later.');
+    }
+
+    protected function twoStep(Request $request): Response
+    {
+        if(!empty($_SESSION['auth_user_id']))return Response::redirect('/admin/account/security');
+        $c=$_SESSION['two_step']??[];
+        if(($c['purpose']??'')!=='login'||($c['expires']??0)<time()||($c['tries']??0)>=6){unset($_SESSION['two_step']);$_SESSION['login_flash']='Verification expired. Please sign in again.';return Response::redirect('/admin/login');}
+        $error=(string)($_SESSION['two_step_error']??'');unset($_SESSION['two_step_error']);
+        if($request->method()==='POST'){
+            $token=(string)$request->post('_token','');
+            if(empty($_SESSION['_token'])||!hash_equals($_SESSION['_token'],$token))return Response::make('Invalid security token.',403);
+            try{
+                $action=(string)$request->post('action','');
+                if($action==='cancel'){\FavoriteCMS\Services\RememberedLogin::forget();unset($_SESSION['two_step'],$_SESSION['two_step_redirect']);return Response::redirect('/admin/login');}
+                if($action==='resend'){$user=User::find((int)$c['user_id']);if(!$user)throw new \RuntimeException('Please sign in again.');\FavoriteCMS\Services\AccountSecurity::sendCode($user);$error='A new code has been sent.';}
+                else {
+                    $user=\FavoriteCMS\Services\AccountSecurity::verify((string)$request->post('code',''));
+                    if($user){$target=SafeRedirect::localPath($_SESSION['two_step_redirect']??null);return $this->completeLogin($request,$user,$target);}
+                    \FavoriteCMS\Services\NotificationService::security((int)$c['user_id'],'Two-step verification failed','An incorrect or expired code was submitted.',true);
+                    $error='The code is invalid, already used, or expired.';
+                }
+            }catch(\Throwable $exception){$error=$exception->getMessage();}
         }
+        return $this->renderAuthPage($request,'two-step',['token'=>$_SESSION['_token']??'', 'method'=>$c['method'],'error'=>$error])->header('Cache-Control','no-store')->header('Referrer-Policy','no-referrer');
     }
 
     protected function showRegister(Request $request, ?string $error = null, array $old = []): Response
@@ -1089,7 +1250,8 @@ class Kernel
         if (!is_string($token) || empty($_SESSION['_token']) || !hash_equals($_SESSION['_token'], $token)) {
             return Response::make('Invalid security token.', 403);
         }
-        unset($_SESSION['auth_version'], $_SESSION['auth_user_role'], $_SESSION['_maintenance_bypass_token']);
+        \FavoriteCMS\Services\RememberedLogin::forget();
+        unset($_SESSION['auth_version'], $_SESSION['auth_user_role'], $_SESSION['_maintenance_bypass_token'], $_SESSION['auth_two_step'], $_SESSION['two_step'], $_SESSION['two_step_redirect']);
         unset($_SESSION['auth_user_id'], $_SESSION['auth_user_name'], $_SESSION['auth_user_email']);
         (new InstallerSession(new UrlResolver()))->regenerate();
         $_SESSION['login_flash'] = 'You have been successfully logged out.';

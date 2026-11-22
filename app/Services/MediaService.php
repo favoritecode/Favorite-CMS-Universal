@@ -60,6 +60,22 @@ class MediaService
     protected UploadCapabilityService $capabilityService;
 
     /**
+     * Determine the destination directory for newly stored media. Existing media URLs are never rewritten.
+     */
+    protected function getUploadSubdirectory(): string
+    {
+        $structure = \FavoriteCMS\Models\Setting::get('media', 'upload_structure', 'year_month');
+        $year = date('Y');
+        if ($structure === 'flat') {
+            return '';
+        }
+        if ($structure === 'year') {
+            return $year;
+        }
+        return $year . '/' . date('m');
+    }
+
+    /**
      * Comprehensive MIME types to extensions mapping.
      */
     protected array $allowedMimeTypes = [
@@ -155,7 +171,7 @@ class MediaService
         }
 
         if ($user && !$user->canUploadMedia()) {
-            throw new \SecurityException("Your account is suspended and cannot upload media files.");
+            throw new SecurityException("Your account is suspended and cannot upload media files.");
         }
 
         // 1. Role-aware upload size validation
@@ -174,30 +190,35 @@ class MediaService
             $originalName = 'upload_file';
         }
 
+        $inputExtension = strtolower(pathinfo($originalName, PATHINFO_EXTENSION));
+        $isDownload = in_array($inputExtension, DownloadMedia::EXTENSIONS, true);
+
         // 3. Prevent double-extension attacks (e.g. image.php.jpg or script.phtml.png)
         $nameParts = explode('.', strtolower($originalName));
         array_shift($nameParts); // remove base
-        foreach ($nameParts as $extSegment) {
+        foreach ($nameParts as $partIndex => $extSegment) {
+            if ($isDownload && $partIndex === count($nameParts) - 1) continue;
             if (in_array($extSegment, $this->blockedExtensions, true)) {
                 throw new SecurityException("Dangerous file format detected: multi-extension containing '.{$extSegment}' is prohibited.");
             }
         }
 
-        $inputExtension = strtolower(pathinfo($originalName, PATHINFO_EXTENSION));
-        if (in_array($inputExtension, $this->blockedExtensions, true)) {
+        if (!$isDownload && in_array($inputExtension, $this->blockedExtensions, true)) {
             throw new SecurityException("Executable files and scripts are strictly prohibited from upload.");
         }
 
         // 4. Verify MIME type using finfo on server
         $finfo = finfo_open(FILEINFO_MIME_TYPE);
         $detectedMime = finfo_file($finfo, $file['tmp_name']);
-        finfo_close($finfo);
+        unset($finfo);
 
-        if (!array_key_exists($detectedMime, $this->allowedMimeTypes)) {
+        if ($isDownload) {
+            $detectedMime = DownloadMedia::validate($file['tmp_name'], $inputExtension, $user);
+        } elseif (!array_key_exists($detectedMime, $this->allowedMimeTypes)) {
             throw new \InvalidArgumentException("Disallowed file type: MIME '{$detectedMime}' is not permitted in the media library.");
         }
 
-        $targetExtension = $this->allowedMimeTypes[$detectedMime];
+        $targetExtension = $isDownload ? 'bin' : $this->allowedMimeTypes[$detectedMime];
         if ($detectedMime === 'image/svg+xml') {
             $this->validateSvg($file['tmp_name']);
         }
@@ -209,21 +230,28 @@ class MediaService
         }
 
         // Target subdirectory: YYYY/MM
-        $subDir = date('Y/m');
-        $targetDir = $this->uploadsBaseDir . '/' . $subDir;
+        $subDir = $isDownload ? '' : $this->getUploadSubdirectory();
+        $storageBase = $isDownload ? APP_ROOT . '/storage/media-downloads' : $this->uploadsBaseDir;
+        $targetDir = $storageBase . ($subDir !== '' ? '/' . $subDir : '');
+        if ($isDownload) $safeBase = bin2hex(random_bytes(24));
         if (!is_dir($targetDir)) {
             mkdir($targetDir, 0775, true);
         }
 
         // 6. Generate unique, collision-resistant filename
-        $storedFilename = sprintf('%s_%s.%s', $safeBase, bin2hex(random_bytes(6)), $targetExtension);
+        $storedFilename = $safeBase . '.' . $targetExtension;
+        $collision = 2;
+        while (file_exists($targetDir . '/' . $storedFilename)) {
+            $storedFilename = $safeBase . '_' . $collision . '.' . $targetExtension;
+            $collision++;
+        }
         $targetPath = $targetDir . '/' . $storedFilename;
-        $targetUrl  = $this->uploadsBaseUrl . '/' . $subDir . '/' . $storedFilename;
+        $targetUrl  = $this->uploadsBaseUrl . ($subDir !== '' ? '/' . $subDir : '') . '/' . $storedFilename;
 
         // Path safety check: ensure target path is within base uploads directory
-        $realBase = realpath($this->uploadsBaseDir) ?: $this->uploadsBaseDir;
+        $realBase = realpath($storageBase) ?: $storageBase;
         if (str_starts_with(str_replace('\\', '/', $targetPath), str_replace('\\', '/', $realBase)) === false) {
-            throw new \SecurityException("Target upload path traversal attempted.");
+            throw new SecurityException("Target upload path traversal attempted.");
         }
 
         // 7. Low-memory streaming transfer to disk
@@ -249,23 +277,35 @@ class MediaService
         $db = Container::getInstance()->get(Database::class);
         $now = date('Y-m-d H:i:s');
 
-        $mediaId = $db->insert('media', [
-            'filename'        => $originalName,
-            'stored_filename' => $storedFilename,
-            'path'            => $targetPath,
-            'url'             => $targetUrl,
-            'mime_type'       => $detectedMime,
-            'size'            => $fileSize,
-            'width'           => $width,
-            'height'          => $height,
-            'alt_text'        => pathinfo($originalName, PATHINFO_FILENAME),
-            'title'           => pathinfo($originalName, PATHINFO_FILENAME),
-            'description'     => '',
-            'uploader_id'     => $uploaderId,
-            'disk'            => 'local',
-            'created_at'      => $now,
-            'updated_at'      => $now,
-        ]);
+        try {
+            $persist = function () use ($db, $originalName, $storedFilename, $targetPath, $targetUrl, $detectedMime, $fileSize, $width, $height, $uploaderId, $now, $isDownload): int {
+            $mediaId = $db->insert('media', [
+                'filename'        => $originalName,
+                'stored_filename' => $storedFilename,
+                'path'            => $targetPath,
+                'url'             => $targetUrl,
+                'mime_type'       => $detectedMime,
+                'size'            => $fileSize,
+                'width'           => $width,
+                'height'          => $height,
+                'alt_text'        => pathinfo($originalName, PATHINFO_FILENAME),
+                'title'           => pathinfo($originalName, PATHINFO_FILENAME),
+                'description'     => '',
+                'uploader_id'     => $uploaderId,
+                'disk'            => 'local',
+                'created_at'      => $now,
+                'updated_at'      => $now,
+            ]);
+            if ($isDownload) $db->update('media', ['url' => '/media-download/' . $mediaId], ['id' => $mediaId]);
+            MediaFileUrls::assign((int)$mediaId);
+            return (int)$mediaId;
+            };
+            $mediaId = $db->transaction($persist);
+        } catch (\Throwable $error) {
+            // This is the new destination created above, never an existing media file.
+            if (is_file($targetPath)) @unlink($targetPath);
+            throw $error;
+        }
 
         $media = Media::find($mediaId);
         if ($media) ImageVariants::all($media);
@@ -559,7 +599,7 @@ class MediaService
             // 3. MIME validation using finfo on local disk content
             $finfo = finfo_open(FILEINFO_MIME_TYPE);
             $detectedMime = (string)finfo_file($finfo, $tempFile);
-            finfo_close($finfo);
+            unset($finfo);
 
             if (!array_key_exists($detectedMime, $this->allowedUrlImportMimeTypes)) {
                 throw new \InvalidArgumentException("Disallowed file type: MIME '{$detectedMime}' is not permitted. Only JPG, PNG, GIF, and WebP images are allowed.");
@@ -585,18 +625,23 @@ class MediaService
             $originalName = $safeBase . '.' . $targetExtension;
 
             // 6. Target storage directory
-            $subDir = date('Y/m');
-            $targetDir = $this->uploadsBaseDir . '/' . $subDir;
+            $subDir = $this->getUploadSubdirectory();
+            $targetDir = $this->uploadsBaseDir . ($subDir !== '' ? '/' . $subDir : '');
             if (!is_dir($targetDir)) {
                 @mkdir($targetDir, 0775, true);
             }
 
-            $storedFilename = sprintf('%s_%s.%s', $safeBase, bin2hex(random_bytes(6)), $targetExtension);
+            $storedFilename = $safeBase . '.' . $targetExtension;
+            $collision = 2;
+            while (file_exists($targetDir . '/' . $storedFilename)) {
+                $storedFilename = $safeBase . '_' . $collision . '.' . $targetExtension;
+                $collision++;
+            }
             $targetPath = $targetDir . '/' . $storedFilename;
-            $targetUrl  = $this->uploadsBaseUrl . '/' . $subDir . '/' . $storedFilename;
+            $targetUrl  = $this->uploadsBaseUrl . ($subDir !== '' ? '/' . $subDir : '') . '/' . $storedFilename;
 
             // Path safety check
-            $realBase = realpath($this->uploadsBaseDir) ?: $this->uploadsBaseDir;
+            $realBase = realpath($storageBase) ?: $storageBase;
             if (str_starts_with(str_replace('\\', '/', $targetPath), str_replace('\\', '/', $realBase)) === false) {
                 throw new SecurityException("Target upload path traversal attempted.");
             }

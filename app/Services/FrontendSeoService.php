@@ -85,15 +85,23 @@ class FrontendSeoService
             $html[] = '<meta name="twitter:image" content="' . htmlspecialchars($resolvedImage, ENT_QUOTES, 'UTF-8') . '">';
         }
 
-        // Search Engine Site Verification Meta Tags
-        $gsc = trim((string)Setting::get('seo', 'google_site_verification', ''));
-        if ($gsc !== '') {
-            $html[] = '<meta name="google-site-verification" content="' . htmlspecialchars($gsc, ENT_QUOTES, 'UTF-8') . '">';
-        }
-
-        $bing = trim((string)Setting::get('seo', 'bing_site_verification', ''));
-        if ($bing !== '') {
-            $html[] = '<meta name="msvalidate.01" content="' . htmlspecialchars($bing, ENT_QUOTES, 'UTF-8') . '">';
+        // Search engine verification meta tags. Custom provider entries take precedence;
+        // legacy Google/Bing settings remain supported for installations not yet migrated.
+        $rawVerificationEntries = Setting::get('seo', 'verification_entries', '');
+        $verificationEntries = is_string($rawVerificationEntries) ? json_decode($rawVerificationEntries, true) : null;
+        if (is_array($verificationEntries)) {
+            foreach (array_slice($verificationEntries, 0, 25) as $entry) {
+                if (!is_array($entry)) continue;
+                $metaName = trim((string)($entry['meta_name'] ?? ''));
+                $metaContent = trim((string)($entry['key'] ?? ''));
+                if ($metaContent === '' || !preg_match('/^[a-zA-Z][a-zA-Z0-9:._-]{0,99}$/', $metaName) || strlen($metaContent) > 1000) continue;
+                $html[] = '<meta name="' . htmlspecialchars($metaName, ENT_QUOTES, 'UTF-8') . '" content="' . htmlspecialchars($metaContent, ENT_QUOTES, 'UTF-8') . '">';
+            }
+        } else {
+            $gsc = trim((string)Setting::get('seo', 'google_site_verification', ''));
+            if ($gsc !== '') $html[] = '<meta name="google-site-verification" content="' . htmlspecialchars($gsc, ENT_QUOTES, 'UTF-8') . '">';
+            $bing = trim((string)Setting::get('seo', 'bing_site_verification', ''));
+            if ($bing !== '') $html[] = '<meta name="msvalidate.01" content="' . htmlspecialchars($bing, ENT_QUOTES, 'UTF-8') . '">';
         }
 
         // JSON-LD Structured Data Schema
@@ -104,6 +112,14 @@ class FrontendSeoService
 
         // Analytics & Tracking Tags (Only on public frontend, never if request is under /admin)
         if (!self::isAdminRequest()) {
+            // Meta Pixel: inject once on public pages only; never in the admin dashboard.
+            $pixelEnabled = (int)Setting::get('seo', 'meta_pixel_enabled', 0);
+            $rawPixelId = trim((string)Setting::get('seo', 'meta_pixel_id', ''));
+            if ($pixelEnabled === 1 && preg_match('/^[0-9]{5,20}$/', $rawPixelId)) {
+                $pixelId = htmlspecialchars($rawPixelId, ENT_QUOTES, 'UTF-8');
+                $html[] = "<!-- Meta Pixel Code --><script>!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');fbq('init','{$pixelId}');fbq('track','PageView');</script><!-- End Meta Pixel Code -->";
+            }
+
             $gtmEnabled = (int)Setting::get('seo', 'gtm_enabled', 0);
             $rawGtmId = trim((string)Setting::get('seo', 'gtm_container_id', ''));
             $hasValidGtm = ($gtmEnabled === 1 && preg_match('/^GTM-[A-Z0-9]+$/i', $rawGtmId));

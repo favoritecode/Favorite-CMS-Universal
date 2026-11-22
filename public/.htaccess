@@ -6,6 +6,9 @@
     RewriteCond %{REQUEST_URI} (.+)/$
     RewriteRule ^ %1 [L,R=301]
 
+    # Only the short-lived central ownership challenge is public.
+    RewriteRule ^\.well-known/favorite-central\.json$ - [L]
+
     # Block access to dotfiles
     RewriteRule (^\.|/\.) - [F]
 

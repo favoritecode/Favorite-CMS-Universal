@@ -93,12 +93,27 @@ class Page extends BaseModel
     public function getBreadcrumb(): array
     {
         $breadcrumb = [$this];
+        $seen = [(int)$this->id => true];
         $parent = $this->getParent();
-        while ($parent) {
+        while ($parent && !isset($seen[(int)$parent->id])) {
+            $seen[(int)$parent->id] = true;
             array_unshift($breadcrumb, $parent);
             $parent = $parent->getParent();
         }
         return $breadcrumb;
+    }
+
+    public static function isValidParent(int $parentId, int $pageId = 0): bool
+    {
+        $seen = $pageId > 0 ? [$pageId => true] : [];
+        while ($parentId > 0) {
+            if (isset($seen[$parentId])) return false;
+            $seen[$parentId] = true;
+            $parent = static::find($parentId);
+            if (!$parent) return false;
+            $parentId = (int)$parent->parent_id;
+        }
+        return true;
     }
 
     public function getSeoMeta(): ?object
@@ -159,7 +174,11 @@ class Page extends BaseModel
 
     public function url(): string
     {
-        return '/page/' . $this->slug;
+        $base = \FavoriteCMS\Models\Setting::get('permalinks', 'page_base', 'page');
+        if ($base === 'root') {
+            return '/' . rawurlencode((string)$this->slug);
+        }
+        return '/page/' . rawurlencode((string)$this->slug);
     }
 
     public function permalink(): string

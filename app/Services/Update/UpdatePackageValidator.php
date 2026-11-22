@@ -60,11 +60,15 @@ class UpdatePackageValidator
             'warnings'      => [],
         ];
 
-        if (!is_file($zipPath) || !is_readable($zipPath)) {
+        // Windows ACL probes can report unreadable even when the file can be opened.
+        $readHandle = is_file($zipPath) ? @fopen($zipPath, 'rb') : false;
+        if ($readHandle === false) {
             $result['valid'] = false;
             $result['errors'][] = "Update package not found or unreadable: {$zipPath}";
             return $result;
         }
+
+        fclose($readHandle);
 
         $result['size'] = filesize($zipPath);
         $result['sha256'] = hash_file('sha256', $zipPath);

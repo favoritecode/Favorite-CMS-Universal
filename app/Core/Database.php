@@ -18,6 +18,7 @@ class Database
     protected string $prefix = '';
     protected array $prefixableTables = [
         'cms_migrations',
+        'remembered_logins', 'account_security', 'notification_events', 'notification_outbox', 'notification_sources',
         'users',
         'roles',
         'permissions',
@@ -156,13 +157,23 @@ class Database
 
     public function transaction(\Closure $callback): mixed
     {
-        $this->beginTransaction();
+        $ownsTransaction = !$this->pdo->inTransaction();
+        $savepoint = 'cms_' . bin2hex(random_bytes(6));
+        if ($ownsTransaction) $this->beginTransaction();
+        else $this->execute('SAVEPOINT ' . $savepoint);
         try {
             $result = $callback($this);
-            $this->commit();
+            if ($ownsTransaction) $this->commit();
+            else $this->execute('RELEASE SAVEPOINT ' . $savepoint);
             return $result;
         } catch (\Throwable $e) {
-            $this->rollback();
+            if ($this->pdo->inTransaction()) {
+                if ($ownsTransaction) $this->rollback();
+                else {
+                    $this->execute('ROLLBACK TO SAVEPOINT ' . $savepoint);
+                    $this->execute('RELEASE SAVEPOINT ' . $savepoint);
+                }
+            }
             throw $e;
         }
     }

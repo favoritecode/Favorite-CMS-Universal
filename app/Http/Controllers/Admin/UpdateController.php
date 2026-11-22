@@ -69,8 +69,14 @@ class UpdateController
 
         try {
             $discovery = $this->updateManager->getDiscovery()->check(true);
-            if ($discovery['update_available']) {
+            if (!empty($discovery['error'])) {
+                $_SESSION['_flash_error'] = (string)$discovery['error'];
+            } elseif (!empty($discovery['repair_available'])) {
+                $_SESSION['_flash_notice'] = 'Missing Core files detected. Use Repair Core Automatically to restore them.';
+            } elseif ($discovery['update_available']) {
                 $_SESSION['_flash_notice'] = "A new Core release is available: v{$discovery['latest_version']}.";
+            } elseif (!empty($discovery['repair_inspection_error'])) {
+                $_SESSION['_flash_notice'] = 'No newer Core release was found, but missing-file inspection could not be completed. Retry the check or upload the official Core ZIP to repair files.';
             } else {
                 $_SESSION['_flash_notice'] = "Your Favorite CMS Universal installation is up to date (version " . (defined('APP_VERSION') ? APP_VERSION : '1.0.0') . ").";
             }
@@ -143,6 +149,7 @@ class UpdateController
         $source = (string)$request->post('source', 'manual');
         $zipPath = null;
         $expectedSha256 = null;
+        $expectedVersion = null;
 
         if ($source === 'manual') {
             $pending = $_SESSION['_pending_update_package'] ?? null;
@@ -155,6 +162,11 @@ class UpdateController
         } elseif ($source === 'remote') {
             // Remote package download from GitHub
             $discovery = $this->updateManager->getDiscovery()->check(false);
+            if (!empty($discovery['error']) || $this->updateManager->getValidator()->compareVersions((string)$discovery['latest_version'], defined('APP_VERSION') ? APP_VERSION : '1.0.0') < 0) {
+                $_SESSION['_flash_error'] = (string)($discovery['error'] ?: 'The remote release is older than your installed Core. Refresh the update check.');
+                return Response::redirect('/admin/updates');
+            }
+            $expectedVersion = (string)$discovery['latest_version'];
             if (empty($discovery['download_url'])) {
                 $_SESSION['_flash_error'] = "Remote package download URL is not available.";
                 return Response::redirect('/admin/updates');
@@ -181,6 +193,7 @@ class UpdateController
         try {
             $result = $this->updateManager->runUpdate($zipPath, [
                 'expected_sha256' => $expectedSha256,
+                'expected_version' => $expectedVersion,
             ]);
 
             // Clear pending upload state

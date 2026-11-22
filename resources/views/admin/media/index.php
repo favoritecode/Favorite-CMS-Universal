@@ -1,3 +1,12 @@
+<?php
+$mediaPageSize = (int)($perPage ?? 24);
+$mediaCategoryUrl = static function (string $category) use ($mediaPageSize, $searchQuery): string {
+    $query = ['per_page' => $mediaPageSize];
+    if ($category !== 'all') $query['category'] = $category;
+    if (($searchQuery ?? '') !== '') $query['s'] = $searchQuery;
+    return site_path('/admin/media?' . http_build_query($query));
+};
+?>
 <div class="page-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
     <h1 class="page-title">Media Library</h1>
     <div style="font-size: 13px; color: var(--wp-text-muted); background: var(--admin-surface-subtle); padding: 8px 14px; border-radius: 6px; border: 1px solid var(--wp-border); text-align: right;">
@@ -20,7 +29,7 @@
         <div style="font-size: 36px; color: var(--wp-blue); margin-bottom: 8px;">&#128229;</div>
         <h2 style="font-size: 16px; font-weight: 600; margin-bottom: 4px; color: var(--admin-text-heading);">Drag &amp; Drop Files Here to Upload</h2>
         <p style="font-size: 13px; color: var(--wp-text-muted); margin-bottom: 12px;">
-            Supports batch uploads for video (MP4, WebM, MKV), audio (MP3, WAV), images, documents, and archives up to <strong><?php echo htmlspecialchars($capabilities['user']['max_upload_formatted']); ?></strong> each.
+            Supports batch uploads for video (MP4, WebM, MKV), audio (MP3, WAV), images, documents, e-books and archives; administrators can also upload APK, EXE, MSI, BAT and CMD. Download-only formats are delivered as attachments. Limit: <strong><?php echo htmlspecialchars($capabilities['user']['max_upload_formatted']); ?></strong> each.
         </p>
 
         <form id="media-upload-form" method="POST" action="<?php echo htmlspecialchars(site_path('/admin/media/upload'), ENT_QUOTES, 'UTF-8'); ?>" enctype="multipart/form-data" style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap; justify-content: center;">
@@ -48,17 +57,24 @@
 <!-- Filters & Search Bar -->
 <div style="margin-bottom: 14px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
     <div style="display: flex; gap: 6px; flex-wrap: wrap;">
-        <a href="<?php echo htmlspecialchars(site_path('/admin/media'), ENT_QUOTES, 'UTF-8'); ?>" class="btn <?php echo ($currentCat === 'all') ? 'btn-primary' : 'btn-secondary'; ?>" style="font-size: 12px; padding: 4px 10px;">All Media</a>
-        <a href="<?php echo htmlspecialchars(site_path('/admin/media?category=image'), ENT_QUOTES, 'UTF-8'); ?>" class="btn <?php echo ($currentCat === 'image') ? 'btn-primary' : 'btn-secondary'; ?>" style="font-size: 12px; padding: 4px 10px;">&#128444; Images</a>
-        <a href="<?php echo htmlspecialchars(site_path('/admin/media?category=video'), ENT_QUOTES, 'UTF-8'); ?>" class="btn <?php echo ($currentCat === 'video') ? 'btn-primary' : 'btn-secondary'; ?>" style="font-size: 12px; padding: 4px 10px;">&#127916; Videos</a>
-        <a href="<?php echo htmlspecialchars(site_path('/admin/media?category=audio'), ENT_QUOTES, 'UTF-8'); ?>" class="btn <?php echo ($currentCat === 'audio') ? 'btn-primary' : 'btn-secondary'; ?>" style="font-size: 12px; padding: 4px 10px;">&#127925; Audio</a>
-        <a href="<?php echo htmlspecialchars(site_path('/admin/media?category=document'), ENT_QUOTES, 'UTF-8'); ?>" class="btn <?php echo ($currentCat === 'document') ? 'btn-primary' : 'btn-secondary'; ?>" style="font-size: 12px; padding: 4px 10px;">&#128196; Documents</a>
+        <a href="<?php echo htmlspecialchars($mediaCategoryUrl('all'), ENT_QUOTES, 'UTF-8'); ?>" class="btn <?php echo ($currentCat === 'all') ? 'btn-primary' : 'btn-secondary'; ?>" style="font-size: 12px; padding: 4px 10px;">All Media</a>
+        <a href="<?php echo htmlspecialchars($mediaCategoryUrl('image'), ENT_QUOTES, 'UTF-8'); ?>" class="btn <?php echo ($currentCat === 'image') ? 'btn-primary' : 'btn-secondary'; ?>" style="font-size: 12px; padding: 4px 10px;">&#128444; Images</a>
+        <a href="<?php echo htmlspecialchars($mediaCategoryUrl('video'), ENT_QUOTES, 'UTF-8'); ?>" class="btn <?php echo ($currentCat === 'video') ? 'btn-primary' : 'btn-secondary'; ?>" style="font-size: 12px; padding: 4px 10px;">&#127916; Videos</a>
+        <a href="<?php echo htmlspecialchars($mediaCategoryUrl('audio'), ENT_QUOTES, 'UTF-8'); ?>" class="btn <?php echo ($currentCat === 'audio') ? 'btn-primary' : 'btn-secondary'; ?>" style="font-size: 12px; padding: 4px 10px;">&#127925; Audio</a>
+        <a href="<?php echo htmlspecialchars($mediaCategoryUrl('document'), ENT_QUOTES, 'UTF-8'); ?>" class="btn <?php echo ($currentCat === 'document') ? 'btn-primary' : 'btn-secondary'; ?>" style="font-size: 12px; padding: 4px 10px;">&#128196; Documents</a>
+        <a href="<?php echo htmlspecialchars($mediaCategoryUrl('other'), ENT_QUOTES, 'UTF-8'); ?>" class="btn <?php echo ($currentCat === 'other') ? 'btn-primary' : 'btn-secondary'; ?>" style="font-size:12px;padding:4px 10px;">Other / Software</a>
     </div>
 
-    <form method="GET" action="<?php echo htmlspecialchars(site_path('/admin/media'), ENT_QUOTES, 'UTF-8'); ?>" style="display: flex; gap: 6px;">
+    <form method="GET" action="<?php echo htmlspecialchars(site_path('/admin/media'), ENT_QUOTES, 'UTF-8'); ?>" style="display: flex; gap: 6px; align-items:center; flex-wrap:wrap;">
         <?php if ($currentCat !== 'all'): ?>
             <input type="hidden" name="category" value="<?php echo htmlspecialchars($currentCat, ENT_QUOTES, 'UTF-8'); ?>">
         <?php endif; ?>
+        <label for="media-per-page" style="margin:0;font-size:12px;">Per page</label>
+        <select id="media-per-page" name="per_page" class="form-control" style="width:auto;font-size:12px;padding:4px 8px;" onchange="this.form.requestSubmit()">
+            <?php foreach ([12, 24, 48, 96] as $size): ?>
+            <option value="<?php echo $size; ?>" <?php echo $mediaPageSize === $size ? 'selected' : ''; ?>><?php echo $size; ?></option>
+            <?php endforeach; ?>
+        </select>
         <input type="text" name="s" class="form-control" style="font-size: 12px; padding: 4px 8px; width: 180px;" placeholder="Search media..." value="<?php echo htmlspecialchars($searchQuery ?? '', ENT_QUOTES, 'UTF-8'); ?>">
         <button type="submit" class="btn btn-secondary" style="font-size: 12px; padding: 4px 10px;">Search</button>
     </form>
@@ -95,7 +111,7 @@
                 <input type="checkbox" class="media-select-checkbox" data-id="<?php echo (int)$item->id; ?>" title="Select this item">
                 <div style="height: 130px; background: var(--admin-code-bg); border-radius: 4px; display: flex; align-items: center; justify-content: center; overflow: hidden; margin-bottom: 10px; position: relative;">
                     <?php if ($item->isImage()): ?>
-                        <img src="<?php echo htmlspecialchars($item->getThumbnailUrl(320, 240), ENT_QUOTES, 'UTF-8'); ?>" alt="<?php echo htmlspecialchars($item->filename, ENT_QUOTES, 'UTF-8'); ?>" style="max-width: 100%; max-height: 100%; object-fit: cover;" loading="lazy">
+                        <img src="<?php echo htmlspecialchars($item->getThumbnailUrl(320, 240), ENT_QUOTES, 'UTF-8'); ?>" alt="<?php echo htmlspecialchars($item->filename, ENT_QUOTES, 'UTF-8'); ?>" style="max-width: 100%; max-height: 100%; object-fit: cover;" loading="lazy" onerror="this.onerror=null;this.src=<?php echo htmlspecialchars(json_encode($item->url), ENT_QUOTES, 'UTF-8'); ?>;">
                     <?php elseif ($item->isVideo()): ?>
                         <video src="<?php echo htmlspecialchars($item->url, ENT_QUOTES, 'UTF-8'); ?>" style="max-width: 100%; max-height: 100%; object-fit: contain;" preload="metadata" controls></video>
                     <?php elseif ($item->isAudio()): ?>
@@ -151,7 +167,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Copy URL helper
     document.querySelectorAll('.copy-url-btn').forEach(function(btn) {
         btn.addEventListener('click', function() {
-            var url = this.getAttribute('data-url');
+            var url = new URL(this.getAttribute('data-url'), window.location.origin).href;
             if (navigator.clipboard) {
                 navigator.clipboard.writeText(url);
                 this.textContent = 'Copied!';
@@ -169,9 +185,12 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    var uploadBusy = false;
+
     // AJAX Multi-File Upload with XMLHttpRequest for real progress reporting
     function uploadFilesViaAjax(files) {
-        if (!files || files.length === 0) return;
+        if (uploadBusy || !files || files.length === 0) return;
+        uploadBusy = true;
 
         var formData = new FormData();
         formData.append('_token', '<?php echo htmlspecialchars($_SESSION['_token'] ?? '', ENT_QUOTES, 'UTF-8'); ?>');
@@ -179,7 +198,6 @@ document.addEventListener('DOMContentLoaded', function() {
         for (var i = 0; i < files.length; i++) {
             formData.append('files[]', files[i]);
         }
-        formData.append('file', files[0]);
 
         progressWrap.style.display = 'block';
         if (resultsList) {
@@ -207,7 +225,6 @@ document.addEventListener('DOMContentLoaded', function() {
         };
 
         xhr.onload = function() {
-            if (startUploadBtn) startUploadBtn.disabled = false;
             var resp = null;
             try { resp = JSON.parse(xhr.responseText); } catch(e) {}
 
@@ -237,6 +254,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             }
 
+            uploadBusy = false;
+            if (startUploadBtn) startUploadBtn.disabled = false;
             var errMsg = 'Upload failed.';
             if (resp && resp.message) errMsg = resp.message;
             statusMsg.style.color = 'var(--admin-danger-text)';
@@ -244,7 +263,8 @@ document.addEventListener('DOMContentLoaded', function() {
             progressBar.style.backgroundColor = 'var(--admin-danger-solid)';
         };
 
-        xhr.onerror = function() {
+        xhr.onerror = xhr.onabort = xhr.ontimeout = function() {
+            uploadBusy = false;
             if (startUploadBtn) startUploadBtn.disabled = false;
             statusMsg.style.color = 'var(--admin-danger-text)';
             statusMsg.textContent = 'Network error occurred during upload.';

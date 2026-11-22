@@ -120,8 +120,14 @@
                                 </div>
                             </td>
                             <td>
-                                <div style="margin-bottom: 8px; font-size: 13px; color: var(--admin-text); line-height: 1.5;">
-                                    <?php echo htmlspecialchars($plugin['description'] ?? '', ENT_QUOTES, 'UTF-8'); ?>
+                                <?php $pluginDescription = (string) ($plugin['description'] ?? ''); ?>
+                                <div class="plugin-description-wrap" style="margin-bottom: 8px; font-size: 13px; color: var(--admin-text); line-height: 1.5; overflow-wrap: anywhere;">
+                                    <div class="plugin-description-text" style="display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden;">
+                                        <?php echo htmlspecialchars($pluginDescription, ENT_QUOTES, 'UTF-8'); ?>
+                                    </div>
+                                    <?php if (trim($pluginDescription) !== ''): ?>
+                                        <button type="button" class="plugin-description-toggle" aria-expanded="false" style="display: inline-block; margin-top: 4px; padding: 0; border: 0; background: transparent; color: var(--wp-blue); font: inherit; font-size: 12px; font-weight: 600; cursor: pointer;">Show more</button>
+                                    <?php endif; ?>
                                 </div>
                                 <div style="font-size: 12px; color: var(--wp-text-muted); display: flex; gap: 14px; flex-wrap: wrap; align-items: center;">
                                     <span><strong>Version:</strong> <?php echo htmlspecialchars($plugin['version'] ?? '1.0.0', ENT_QUOTES, 'UTF-8'); ?></span>
@@ -167,6 +173,37 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    // Apply the same compact preview to every plugin description. Only show
+    // the toggle when the text actually overflows the two-line preview.
+    document.querySelectorAll('.plugin-description-wrap').forEach(function(wrap) {
+        var description = wrap.querySelector('.plugin-description-text');
+        var toggle = wrap.querySelector('.plugin-description-toggle');
+        if (!description || !toggle) return;
+
+        if (description.scrollHeight <= description.clientHeight + 1) {
+            toggle.style.display = 'none';
+            return;
+        }
+
+        toggle.addEventListener('click', function() {
+            var expanded = toggle.getAttribute('aria-expanded') === 'true';
+            if (expanded) {
+                description.style.display = '-webkit-box';
+                description.style.webkitBoxOrient = 'vertical';
+                description.style.webkitLineClamp = '2';
+                description.style.overflow = 'hidden';
+                toggle.textContent = 'Show more';
+                toggle.setAttribute('aria-expanded', 'false');
+            } else {
+                description.style.display = 'block';
+                description.style.webkitLineClamp = 'unset';
+                description.style.overflow = 'visible';
+                toggle.textContent = 'Show less';
+                toggle.setAttribute('aria-expanded', 'true');
+            }
+        });
+    });
+
     if (typeof initAdminMultiSelect === 'function') {
         initAdminMultiSelect('plugins-bulk-form', { itemType: 'plugin' });
     }

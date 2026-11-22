@@ -1489,7 +1489,7 @@ $appearancePersist = true;
                 <?php endif; ?>
 
                 <?php
-                $isUsersActive = in_array($activeMenu, ['users', 'users-new', 'profile']);
+                $isUsersActive = in_array($activeMenu, ['users', 'users-new', 'profile', 'security']);
                 ?>
                 <li class="wp-menu-item has-submenu <?php echo $isUsersActive ? 'active is-expanded' : ''; ?>">
                     <a href="<?php echo htmlspecialchars(site_path($canManageUsers ? '/admin/users' : '/admin/users/profile'), ENT_QUOTES, 'UTF-8'); ?>" class="wp-menu-link" aria-haspopup="true" aria-expanded="<?php echo $isUsersActive ? 'true' : 'false'; ?>" aria-controls="submenu-users">
@@ -1504,15 +1504,42 @@ $appearancePersist = true;
                             <li><a href="<?php echo htmlspecialchars(site_path('/admin/users/new'), ENT_QUOTES, 'UTF-8'); ?>" class="<?php echo $activeMenu === 'users-new' ? 'active' : ''; ?>">Add New</a></li>
                         <?php endif; ?>
                         <li><a href="<?php echo htmlspecialchars(site_path('/admin/users/profile'), ENT_QUOTES, 'UTF-8'); ?>" class="<?php echo $activeMenu === 'profile' ? 'active' : ''; ?>">Profile</a></li>
+                        <li><a href="<?php echo htmlspecialchars(site_path('/admin/account/security'),ENT_QUOTES,'UTF-8'); ?>" class="<?php echo $activeMenu==='security'?'active':''; ?>">Security &amp; Notifications</a></li>
                     </ul>
                 </li>
 
                 <?php if ($isAdmin): ?>
-                    <li class="wp-menu-item <?php echo $activeMenu === 'settings' ? 'active' : ''; ?>">
-                        <a href="<?php echo htmlspecialchars(site_path('/admin/settings'), ENT_QUOTES, 'UTF-8'); ?>" class="wp-menu-link">⚙️ Settings</a>
-                    </li>
-                    <li class="wp-menu-item <?php echo $activeMenu === 'seo' ? 'active' : ''; ?>">
-                        <a href="<?php echo htmlspecialchars(site_path('/admin/seo'), ENT_QUOTES, 'UTF-8'); ?>" class="wp-menu-link">🔍 SEO</a>
+                    <?php
+                    // Only highlight a Settings child when the current request is actually
+                    // one of the Settings routes. Do not default unrelated admin pages
+                    // (for example /admin/pages or /admin/users) to Site Settings.
+                    $settingsRequestPath = rtrim((string)(parse_url((string)($_SERVER['REQUEST_URI'] ?? ''), PHP_URL_PATH) ?: ''), '/');
+                    $settingsCurrentKey = null;
+                    if (preg_match('#/admin/settings/redirects(?:/[^/]+)?$#', $settingsRequestPath)) {
+                        $settingsCurrentKey = 'redirects';
+                    } elseif (preg_match('#/admin/settings/seo$#', $settingsRequestPath) || preg_match('#/admin/seo$#', $settingsRequestPath)) {
+                        $settingsCurrentKey = 'seo';
+                    } elseif (preg_match('#/admin/settings$#', $settingsRequestPath)) {
+                        $requestedSettingsTab = isset($_GET['tab']) ? (string)$_GET['tab'] : 'site';
+                        $settingsCurrentKey = in_array($requestedSettingsTab, ['site', 'permalink', 'smtp', 'storage'], true)
+                            ? $requestedSettingsTab
+                            : 'site';
+                    }
+                    $isSettingsActive = $activeMenu === 'settings';
+                    ?>
+                    <li class="wp-menu-item has-submenu <?php echo $isSettingsActive ? 'active is-expanded' : ''; ?>">
+                        <a href="<?php echo htmlspecialchars(site_path('/admin/settings'), ENT_QUOTES, 'UTF-8'); ?>" class="wp-menu-link" aria-haspopup="true" aria-expanded="<?php echo $isSettingsActive ? 'true' : 'false'; ?>" aria-controls="submenu-settings">
+                            <span>⚙️ Settings</span>
+                            <span class="wp-menu-toggle-icon" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" /></svg></span>
+                        </a>
+                        <ul class="wp-submenu" id="submenu-settings">
+                            <li><a href="<?php echo htmlspecialchars(site_path('/admin/settings?tab=site'), ENT_QUOTES, 'UTF-8'); ?>" class="<?php echo $settingsCurrentKey === 'site' ? 'active' : ''; ?>">Site Settings</a></li>
+                            <li><a href="<?php echo htmlspecialchars(site_path('/admin/settings/seo'), ENT_QUOTES, 'UTF-8'); ?>" class="<?php echo $settingsCurrentKey === 'seo' ? 'active' : ''; ?>">SEO &amp; Pixel</a></li>
+                            <li><a href="<?php echo htmlspecialchars(site_path('/admin/settings/redirects'), ENT_QUOTES, 'UTF-8'); ?>" class="<?php echo $settingsCurrentKey === 'redirects' ? 'active' : ''; ?>">Redirects</a></li>
+                            <li><a href="<?php echo htmlspecialchars(site_path('/admin/settings?tab=permalink'), ENT_QUOTES, 'UTF-8'); ?>" class="<?php echo $settingsCurrentKey === 'permalink' ? 'active' : ''; ?>">Permalink</a></li>
+                            <li><a href="<?php echo htmlspecialchars(site_path('/admin/settings?tab=smtp'), ENT_QUOTES, 'UTF-8'); ?>" class="<?php echo $settingsCurrentKey === 'smtp' ? 'active' : ''; ?>">SMTP</a></li>
+                            <li><a href="<?php echo htmlspecialchars(site_path('/admin/settings?tab=storage'), ENT_QUOTES, 'UTF-8'); ?>" class="<?php echo $settingsCurrentKey === 'storage' ? 'active' : ''; ?>">Storage</a></li>
+                        </ul>
                     </li>
                     <?php
                     $isToolsActive = in_array($activeMenu, ['tools', 'tools-import']);
@@ -1559,6 +1586,17 @@ $appearancePersist = true;
                             <ul class="wp-submenu" id="<?php echo $subId; ?>">
                                 <?php
                                 $hasParentSub = isset($dMenu['submenus'][$dMenu['slug']]) || in_array($dMenu['slug'], $subSlugs, true);
+                                // Also avoid duplicating the parent entry when a plugin registers
+                                // a submenu with the same visible title but a different slug.
+                                if (!$hasParentSub) {
+                                    $parentTitle = trim((string) ($dMenu['title'] ?? ''));
+                                    foreach ($dMenu['submenus'] as $registeredSub) {
+                                        if (isset($registeredSub['title']) && strcasecmp(trim((string) $registeredSub['title']), $parentTitle) === 0) {
+                                            $hasParentSub = true;
+                                            break;
+                                        }
+                                    }
+                                }
                                 if (!$hasParentSub):
                                 ?>
                                     <li><a href="<?php echo $menuUrl; ?>" class="<?php echo $activeMenu === $dMenu['slug'] ? 'active' : ''; ?>"><?php echo htmlspecialchars($dMenu['title'], ENT_QUOTES, 'UTF-8'); ?></a></li>
@@ -1747,6 +1785,8 @@ $appearancePersist = true;
                     return;
                 }
 
+                // Settings behaves like the other sidebar groups: its parent toggles
+                // the submenu, while the child links open their respective settings pages.
                 e.preventDefault();
 
                 var item = link.parentElement;

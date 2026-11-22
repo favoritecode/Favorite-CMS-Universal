@@ -68,6 +68,14 @@ class SettingController
             'primary_currency'          => Currency::getPrimaryCurrency(),
             'allow_registration'        => (int)Setting::get('general', 'allow_registration', 1),
             'posts_per_page'            => Setting::get('reading', 'posts_per_page', 10),
+            'home_posts_per_page' => Setting::get('reading', 'home_posts_per_page', 0),
+            'archive_posts_per_page' => Setting::get('reading', 'archive_posts_per_page', 0),
+            'search_posts_per_page' => Setting::get('reading', 'search_posts_per_page', 0),
+            'not_found_page_id' => Setting::get('reading', 'not_found_page_id', 0),
+            'not_found_redirect_status' => Setting::get('reading', 'not_found_redirect_status', 302),
+            'post_base'                 => Setting::get('permalinks', 'post_base', 'post'),
+            'page_base'                 => Setting::get('permalinks', 'page_base', 'page'),
+            'upload_structure'          => Setting::get('media', 'upload_structure', 'year_month'),
             'front_page_type'           => Setting::get('reading', 'front_page_type', 'posts'), // 'posts' or 'page'
             'front_page_id'             => Setting::get('reading', 'front_page_id', 0),
             'default_category'          => Setting::get('writing', 'default_category', 1),
@@ -110,6 +118,98 @@ class SettingController
             return Response::redirect('/admin/settings');
         }
 
+        unset($_SESSION['flash_error'], $_SESSION['flash_success']);
+        foreach ($request->all() as $value) {
+            if (is_array($value) || is_object($value)) {
+                $_SESSION['flash_error'] = 'Invalid settings value.';
+                return Response::redirect('/admin/settings');
+            }
+        }
+        $db = $this->app->make(\FavoriteCMS\Core\Database::class);
+        $ownsTransaction = !$db->getPdo()->inTransaction();
+        $savepoint = 'settings_' . bin2hex(random_bytes(6));
+        $this->settingsUploads = [];
+        if ($ownsTransaction) $db->beginTransaction();
+        else $db->execute('SAVEPOINT ' . $savepoint);
+        try {
+            $response = $this->applySettings($request);
+            if (isset($_SESSION['flash_error'])) {
+                if ($ownsTransaction) $db->rollback();
+                else {
+                    $db->execute('ROLLBACK TO SAVEPOINT ' . $savepoint);
+                    $db->execute('RELEASE SAVEPOINT ' . $savepoint);
+                }
+                $this->discardSettingsUploads();
+                return $response;
+            }
+            if ($ownsTransaction) $db->commit();
+            else $db->execute('RELEASE SAVEPOINT ' . $savepoint);
+            $this->settingsUploads = [];
+            return $response;
+        } catch (\Throwable $error) {
+            if ($db->getPdo()->inTransaction()) {
+                if ($ownsTransaction) $db->rollback();
+                else {
+                    $db->execute('ROLLBACK TO SAVEPOINT ' . $savepoint);
+                    $db->execute('RELEASE SAVEPOINT ' . $savepoint);
+                }
+            }
+            $this->discardSettingsUploads();
+            unset($_SESSION['flash_success']);
+            $_SESSION['flash_error'] = 'Settings could not be saved. Your previous settings have been preserved.';
+            error_log('Favorite CMS settings save failed: ' . $error->getMessage());
+            return Response::redirect('/admin/settings');
+        }
+    }
+
+    /** Only files created by this save attempt may be removed after rollback. */
+    private array $settingsUploads = [];
+
+    private function discardSettingsUploads(): void
+    {
+        $root = realpath(APP_ROOT . '/public/uploads');
+        foreach ($this->settingsUploads as $media) {
+            $path = realpath((string)$media->path);
+            if (!$root || !$path) continue;
+            $normalizedRoot = str_replace('\\', '/', $root) . '/';
+            $normalizedPath = str_replace('\\', '/', $path);
+            if (DIRECTORY_SEPARATOR === '\\') {
+                $normalizedRoot = strtolower($normalizedRoot);
+                $normalizedPath = strtolower($normalizedPath);
+            }
+            if (str_starts_with($normalizedPath, $normalizedRoot)) {
+                \FavoriteCMS\Services\ImageVariants::delete($media);
+                if (is_file($path)) @unlink($path);
+            }
+        }
+        $this->settingsUploads = [];
+    }
+
+    private function applySettings(Request $request): Response
+    {
+        // These fields are rendered by Settings and read by the editor/theme.
+        // Preserve omitted fields for existing integrations; an empty tagline is intentional.
+        $siteIdentity = [];
+        foreach (['site_name', 'site_description', 'site_url'] as $key) {
+            $value = $request->post($key);
+            if ($value === null) continue;
+            if (!is_string($value)) {
+                $_SESSION['flash_error'] = 'Invalid site settings value.';
+                return Response::redirect('/admin/settings');
+            }
+            $siteIdentity[$key] = trim($value);
+        }
+        if (isset($siteIdentity['site_name']) && $siteIdentity['site_name'] === '') {
+            $_SESSION['flash_error'] = 'Site title cannot be empty.';
+            return Response::redirect('/admin/settings');
+        }
+        if (isset($siteIdentity['site_url']) &&
+            (!filter_var($siteIdentity['site_url'], FILTER_VALIDATE_URL) ||
+             !in_array(strtolower((string)parse_url($siteIdentity['site_url'], PHP_URL_SCHEME)), ['http', 'https'], true))) {
+            $_SESSION['flash_error'] = 'Site address must be a valid HTTP or HTTPS URL.';
+            return Response::redirect('/admin/settings');
+        }
+
         $userId = isset($_SESSION['auth_user_id']) ? (int)$_SESSION['auth_user_id'] : null;
         $user = null;
         if ($userId !== null) {
@@ -132,6 +232,7 @@ class SettingController
             try {
                 $mediaService = new MediaService($this->app);
                 $media = $mediaService->upload($_FILES['site_logo_file'], $userId, $user);
+                $this->settingsUploads[] = $media;
                 Setting::set('general', 'site_logo_upload_path', $media->url);
                 Setting::set('general', 'site_logo_source', 'upload');
             } catch (\Throwable $e) {
@@ -169,6 +270,7 @@ class SettingController
             try {
                 $mediaService = new MediaService($this->app);
                 $media = $mediaService->upload($_FILES['site_favicon_file'], $userId, $user);
+                $this->settingsUploads[] = $media;
                 Setting::set('general', 'site_favicon_upload_path', $media->url);
                 Setting::set('general', 'site_favicon_source', 'upload');
             } catch (\Throwable $e) {
@@ -336,7 +438,31 @@ class SettingController
             }
         }
 
-        Setting::set('reading', 'posts_per_page', (int)$request->post('posts_per_page', 10), 'int');
+        Setting::set('reading', 'posts_per_page', max(1, min(100, (int)$request->post('posts_per_page', 10))), 'int');
+        foreach (['home','archive','search'] as $context) {
+            $key = $context . '_posts_per_page';
+            if (array_key_exists($key, $request->all())) Setting::set('reading', $key, max(0, min(100, (int)$request->post($key))), 'int');
+        }
+        if (array_key_exists('not_found_page_id', $request->all())) {
+            $targetId = max(0, (int)$request->post('not_found_page_id', 0));
+            $targetPage = $targetId ? Page::find($targetId) : null;
+            if ($targetId && (!$targetPage || $targetPage->status !== 'published')) throw new \InvalidArgumentException('Choose a published page for the 404 redirect.');
+            Setting::set('reading', 'not_found_page_id', $targetId, 'int');
+            Setting::set('reading', 'not_found_redirect_status', (int)$request->post('not_found_redirect_status', 302) === 301 ? 301 : 302, 'int');
+        }
+
+
+        // Permalink settings: allow only known route patterns; default to legacy-compatible URLs.
+        $postBase = (string)$request->post('post_base', 'post');
+        if (!in_array($postBase, ['post', 'blog'], true)) { $postBase = 'post'; }
+        $pageBase = (string)$request->post('page_base', 'page');
+        if (!in_array($pageBase, ['page', 'root'], true)) { $pageBase = 'page'; }
+        Setting::set('permalinks', 'post_base', $postBase);
+        Setting::set('permalinks', 'page_base', $pageBase);
+
+        $uploadStructure = (string)$request->post('upload_structure', 'year_month');
+        if (!in_array($uploadStructure, ['year_month', 'year', 'flat'], true)) { $uploadStructure = 'year_month'; }
+        Setting::set('media', 'upload_structure', $uploadStructure);
         Setting::set('reading', 'front_page_type', (string)$request->post('front_page_type', 'posts'));
         Setting::set('reading', 'front_page_id', (int)$request->post('front_page_id', 0), 'int');
 
@@ -355,8 +481,14 @@ class SettingController
         Setting::set('media', 'max_upload_size_moderator', $moderatorBytes, 'int');
         Setting::set('media', 'max_upload_size_user', $userBytes, 'int');
 
+        foreach ($siteIdentity as $key => $value) {
+            Setting::set('general', $key, $value);
+        }
+
         $_SESSION['flash_success'] = 'Settings saved successfully.';
-        return Response::redirect('/admin/settings');
+        $tab = (string)$request->post('settings_tab', 'site');
+        $tab = in_array($tab, ['site', 'permalink', 'smtp', 'storage'], true) ? $tab : 'site';
+        return Response::redirect('/admin/settings?tab=' . $tab);
     }
 
     public function sendTestEmail(Request $request): Response

@@ -47,8 +47,15 @@ class Router
             $path = '/';
         }
 
-        // Convert {param} placeholders to named regex groups
-        $pattern = preg_replace('#\{([a-zA-Z0-9_]+)\}#', '(?P<$1>[^/]+)', $path);
+        // Static segments are literal URL paths, not regular expressions.
+        $pattern = '';
+        foreach (preg_split('/(\{[a-zA-Z0-9_]+\})/', $path, -1, PREG_SPLIT_DELIM_CAPTURE) as $part) {
+            if (preg_match('/^\{([a-zA-Z0-9_]+)\}$/', $part, $match)) {
+                $pattern .= '(?P<' . $match[1] . '>[^/]+)';
+            } else {
+                $pattern .= preg_quote($part, '#');
+            }
+        }
         $pattern = '#^' . $pattern . '$#';
 
         foreach ($methods as $m) {

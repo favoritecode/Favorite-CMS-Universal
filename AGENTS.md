@@ -1,3 +1,7 @@
+## Owner-authorized repository catalog (2026-11-21)
+
+The repository owner explicitly authorized plugin/theme distribution ZIPs in **extensions/plugins/** and **extensions/themes/** for Favorite Server and License's repository catalog. This scoped exception supersedes conflicting core-only/asset redirect statements below only for those two folders. Do not place extension source in core app/plugins/themes runtime paths or bundle catalog ZIPs in the CMS installer. Preserve existing core source, developer documentation and historical releases. Server private source/keys/SMTP secrets still belong only in Favorite-Server-and-License. Official CMS release assets remain core-only.
+
 # AGENTS.md — Permanent Rules for AI Agents
 
 STOP BEFORE MODIFYING THIS REPOSITORY.

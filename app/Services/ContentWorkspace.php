@@ -11,7 +11,7 @@ final class ContentWorkspace
     public static function db(): Database { return Container::getInstance()->get(Database::class); }
     public static function available(): bool { return self::db()->tableExists('content_drafts') && self::db()->tableExists('content_history'); }
     public static function fingerprint(?object $record): string {
-        return hash('sha256', $record ? json_encode([(int)$record->id, (string)$record->title, (string)$record->content, (string)($record->excerpt ?? ''), (string)$record->updated_at]) : 'new');
+        return hash('sha256', $record ? json_encode([(int)$record->id, (string)$record->title, (string)$record->content, (string)($record->slug ?? ''), (string)($record->excerpt ?? ''), (string)$record->updated_at,(string)($record->status??''),(string)($record->scheduled_at??''),(int)($record->scheduled_by??0)]) : 'new');
     }
     public static function capture(object $record, string $type): void {
         try { self::captureSnapshot($record, $type); } catch (\Throwable $error) { error_log('Favorite CMS revision could not be recorded: ' . $error->getMessage()); $_SESSION['flash_error'] = 'Revision history could not be recorded. Normal saving remains available; check the server log.'; }

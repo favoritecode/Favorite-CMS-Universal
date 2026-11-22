@@ -1,7 +1,10 @@
 <?php
+$pageBase = \FavoriteCMS\Models\Setting::get('permalinks', 'page_base', 'page');
 $isEdit = !empty($page);
 $action = site_path($isEdit ? '/admin/pages/update' : '/admin/pages/store');
 $revision = \FavoriteCMS\Services\ContentRevision::prepare($page ?? null, 'page', \FavoriteCMS\Models\User::find((int)($_SESSION['auth_user_id'] ?? 0)));
+$builderState = \FavoriteCMS\Services\BuilderContent::state('page', (int)($page->id ?? 0));
+$builderBackup = !$builderState ? \FavoriteCMS\Services\BuilderContent::backup('page', (int)($page->id ?? 0)) : [];
 $editorContent = $revision['content'];
 $currentFeatImg = $page?->getFeaturedImage();
 $pageId = (int)($page->id ?? 0);
@@ -10,8 +13,10 @@ $pageId = (int)($page->id ?? 0);
     <h1 class="page-title"><?php echo $isEdit ? 'Edit Page' : 'Add New Page'; ?></h1>
     <div class="editor-page-actions">
         <?php if ($isEdit): ?>
+            <?php // Optional plugin action; empty unless a compatible active plugin registers the filter. ?>
+            <?php if (!$builderState) echo \FavoriteCMS\Core\Hook::applyFilters('favorite_page_builder_page_actions', '', $pageId); ?>
             <a href="<?php echo htmlspecialchars(site_path('/admin/pages/new'), ENT_QUOTES, 'UTF-8'); ?>" class="btn btn-secondary">Add New</a>
-            <a href="<?php echo htmlspecialchars(site_path('/page/'), ENT_QUOTES, 'UTF-8'); ?><?php echo htmlspecialchars($page->slug, ENT_QUOTES, 'UTF-8'); ?>" target="_blank" class="btn btn-secondary">View Page &#8599;</a>
+            <a href="<?php echo htmlspecialchars(site_path($page->url()), ENT_QUOTES, 'UTF-8'); ?>" target="_blank" class="btn btn-secondary">View Page &#8599;</a>
         <?php endif; ?>
     </div>
 </div>
@@ -33,24 +38,37 @@ $pageId = (int)($page->id ?? 0);
 
             <!-- Permalink / Slug -->
             <div style="margin-bottom: 18px; font-size: 13px; color: var(--wp-text-muted); display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
-                <span><strong>Permalink:</strong> <?php echo htmlspecialchars(env('APP_URL', 'http://favorite-cms.local')); ?>/page/</span>
+                <span><strong>Permalink:</strong> <?php echo htmlspecialchars(app_url(($pageBase === 'root' ? '/' : '/page/')), ENT_QUOTES, 'UTF-8'); ?></span>
                 <input type="text" id="page-slug" name="slug" class="form-control" style="padding: 2px 8px; font-size: 12px; width: 220px;" placeholder="auto-generated" value="<?php echo htmlspecialchars($page->slug ?? '', ENT_QUOTES, 'UTF-8'); ?>">
             </div>
 
+            <?php include APP_ROOT . '/resources/views/admin/partials/builder-backup.php'; ?>
             <!-- Dual-Mode Editor -->
-            <div class="editor-wrapper" style="background: var(--admin-surface); border: 1px solid var(--wp-border); border-radius: 6px; overflow: hidden; margin-bottom: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+            <div class="editor-wrapper cms-simple-editor<?php echo $builderState ? ' cms-has-builder cms-builder-mode' : ''; ?>" style="background: var(--admin-surface); border: 1px solid var(--wp-border); border-radius: 6px; overflow: hidden; margin-bottom: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
                 <!-- Mode Switcher -->
                 <div style="background: var(--admin-surface-subtle); border-bottom: 1px solid var(--wp-border); padding: 8px 12px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
                     <div style="display: flex; gap: 4px; background: var(--admin-surface-elevated); padding: 3px; border-radius: 6px;">
-                        <button type="button" id="page-mode-visual-btn" class="mode-tab-btn active" style="padding: 5px 14px; font-size: 12px; font-weight: 600; border: none; border-radius: 4px; cursor: pointer; background: var(--admin-surface); color: var(--wp-blue);">
+                        <button type="button" id="page-mode-visual-btn" class="mode-tab-btn<?php echo $builderState ? '' : ' active'; ?>" style="padding: 5px 14px; font-size: 12px; font-weight: 600; border: none; border-radius: 4px; cursor: pointer; background: var(--admin-surface); color: var(--wp-blue);">
                             &#9998; Visual Mode
                         </button>
                         <button type="button" id="page-mode-code-btn" class="mode-tab-btn" style="padding: 5px 14px; font-size: 12px; font-weight: 600; border: none; border-radius: 4px; cursor: pointer; background: transparent; color: var(--wp-text-muted);">
                             &lt;/&gt; Code Mode
                         </button>
+                        <?php
+                        $fpbEditorUrl = $isEdit ? \FavoriteCMS\Core\Hook::applyFilters('favorite_page_builder_page_edit_url', '', $pageId) : '';
+                        $fpbEditorUrl = is_string($fpbEditorUrl) && str_starts_with($fpbEditorUrl, '/') && !str_starts_with($fpbEditorUrl, '//') ? $fpbEditorUrl : '';
+                        if ($fpbEditorUrl !== ''):
+                        ?>
+                            <a href="<?php echo htmlspecialchars($fpbEditorUrl, ENT_QUOTES, 'UTF-8'); ?>" class="mode-tab-btn<?php echo $builderState ? ' active' : ''; ?>" data-fpb-link style="padding:5px 10px;font-size:12px;font-weight:600;border-radius:4px;color:var(--wp-text-muted);text-decoration:none;white-space:nowrap;" onclick="return confirm('Save any unsaved changes in Simple Edit before opening Favorite Page Builder. Continue?');">▦ Favorite Page Builder</a>
+                        <?php elseif ($builderState): ?>
+                            <button type="button" class="mode-tab-btn active" data-fpb-link style="padding:5px 10px;font-size:12px;font-weight:600;border:0;border-radius:4px;">▦ Favorite Page Builder</button>
+                        <?php elseif (!$isEdit && \FavoriteCMS\Core\Hook::applyFilters('favorite_page_builder_available', false)): ?>
+                            <button type="button" class="mode-tab-btn" title="Save the new page first" style="padding:5px 10px;font-size:12px;border-radius:4px;opacity:.75;" onclick="alert('Save this new page as a Draft first. Then open it with Favorite Page Builder.');">▦ Favorite Page Builder</button>
+                        <?php endif; ?>
                     </div>
                 </div>
 
+                <?php include APP_ROOT . '/resources/views/admin/partials/builder-content.php'; ?>
                 <!-- Visual Mode Toolbar -->
                 <div id="page-visual-toolbar" style="background: var(--admin-surface); border-bottom: 1px solid var(--wp-border); padding: 6px 10px; display: flex; gap: 4px; flex-wrap: wrap; align-items: center;">
                     <select id="page-format-block-select" style="border: 1px solid var(--wp-border); border-radius: 4px; padding: 3px 6px; font-size: 12px;">
@@ -139,24 +157,11 @@ $pageId = (int)($page->id ?? 0);
             <!-- Publish Box -->
             <div class="form-card" style="margin-bottom: 20px;">
                 <h3 style="font-size: 14px; font-weight: 600; margin-bottom: 12px;">Publish</h3>
-                <div class="form-group">
-                    <label for="status">Status</label>
-                    <select id="status" name="status" class="form-control">
-                        <option value="draft" <?php echo ($page?->status === 'draft' || empty($page)) ? 'selected' : ''; ?>>Draft</option>
-                        <option value="published" <?php echo ($page?->status === 'published') ? 'selected' : ''; ?>>Published</option>
-                    </select>
-                </div>
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 16px;">
-                    <?php if ($isEdit): ?>
-                        <button type="submit" form="core-action-form" formmethod="POST" formnovalidate formaction="<?php echo htmlspecialchars(site_base_path(), ENT_QUOTES, 'UTF-8'); ?>/admin/pages/trash?id=<?php echo $pageId; ?>" class="core-action-link" style="color: var(--wp-danger); font-size: 12px;" onclick="return confirm('Move this page to trash?');">Move to Trash</button>
-                    <?php else: ?>
-                        <span></span>
-                    <?php endif; ?>
-                    <button type="submit" id="page-save-btn" class="btn btn-primary">
-                        <?php echo $isEdit ? 'Update Page' : 'Publish Page'; ?>
-                    </button>
-                </div>
+                <?php $publicationType='page';require APP_ROOT.'/resources/views/admin/partials/publication-controls.php'; ?>
+                <?php if($isEdit): ?><div style="margin-top:12px;text-align:right"><button type="submit" form="core-action-form" formmethod="POST" formnovalidate formaction="<?php echo htmlspecialchars(site_path('/admin/pages/trash?id='.$pageId),ENT_QUOTES,'UTF-8'); ?>" class="core-action-link" onclick="return confirm('Move this page to trash?');">Move to Trash</button></div><?php endif; ?>
             </div>
+
+            <?php $contentType = 'page'; $contentRecord = $page ?? null; include APP_ROOT . '/resources/views/admin/partials/content-layout.php'; ?>
 
             <!-- Page Attributes Box -->
             <div class="form-card" style="margin-bottom: 20px;">
@@ -309,11 +314,14 @@ document.addEventListener('DOMContentLoaded', function() {
     var saveBtn     = document.getElementById('page-save-btn');
     var form        = document.getElementById('page-editor-form');
 
-    var currentMode = 'visual';
+    var editorStorage = { get: function(k) { try { return localStorage.getItem(k); } catch(e) { return null; } }, set: function(k,v) { try { localStorage.setItem(k,v); } catch(e) {} } };
+    var editorModeKey = <?php echo json_encode('favorite_page_editor_mode:' . (int)($_SESSION['auth_user_id'] ?? 0) . ':' . $pageId); ?>;
+    var currentMode = editorStorage.get(editorModeKey) || editorStorage.get('favorite_page_editor_mode') || 'visual';
+    if (currentMode !== 'visual' && currentMode !== 'code') currentMode = 'visual';
 
-    function setMode(m) {
+    function setMode(m, initializing) {
         if (m === 'code') {
-            codeEdit.value = visEdit.innerHTML;
+            if (!initializing) codeEdit.value = visEdit.innerHTML;
             visWrap.style.display = 'none';
             visTool.style.display = 'none';
             codeWrap.style.display = 'block';
@@ -323,7 +331,7 @@ document.addEventListener('DOMContentLoaded', function() {
             visBtn.style.color = 'var(--wp-text-muted)';
             currentMode = 'code';
         } else {
-            visEdit.innerHTML = codeEdit.value || '<p></p>';
+            if (!initializing) visEdit.innerHTML = codeEdit.value || '<p></p>';
             codeWrap.style.display = 'none';
             visWrap.style.display = 'block';
             visTool.style.display = 'flex';
@@ -333,7 +341,13 @@ document.addEventListener('DOMContentLoaded', function() {
             codeBtn.style.color = 'var(--wp-text-muted)';
             currentMode = 'visual';
         }
+        visBtn.classList.toggle('active', m !== 'code'); codeBtn.classList.toggle('active', m === 'code');
+        visBtn.setAttribute('aria-selected', String(m !== 'code')); codeBtn.setAttribute('aria-selected', String(m === 'code'));
+        var builderTab = form.querySelector('[data-fpb-link]');
+        if (builderTab) { builderTab.classList.remove('active'); builderTab.setAttribute('aria-selected', 'false'); }
+        if (!initializing) { editorStorage.set(editorModeKey, currentMode); editorStorage.set('favorite_page_editor_mode', currentMode); }
     }
+    setMode(currentMode, true);
 
     form.favoriteEditor = {
         read: function() { return currentMode === 'visual' ? visEdit.innerHTML : codeEdit.value; },
@@ -354,15 +368,6 @@ document.addEventListener('DOMContentLoaded', function() {
     formatSel.addEventListener('change', function() {
         visEdit.focus();
         document.execCommand('formatBlock', false, '<' + this.value + '>');
-    });
-
-    saveBtn.addEventListener('click', function() {
-        if (currentMode === 'visual') {
-            canonical.value = visEdit.innerHTML;
-        } else {
-            canonical.value = codeEdit.value;
-        }
-        form.requestSubmit();
     });
 
     // ==========================================
@@ -859,3 +864,5 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 <?php $workspaceType = 'page'; $workspaceRecord = $page ?? null; include APP_ROOT . '/resources/views/admin/partials/content-workspace.php'; ?>
+
+<?php if ($builderState): ?><script data-cms-builder-editor-mode><?php include APP_ROOT . '/public/assets/js/builder-content.js'; ?></script><?php endif; ?>
