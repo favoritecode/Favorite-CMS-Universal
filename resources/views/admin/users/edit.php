@@ -11,7 +11,7 @@ $isSelf = $isEdit && ((int)$user->id === $currentLoggedInId);
     <h1 class="page-title"><?php echo $isEdit ? 'Edit User' : 'Add New User'; ?></h1>
 </div>
 
-<div class="form-card" style="max-width: 650px;">
+<div class="form-card" style="width: 100%; max-width: none; box-sizing: border-box;">
     <form method="POST" action="<?php echo $action; ?>">
         <input type="hidden" name="_token" value="<?php echo htmlspecialchars($_SESSION['_token'] ?? '', ENT_QUOTES, 'UTF-8'); ?>">
         <?php if ($isEdit): ?>

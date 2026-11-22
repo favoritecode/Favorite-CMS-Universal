@@ -14,13 +14,14 @@ $initial = strtoupper(substr($user->name ?: $user->username ?: 'U', 0, 1));
 $token = $_SESSION['_token'] ?? '';
 ?>
 
-<div class="page-header">
+<div class="page-header profile-page-header">
     <div>
         <h1 class="page-title">Profile &amp; Account Settings</h1>
         <p style="color: var(--wp-text-muted); font-size: 13px; margin-top: 4px;">
             Manage your personal profile information, avatar, and security credentials.
         </p>
     </div>
+    <a class="btn btn-primary profile-security-link" href="<?= htmlspecialchars(site_path('/admin/account/security'), ENT_QUOTES, 'UTF-8') ?>">Security &amp; email preferences &rarr;</a>
 </div>
 
 <?php if (!empty($isEligibleForRecovery)): ?>
@@ -69,7 +70,7 @@ $token = $_SESSION['_token'] ?? '';
     </div>
 <?php endif; ?>
 
-<div style="display: grid; grid-template-columns: minmax(280px, 340px) 1fr; gap: 24px; align-items: start;">
+<div class="profile-main-grid" style="display: grid; grid-template-columns: minmax(280px, 340px) minmax(0,1fr); gap: 24px; align-items: start;">
     <!-- Profile & Avatar Summary Card -->
     <div class="card" style="margin-bottom: 0;">
         <div class="card-header">
@@ -117,6 +118,8 @@ $token = $_SESSION['_token'] ?? '';
                     <?php echo (int)$postCount; ?> <?php echo (int)$postCount === 1 ? 'Post' : 'Posts'; ?>
                 </span>
             </div>
+
+            <?php if (function_exists('do_action')) do_action('user_profile_summary', $user); ?>
 
             <hr style="border: 0; border-top: 1px solid var(--wp-border); margin: 16px 0;">
 
@@ -181,7 +184,7 @@ $token = $_SESSION['_token'] ?? '';
             <form method="POST" action="<?php echo htmlspecialchars(site_path('/admin/users/profile/update'), ENT_QUOTES, 'UTF-8'); ?>" enctype="multipart/form-data">
                 <input type="hidden" name="_token" value="<?php echo htmlspecialchars($token, ENT_QUOTES, 'UTF-8'); ?>">
 
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                <div class="profile-field-grid" style="display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 16px;">
                     <div class="form-group">
                         <label for="username">Username</label>
                         <input type="text" id="username" class="form-control" value="<?php echo htmlspecialchars($user->username ?? '', ENT_QUOTES, 'UTF-8'); ?>" readonly style="background: var(--admin-surface-subtle); cursor: not-allowed;">
@@ -218,8 +221,9 @@ $token = $_SESSION['_token'] ?? '';
                 <h4 style="font-size: 14px; font-weight: 600; color: var(--admin-text-heading); margin-bottom: 14px;">
                     Security &amp; Password
                 </h4>
+                <div style="display:flex;flex-wrap:wrap;gap:10px;margin:0 0 20px"><a class="btn btn-primary" href="<?= htmlspecialchars(site_path('/admin/account/security#two-step'),ENT_QUOTES,'UTF-8') ?>">Set up two-step verification</a><a class="btn btn-secondary" href="<?= htmlspecialchars(site_path('/admin/account/security#email-notifications'),ENT_QUOTES,'UTF-8') ?>">Email notification preferences</a></div>
 
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                <div class="profile-field-grid" style="display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 16px;">
                     <div class="form-group">
                         <label for="password">New Password</label>
                         <input type="password" id="password" name="password" class="form-control" autocomplete="new-password" placeholder="Leave blank to keep current">
@@ -230,6 +234,7 @@ $token = $_SESSION['_token'] ?? '';
                         <input type="password" id="password_confirmation" name="password_confirmation" class="form-control" autocomplete="new-password" placeholder="Re-enter new password">
                     </div>
                 </div>
+                <div class="form-group"><label for="profile-current-password">Current password (required to change email or password)</label><input class="form-control" type="password" id="profile-current-password" name="current_password" autocomplete="current-password"></div>
                 <span style="font-size: 11.5px; color: var(--wp-text-muted); display: block; margin-top: -8px; margin-bottom: 20px;">
                     Passwords must be at least 8 characters long when changing.
                 </span>
@@ -296,3 +301,7 @@ $token = $_SESSION['_token'] ?? '';
         <?php endif; ?>
     </div>
 </div>
+
+<style>.profile-main-grid>*{min-width:0}.profile-main-grid .btn{max-width:100%;white-space:normal}.profile-field-grid>*{min-width:0}@media(max-width:760px){.profile-main-grid,.profile-field-grid{grid-template-columns:minmax(0,1fr)!important}.profile-main-grid input,.profile-main-grid textarea{max-width:100%;box-sizing:border-box}}</style>
+
+<style>.profile-page-header{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap}.profile-page-header>div{min-width:0;flex:1 1 320px}.profile-page-header .profile-security-link{flex:0 0 auto;max-width:100%;white-space:normal}@media(max-width:600px){.profile-page-header .profile-security-link{align-self:flex-start}}</style>
