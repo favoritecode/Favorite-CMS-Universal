@@ -34,7 +34,7 @@ class RecentPostsWidget extends AbstractWidget
             ],
             'number' => [
                 'type'    => 'number',
-                'label'   => 'Number of Posts',
+                'label'   => 'Posts in this widget (independent of Reading settings)',
                 'default' => 5,
             ],
             'show_date' => [
