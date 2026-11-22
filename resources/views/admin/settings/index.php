@@ -1,11 +1,30 @@
-<div class="page-header">
-    <h1 class="page-title">Settings</h1>
-</div>
-
-<div class="form-card" style="max-width: 760px;">
+<?php $settingsTab = isset($_GET['tab']) && in_array($_GET['tab'], ['site','permalink','smtp','storage'], true) ? $_GET['tab'] : 'site'; ?>
+<div class="settings-page">
+    <div class="page-header settings-page-header">
+        <div>
+            <h1 class="page-title">Settings</h1>
+            <p class="settings-page-subtitle">Manage your website configuration from one place.</p>
+        </div>
+        <span class="settings-page-badge">CMS Configuration</span>
+    </div>
+    <style>
+        .settings-page { width:100%; max-width:none; }
+        .settings-page-header { display:flex; justify-content:space-between; align-items:center; gap:16px; margin-bottom:22px; }
+        .settings-page-subtitle { margin:6px 0 0; color:var(--wp-text-muted, #94a3b8); font-size:13px; }
+        .settings-page-badge { display:inline-flex; align-items:center; border:1px solid var(--admin-border); background:var(--admin-surface-subtle); color:var(--admin-text-muted); border-radius:999px; padding:7px 12px; font-size:11px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; }
+        .settings-page .form-card { max-width:none !important; width:100%; box-sizing:border-box; border-radius:12px; padding:clamp(18px,2.2vw,30px); }
+        .settings-page .settings-panel h2 { font-size:18px !important; line-height:1.35; margin-top:4px !important; padding-bottom:13px !important; }
+        .settings-page .form-group { margin-bottom:22px; }
+        .settings-page .form-control { max-width:100%; }
+        .settings-page .description { line-height:1.6; }
+        .settings-panel[hidden] { display:none !important; }
+        @media (max-width:700px) { .settings-page-header { align-items:flex-start; flex-direction:column; } .settings-page-badge { display:none; } }
+    </style>
+    <div class="form-card">
     <form method="POST" action="<?php echo htmlspecialchars(app_url('/admin/settings/update'), ENT_QUOTES, 'UTF-8'); ?>" enctype="multipart/form-data">
         <input type="hidden" name="_token" value="<?php echo htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8'); ?>">
 
+        <section class="settings-panel" data-settings-panel="site" <?php echo $settingsTab !== 'site' ? 'hidden' : ''; ?>>
         <h2 style="font-size: 16px; font-weight: 600; margin-bottom: 16px; border-bottom: 1px solid var(--wp-border); padding-bottom: 8px;">
             General Settings
         </h2>
@@ -187,6 +206,8 @@
             <span class="description">Allow visitors to register accounts from /register or /signup.</span>
         </div>
 
+        </section>
+        <section class="settings-panel" data-settings-panel="smtp" <?php echo $settingsTab !== 'smtp' ? 'hidden' : ''; ?>>
         <h2 id="email-settings" style="font-size: 16px; font-weight: 600; margin: 28px 0 16px; border-bottom: 1px solid var(--wp-border); padding-bottom: 8px;">
             Email & Notification Settings
         </h2>
@@ -684,6 +705,8 @@
             </span>
         </div>
 
+        </section>
+        <section class="settings-panel" data-settings-panel="site" <?php echo $settingsTab !== 'site' ? 'hidden' : ''; ?>>
         <h2 style="font-size: 16px; font-weight: 600; margin: 24px 0 16px; border-bottom: 1px solid var(--wp-border); padding-bottom: 8px;">
             Reading Settings
         </h2>
@@ -716,6 +739,75 @@
             <span class="description">Number of posts to display per page.</span>
         </div>
 
+        <div class="form-group" style="padding:16px;border:1px solid var(--wp-border);border-radius:8px;">
+            <h3 style="font-size:14px;margin:0 0 8px;">Post counts by layout</h3>
+            <p class="description">Use different counts for different card layouts. Set 0 to use the Blog pages limit above. Pagination uses the matching count.</p>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:16px;">
+            <?php foreach (['home' => 'Homepage listing','archive' => 'Category / tag archives','search' => 'Search results'] as $context => $label): $countKey = $context . '_posts_per_page'; ?>
+                <label for="<?php echo $countKey; ?>"><?php echo $label; ?>
+                    <input type="number" id="<?php echo $countKey; ?>" name="<?php echo $countKey; ?>" value="<?php echo (int)($settings[$countKey] ?? 0); ?>" min="0" max="100" class="form-control" style="margin-top:6px;">
+                </label>
+            <?php endforeach; ?>
+            </div>
+            <p class="description" style="margin-top:12px;">Sidebar and footer lists use each Recent Posts widget's own Number of Posts setting in Appearance &rarr; Widgets. Custom theme sections keep their own controls. These counts do not resize cards.</p>
+        </div>
+        <div class="form-group" style="padding:16px;border:1px solid var(--wp-border);border-radius:8px;">
+            <style>
+            .cms-404-settings-header{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+            .cms-404-settings-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px 24px;margin-bottom:10px}
+            .cms-404-settings-grid>div{min-width:0}
+            .cms-404-settings-grid .form-control{width:100%;max-width:none}
+            @media(max-width:680px){.cms-404-settings-grid{grid-template-columns:1fr}}
+            </style>
+            <div class="cms-404-settings-header">
+                <h3 style="font-size:14px;margin:0;">Missing page (404) redirect</h3>
+                <a class="btn btn-secondary" href="<?php echo htmlspecialchars(site_path('/admin/settings/redirects'), ENT_QUOTES, 'UTF-8'); ?>">Manage specific URL redirects &rarr;</a>
+            </div>
+            <p class="description" style="margin-bottom:14px;">Choose a fallback for missing pages. Individual source-to-destination rules take priority.</p>
+            <div class="cms-404-settings-grid">
+            <div>
+            <label for="not_found_page_id">Send visitors to a published page</label>
+            <select id="not_found_page_id" name="not_found_page_id" class="form-control">
+                <option value="0">Disabled &mdash; keep the theme's 404 page</option>
+                <?php foreach ($pages as $target): ?>
+                    <option value="<?php echo (int)$target->id; ?>" <?php echo (int)($settings['not_found_page_id'] ?? 0) === (int)$target->id ? 'selected' : ''; ?>><?php echo htmlspecialchars($target->title, ENT_QUOTES, 'UTF-8'); ?></option>
+                <?php endforeach; ?>
+            </select>
+            </div>
+            <div>
+            <label for="not_found_redirect_status">Redirect type</label>
+            <select id="not_found_redirect_status" name="not_found_redirect_status" class="form-control">
+                <option value="302" <?php echo (int)($settings['not_found_redirect_status'] ?? 302) !== 301 ? 'selected' : ''; ?>>302 &mdash; Temporary</option>
+                <option value="301" <?php echo (int)($settings['not_found_redirect_status'] ?? 302) === 301 ? 'selected' : ''; ?>>301 &mdash; Permanent</option>
+            </select>
+            </div>
+            </div>
+            <p class="description">Optional visitor navigation, not an automatic SEO improvement. Use a relevant destination; sending unrelated missing URLs to one page can cause soft 404 issues. Existing old-slug redirects take priority. Admin/API/download errors and non-GET requests stay unchanged. If the target is unpublished or deleted, a real 404 is returned.</p>
+        </div>
+        </section>
+        <section class="settings-panel" data-settings-panel="permalink" <?php echo $settingsTab !== 'permalink' ? 'hidden' : ''; ?>>
+        <h2 style="font-size: 16px; font-weight: 600; margin: 24px 0 16px; border-bottom: 1px solid var(--wp-border); padding-bottom: 8px;">
+            Permalink Settings
+        </h2>
+        <div class="form-group">
+            <label for="post_base">Post URL structure</label>
+            <select id="post_base" name="post_base" class="form-control" style="max-width: 360px;">
+                <option value="post" <?php echo ($settings['post_base'] === 'post') ? 'selected' : ''; ?>>/post/post-title/ (current default)</option>
+                <option value="blog" <?php echo ($settings['post_base'] === 'blog') ? 'selected' : ''; ?>>/blog/post-title/</option>
+            </select>
+            <span class="description">Changing this affects newly generated canonical links. The old /post/ links remain supported for compatibility.</span>
+        </div>
+        <div class="form-group">
+            <label for="page_base">Page URL structure</label>
+            <select id="page_base" name="page_base" class="form-control" style="max-width: 360px;">
+                <option value="page" <?php echo ($settings['page_base'] === 'page') ? 'selected' : ''; ?>>/page/page-title/ (current default)</option>
+                <option value="root" <?php echo ($settings['page_base'] === 'root') ? 'selected' : ''; ?>>/page-title/ (short professional URL)</option>
+            </select>
+            <span class="description">Root-level page URLs can conflict with other route names; reserved CMS routes take priority.</span>
+        </div>
+
+        </section>
+        <section class="settings-panel" data-settings-panel="site" <?php echo $settingsTab !== 'site' ? 'hidden' : ''; ?>>
         <h2 style="font-size: 16px; font-weight: 600; margin: 24px 0 16px; border-bottom: 1px solid var(--wp-border); padding-bottom: 8px;">
             Writing Settings
         </h2>
@@ -731,9 +823,23 @@
             </select>
         </div>
 
-        <h2 style="font-size: 16px; font-weight: 600; margin: 24px 0 16px; border-bottom: 1px solid var(--wp-border); padding-bottom: 8px;">
-            Media & Upload Capabilities
+        </section>
+        <section class="settings-panel" data-settings-panel="storage" <?php echo $settingsTab !== 'storage' ? 'hidden' : ''; ?>>
+        <h2 style="font-size: 16px; font-weight: 600; margin: 4px 0 16px; border-bottom: 1px solid var(--wp-border); padding-bottom: 8px;">
+            Storage Settings
         </h2>
+        <p class="description" style="margin:-4px 0 22px;">Configure how new media uploads are organized and set role-based upload allowances. Existing files and saved URLs are not moved.</p>
+        <h3 style="font-size:14px;font-weight:700;margin:0 0 16px;color:var(--admin-text-heading);">Media & Upload Capabilities</h3>
+
+        <div class="form-group">
+            <label for="upload_structure">Folder structure for new uploads</label>
+            <select id="upload_structure" name="upload_structure" class="form-control" style="max-width: 360px;">
+                <option value="year_month" <?php echo ($settings['upload_structure'] === 'year_month') ? 'selected' : ''; ?>>Year / Month (2026/10) — recommended</option>
+                <option value="year" <?php echo ($settings['upload_structure'] === 'year') ? 'selected' : ''; ?>>Year only (2026)</option>
+                <option value="flat" <?php echo ($settings['upload_structure'] === 'flat') ? 'selected' : ''; ?>>Single uploads folder</option>
+            </select>
+            <span class="description">Applies only to new uploads/imported media. Existing files and saved URLs are never moved or rewritten.</span>
+        </div>
 
         <div style="background: var(--admin-surface-subtle); border: 1px solid var(--wp-border); border-radius: 6px; padding: 14px; margin-bottom: 16px;">
             <div style="font-size: 12px; font-weight: 700; color: var(--admin-text-muted); text-transform: uppercase; margin-bottom: 8px;">
@@ -792,8 +898,12 @@
             <span class="description">Maximum file size permitted for normal non-administrator users (default 200 MB, strictly capped by server capability).</span>
         </div>
 
+        </section>
+        <input type="hidden" name="settings_tab" value="<?php echo htmlspecialchars($settingsTab, ENT_QUOTES, 'UTF-8'); ?>">
         <div style="margin-top: 24px;">
             <button type="submit" class="btn btn-primary">Save Changes</button>
+            <span class="description" style="display:block;margin-top:6px;">Settings are saved together to preserve compatibility with existing site configuration.</span>
         </div>
     </form>
+    </div>
 </div>
