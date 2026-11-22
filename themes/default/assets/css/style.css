@@ -930,3 +930,94 @@ input[type="checkbox"], input[type="radio"] { accent-color:var(--action-bg); }
 }
 
 :root { --cms-btt-hover-bg:var(--action-bg); }
+
+/* 1.1.7: calmer hierarchy, responsive branding, and restrained card depth. */
+.site-branding{flex-shrink:0;max-width:min(34vw,340px)}
+.site-custom-logo{height:40px;width:auto;max-width:200px;object-fit:contain;flex-shrink:0}
+.site-title{font-weight:750;letter-spacing:-.025em;line-height:1.2}
+.site-tagline{max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.home-hero{isolation:isolate;border-radius:20px;padding:clamp(26px,4vw,52px);background:linear-gradient(125deg,var(--surface),var(--surface-muted));box-shadow:var(--shadow-sm)}
+.home-hero::before{width:5px;background:linear-gradient(var(--accent),var(--border-strong))}
+.home-hero__eyebrow{display:flex;align-items:center;gap:9px}
+.home-hero__eyebrow::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--accent)}
+.home-hero__title{letter-spacing:-.045em;font-weight:780;max-width:18ch}
+.home-hero__tagline{line-height:1.75;max-width:48ch}
+.post-card{transition:box-shadow .2s ease,border-color .2s ease,transform .2s ease}
+.post-card:hover{box-shadow:var(--shadow);border-color:var(--border-strong);transform:translateY(-2px)}
+.post-card__title{letter-spacing:-.025em;line-height:1.35}
+.empty-state{padding:clamp(32px,5vw,56px) 24px;border-radius:18px;background:var(--surface)}
+.empty-state__mark{display:grid;place-items:center;width:52px;height:52px;margin:0 auto 20px;border:1px solid var(--border);border-radius:16px;background:var(--surface-muted);color:var(--accent)}
+.widget{border-radius:16px;box-shadow:var(--shadow-sm)}
+@media(max-width:720px){.site-branding{max-width:55vw;gap:9px}.site-title{font-size:1rem}.site-tagline{display:none}.site-custom-logo{max-width:160px;height:36px}.home-hero{border-radius:16px}.empty-state{padding:32px 18px}}
+@media(prefers-reduced-motion:reduce){.post-card{transition:none}.post-card:hover{transform:none}}
+
+/* Official v1.2.7-style header; scoped so page and footer theme colors stay independent. */
+.site-header--official {
+ --surface:#111827;--surface-muted:#1e293b;--text:#cbd5e1;--heading:#f8fafc;--muted:#94a3b8;
+ --border:#334155;--border-strong:#475569;--accent:#3b82f6;--accent-hover:#60a5fa;--accent-soft:rgba(59,130,246,.15);
+ background:#111827;color:#cbd5e1;border-color:#334155;--header-h:64px;
+}
+.site-header--official .header-bar{min-height:64px;gap:0 20px}
+.site-header--official .site-branding{flex-shrink:0;max-width:min(34vw,320px);gap:10px;padding-block:8px;box-sizing:border-box}
+.site-header--official .site-custom-logo{display:block;width:auto;height:40px;max-width:200px;max-height:44px;object-fit:contain;object-position:left center;border-radius:0;flex-shrink:1;min-width:0}
+.site-header--official .brand-text{min-width:0;max-width:180px}
+.site-header--official .site-title{font-size:1.05rem;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.site-header--official .site-tagline{font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.site-header--official .theme-toggle-btn{width:36px;height:36px;min-height:36px;border-radius:50%;padding:0;background:transparent;color:#94a3b8;border-color:#334155;flex:none}
+.site-header--official .theme-toggle-btn:hover{color:#60a5fa;border-color:#3b82f6;background:rgba(59,130,246,.12)}
+.site-header--official .button--store{height:38px;min-height:38px;border-color:rgba(59,130,246,.3);background:rgba(59,130,246,.12);color:#60a5fa;white-space:nowrap;border-radius:10px;padding:0 14px}
+.site-header--official .button--store:hover{background:rgba(59,130,246,.22);border-color:#3b82f6}
+.site-header--official .header-actions .button{min-height:40px;height:40px;border-radius:10px;background:#3b82f6;border-color:#3b82f6;color:#fff;white-space:nowrap;padding-inline:14px}
+.site-header--official .header-actions .button:hover{background:#2563eb;border-color:#2563eb}
+.site-header--official .header-wallet-pill{display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 12px;border:1px solid rgba(59,130,246,.25);border-radius:999px;background:rgba(59,130,246,.12);color:#60a5fa;font-size:12px;font-weight:700;white-space:nowrap;text-decoration:none;flex:none}
+.site-header--official .header-wallet-pill .icon{flex:none;width:15px;height:15px}
+.site-header--official .header-wallet-pill:hover{border-color:#3b82f6;background:rgba(59,130,246,.2)}
+.site-header--official .header-account-wrap{gap:10px}
+.site-header--official .cms-account-trigger{min-height:40px;height:40px;border-radius:999px;background:transparent;border-color:#334155;color:#e2e8f0;gap:8px;font-size:13px}
+.site-header--official .cms-account-avatar{width:30px;height:30px;flex:none}
+.site-header--official .cms-account-name{max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.site-header--official .cms-account-dropdown{background:#111827;color:#cbd5e1;border-color:#334155}
+.site-header--official .mobile-nav-toggle{border-color:#334155;background:transparent;color:#e2e8f0}
+.site-header--official .main-menu .menu-link{color:#cbd5e1}
+.site-header--official .main-menu .menu-link:hover,.site-header--official .main-menu .menu-link[aria-current=page]{color:#60a5fa;background:rgba(59,130,246,.15)}
+.site-header--official .header-search input{background:#1e293b;color:#e2e8f0;border-color:#475569;border-radius:10px}
+.site-header--official .header-search input::placeholder{color:#94a3b8}
+@media(min-width:1024px){
+ .site-header--official:not(.is-compact) .site-branding{margin-right:4px}
+ .site-header--official:not(.is-compact) .header-nav-wrap{justify-content:flex-start;gap:12px;flex:1 1 auto}
+ .site-header--official:not(.is-compact) .main-nav{margin-right:auto;flex:0 1 auto;min-width:0;order:10}
+ .site-header--official:not(.is-compact) .main-menu{justify-content:flex-start;align-items:center;gap:4px}
+ .site-header--official:not(.is-compact) .main-menu>.menu-item>.menu-link{padding:0 14px;font-size:14px}
+ .site-header--official:not(.is-compact) .header-search{width:clamp(160px,16vw,240px);order:20}
+ .site-header--official:not(.is-compact) .header-right-widgets{max-width:260px;order:20}
+ .site-header--official:not(.is-compact) .header-theme-toggle-wrap{order:30}
+ .site-header--official:not(.is-compact) .button--store{order:35}
+ .site-header--official:not(.is-compact) .header-account-wrap{display:contents}
+ .site-header--official:not(.is-compact) .header-wallet-pill{order:40}
+ .site-header--official:not(.is-compact) .header-actions{order:50}
+ .site-header--official:not(.is-compact) .cms-account-menu{order:60}
+ .site-header--official.is-compact .header-bar{flex-wrap:wrap}
+ .site-header--official.is-compact .site-branding{margin-right:auto}
+ .js .site-header--official.is-compact .mobile-nav-toggle{display:inline-flex}
+ .site-header--official.is-compact .header-nav-wrap{display:flex;flex:1 0 100%;flex-direction:column;align-items:stretch;gap:12px;padding:12px 0 16px;border-top:1px solid #334155;max-height:calc(100dvh - 64px);overflow:auto}
+ .js .site-header--official.is-compact .header-nav-wrap:not(.is-open){display:none}
+ .site-header--official.is-compact .main-nav{margin:0}
+ .site-header--official.is-compact .main-menu{display:grid;justify-content:stretch}
+ .site-header--official.is-compact .main-menu .menu-link{min-height:44px}
+ .site-header--official.is-compact .main-menu .sub-menu{position:static;display:block;box-shadow:none;border:0;border-left:2px solid #334155;margin-left:12px}
+ .site-header--official.is-compact .header-search{width:100%}
+ .site-header--official.is-compact .header-actions{flex-wrap:wrap}
+ .site-header--official.is-compact .header-account-wrap{display:flex;flex-wrap:wrap;justify-content:space-between}
+ .site-header--official.is-compact .cms-account-dropdown{position:static;width:100%;margin-top:8px}
+}
+@media(max-width:1023.98px){
+ .site-header--official .site-branding{max-width:calc(100% - 64px)}
+ .site-header--official .site-custom-logo{height:36px;max-height:38px;max-width:min(200px,52vw)}
+ .site-header--official .header-nav-wrap{align-items:stretch}
+ .site-header--official .header-account-wrap{display:flex;flex-direction:column;align-items:stretch}
+ .site-header--official .header-actions .button{min-height:44px}
+ .site-header--official .header-wallet-pill{justify-content:center;min-height:40px}
+ .site-header--official .button--store{min-height:44px;justify-content:center}
+}
+
+.site-header--official.is-compact .main-menu .menu-link{white-space:normal;overflow-wrap:anywhere}
