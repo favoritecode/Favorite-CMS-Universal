@@ -48,7 +48,7 @@
                             <?php if ($m->isImage()): ?>
                                 <img src="<?php echo htmlspecialchars($m->getThumbnailUrl(320, 240), ENT_QUOTES, 'UTF-8'); ?>" 
                                      alt="<?php echo htmlspecialchars($m->filename, ENT_QUOTES, 'UTF-8'); ?>" 
-                                     loading="lazy">
+                                     loading="lazy" onerror="this.onerror=null;this.src=<?php echo htmlspecialchars(json_encode($m->url), ENT_QUOTES, 'UTF-8'); ?>;">
                             <?php elseif ($m->isVideo()): ?>
                                 <div style="height: 80px; display: flex; align-items: center; justify-content: center; background: var(--admin-code-bg); color: var(--admin-code-text); font-size: 24px;">&#127916;</div>
                             <?php elseif ($m->isAudio()): ?>
