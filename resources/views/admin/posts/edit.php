@@ -1,7 +1,10 @@
 <?php
+$postBase = \FavoriteCMS\Models\Setting::get('permalinks', 'post_base', 'post');
 $isEdit = !empty($post);
 $action = site_path($isEdit ? '/admin/posts/update' : '/admin/posts/store');
 $revision = \FavoriteCMS\Services\ContentRevision::prepare($post ?? null, 'post', \FavoriteCMS\Models\User::find((int)($_SESSION['auth_user_id'] ?? 0)));
+$builderState = \FavoriteCMS\Services\BuilderContent::state('post', (int)($post->id ?? 0));
+$builderBackup = !$builderState ? \FavoriteCMS\Services\BuilderContent::backup('post', (int)($post->id ?? 0)) : [];
 $editorContent = $revision['content'];
 $currentFeatImg = $post?->getFeaturedImage();
 $postId = (int)($post->id ?? 0);
@@ -14,7 +17,7 @@ $postId = (int)($post->id ?? 0);
         </button>
         <?php if ($isEdit): ?>
             <a href="<?php echo htmlspecialchars(site_path('/admin/posts/new'), ENT_QUOTES, 'UTF-8'); ?>" class="btn btn-secondary">Add New</a>
-            <a href="<?php echo htmlspecialchars(site_path('/post/'), ENT_QUOTES, 'UTF-8'); ?><?php echo htmlspecialchars($post->slug, ENT_QUOTES, 'UTF-8'); ?>" target="_blank" class="btn btn-secondary">
+            <a href="<?php echo htmlspecialchars(site_path($post->url()), ENT_QUOTES, 'UTF-8'); ?>" target="_blank" class="btn btn-secondary">
                 View Post &#8599;
             </a>
         <?php endif; ?>
@@ -59,7 +62,7 @@ $postId = (int)($post->id ?? 0);
 
             <!-- Permalink / Slug Section -->
             <div style="margin-bottom: 18px; font-size: 13px; color: var(--wp-text-muted); display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
-                <span><strong>Permalink:</strong> <?php echo htmlspecialchars(env('APP_URL', 'http://favorite-cms.local')); ?>/post/</span>
+                <span><strong>Permalink:</strong> <?php echo htmlspecialchars(app_url('/' . (in_array($postBase, ['post','blog'], true) ? $postBase : 'post') . '/'), ENT_QUOTES, 'UTF-8'); ?></span>
                 <span id="slug-display" style="color: var(--admin-text-heading); font-weight: 600; background: var(--admin-surface-elevated); padding: 2px 6px; border-radius: 3px;">
                     <?php echo htmlspecialchars($post->slug ?? 'auto-generated'); ?>
                 </span>
@@ -75,18 +78,30 @@ $postId = (int)($post->id ?? 0);
                 </div>
             </div>
 
+            <?php include APP_ROOT . '/resources/views/admin/partials/builder-backup.php'; ?>
             <!-- Professional Dual-Mode Post Editor -->
-            <div class="editor-wrapper" style="background: var(--admin-surface); border: 1px solid var(--wp-border); border-radius: 6px; overflow: hidden; margin-bottom: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+            <div class="editor-wrapper cms-simple-editor<?php echo $builderState ? ' cms-has-builder cms-builder-mode' : ''; ?>" style="background: var(--admin-surface); border: 1px solid var(--wp-border); border-radius: 6px; overflow: hidden; margin-bottom: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
                 <!-- Top Bar: Mode Switcher & Word Count -->
                 <div style="background: var(--admin-surface-subtle); border-bottom: 1px solid var(--wp-border); padding: 8px 12px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
                     <!-- Mode Switcher -->
                     <div style="display: flex; gap: 4px; background: var(--admin-surface-elevated); padding: 3px; border-radius: 6px;">
-                        <button type="button" id="mode-visual-btn" class="mode-tab-btn active" style="padding: 5px 14px; font-size: 12px; font-weight: 600; border: none; border-radius: 4px; cursor: pointer; background: var(--admin-surface); color: var(--wp-blue); box-shadow: 0 1px 2px rgba(0,0,0,0.08);">
+                        <button type="button" id="mode-visual-btn" class="mode-tab-btn<?php echo $builderState ? '' : ' active'; ?>" style="padding: 5px 14px; font-size: 12px; font-weight: 600; border: none; border-radius: 4px; cursor: pointer; background: var(--admin-surface); color: var(--wp-blue); box-shadow: 0 1px 2px rgba(0,0,0,0.08);">
                             &#9998; Visual Mode
                         </button>
                         <button type="button" id="mode-code-btn" class="mode-tab-btn" style="padding: 5px 14px; font-size: 12px; font-weight: 600; border: none; border-radius: 4px; cursor: pointer; background: transparent; color: var(--wp-text-muted);">
                             &lt;/&gt; Code Mode
                         </button>
+                        <?php
+                        $fpbEditorUrl = $isEdit ? \FavoriteCMS\Core\Hook::applyFilters('favorite_page_builder_post_edit_url', '', $postId) : '';
+                        $fpbEditorUrl = is_string($fpbEditorUrl) && str_starts_with($fpbEditorUrl, '/') && !str_starts_with($fpbEditorUrl, '//') ? $fpbEditorUrl : '';
+                        if ($fpbEditorUrl !== ''):
+                        ?>
+                            <a href="<?php echo htmlspecialchars($fpbEditorUrl, ENT_QUOTES, 'UTF-8'); ?>" class="mode-tab-btn<?php echo $builderState ? ' active' : ''; ?>" data-fpb-link style="padding:5px 10px;font-size:12px;font-weight:600;border-radius:4px;color:var(--wp-text-muted);text-decoration:none;white-space:nowrap;" onclick="return confirm('Save any unsaved changes in Simple Edit before opening Favorite Page Builder. Continue?');">▦ Favorite Page Builder</a>
+                        <?php elseif ($builderState): ?>
+                            <button type="button" class="mode-tab-btn active" data-fpb-link style="padding:5px 10px;font-size:12px;font-weight:600;border:0;border-radius:4px;">▦ Favorite Page Builder</button>
+                        <?php elseif (!$isEdit && \FavoriteCMS\Core\Hook::applyFilters('favorite_page_builder_available', false)): ?>
+                            <button type="button" class="mode-tab-btn" title="Save the new post first" style="padding:5px 10px;font-size:12px;border-radius:4px;opacity:.75;" onclick="alert('Save this new post as a Draft first. Then open it with Favorite Page Builder.');">▦ Favorite Page Builder</button>
+                        <?php endif; ?>
                     </div>
 
                     <!-- Right helpers -->
@@ -97,6 +112,7 @@ $postId = (int)($post->id ?? 0);
                     </div>
                 </div>
 
+                <?php include APP_ROOT . '/resources/views/admin/partials/builder-content.php'; ?>
                 <!-- Visual Mode Formatting Toolbar -->
                 <div id="visual-toolbar" style="background: var(--admin-surface); border-bottom: 1px solid var(--wp-border); padding: 6px 10px; display: flex; gap: 4px; flex-wrap: wrap; align-items: center;">
                     <!-- Style block dropdown -->
@@ -284,48 +300,7 @@ $postId = (int)($post->id ?? 0);
                     </div>
                 <?php endif; ?>
 
-                <div class="form-group">
-                    <label for="status">Status</label>
-                    <select id="status" name="status" class="form-control">
-                        <option value="draft" <?php echo ($post?->status === 'draft' || empty($post)) ? 'selected' : ''; ?>>Draft</option>
-                        <?php if ($currentUser && $currentUser->canDirectPublish()): ?>
-                            <option value="published" <?php echo ($post?->status === 'published') ? 'selected' : ''; ?>>Published</option>
-                            <?php if ($post?->status === 'pending'): ?>
-                                <option value="pending" selected>Pending Review</option>
-                            <?php endif; ?>
-                            <?php if ($post?->status === 'rejected'): ?>
-                                <option value="rejected" selected>Rejected</option>
-                            <?php endif; ?>
-                        <?php else: ?>
-                            <option value="pending" <?php echo ($post?->status === 'pending' || empty($post) || $post?->status === 'published') ? 'selected' : ''; ?>>Submit for Review (Pending)</option>
-                        <?php endif; ?>
-                    </select>
-                </div>
-
-                <div style="font-size: 12px; color: var(--wp-text-muted); margin-bottom: 14px;">
-                    <?php if ($isEdit && $post->published_at): ?>
-                        <span>Published on: <strong><?php echo format_date($post->published_at, 'M j, Y \a\t g:i a'); ?></strong></span>
-                    <?php elseif ($currentUser && $currentUser->canDirectPublish()): ?>
-                        <span>Publish immediately upon saving.</span>
-                    <?php else: ?>
-                        <span>Posts by normal users require moderator approval.</span>
-                    <?php endif; ?>
-                </div>
-
-                <div style="display: flex; gap: 8px; justify-content: space-between; align-items: center; padding-top: 12px; border-top: 1px solid var(--wp-border);">
-                    <button type="button" id="save-draft-btn" class="btn btn-secondary" style="font-size: 12px;">
-                        Save Draft
-                    </button>
-                    <button type="button" id="publish-btn" class="btn btn-primary">
-                        <?php
-                        if ($currentUser && $currentUser->canDirectPublish()) {
-                            echo ($isEdit && $post->status === 'published') ? 'Update Post' : 'Publish';
-                        } else {
-                            echo 'Submit for Review';
-                        }
-                        ?>
-                    </button>
-                </div>
+                <?php $publicationType='post';require APP_ROOT.'/resources/views/admin/partials/publication-controls.php'; ?>
 
                 <?php if ($isEdit && $post?->status === 'pending' && $currentUser && $currentUser->canModeratePosts()): ?>
                     <div style="display: flex; gap: 8px; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--wp-border);">
@@ -344,6 +319,8 @@ $postId = (int)($post->id ?? 0);
                     </div>
                 <?php endif; ?>
             </div>
+
+            <?php $contentType = 'post'; $contentRecord = $post ?? null; include APP_ROOT . '/resources/views/admin/partials/content-layout.php'; ?>
 
             <!-- Featured Image Card connected to Media Library, Local Upload & URL Import -->
             <div class="form-card feat-img-card" style="margin-bottom: 20px;">
@@ -637,7 +614,9 @@ document.addEventListener('DOMContentLoaded', function() {
     var autosaveStatus = document.getElementById('autosave-status');
 
     var editorStorage = { get: function(k) { try { return localStorage.getItem(k); } catch(e) { return null; } }, set: function(k,v) { try { localStorage.setItem(k,v); } catch(e) {} } };
-    var currentMode    = editorStorage.get('favorite_post_editor_mode') || 'visual';
+    var editorModeKey = <?php echo json_encode('favorite_post_editor_mode:' . (int)($_SESSION['auth_user_id'] ?? 0) . ':' . $postId); ?>;
+    var currentMode = editorStorage.get(editorModeKey) || editorStorage.get('favorite_post_editor_mode') || 'visual';
+    if (currentMode !== 'visual' && currentMode !== 'code') currentMode = 'visual';
     var codeWrapEnabled = editorStorage.get('favorite_post_editor_code_wrap') === '1';
     var isUserEditedSlug = <?php echo ($isEdit && !empty($post->slug)) ? 'true' : 'false'; ?>;
 
@@ -764,7 +743,7 @@ document.addEventListener('DOMContentLoaded', function() {
             modeCodeBtn.classList.add('active');
             modeVisualBtn.classList.remove('active');
             currentMode = 'code';
-            editorStorage.set('favorite_post_editor_mode', 'code');
+            if (!initializing) { editorStorage.set(editorModeKey, 'code'); editorStorage.set('favorite_post_editor_mode', 'code'); }
         } else {
             // Code -> Visual sync
             var code = codeEditor.value;
@@ -778,8 +757,12 @@ document.addEventListener('DOMContentLoaded', function() {
             modeVisualBtn.classList.add('active');
             modeCodeBtn.classList.remove('active');
             currentMode = 'visual';
-            editorStorage.set('favorite_post_editor_mode', 'visual');
+            if (!initializing) { editorStorage.set(editorModeKey, 'visual'); editorStorage.set('favorite_post_editor_mode', 'visual'); }
         }
+        modeVisualBtn.setAttribute('aria-selected', String(mode !== 'code'));
+        modeCodeBtn.setAttribute('aria-selected', String(mode === 'code'));
+        var builderTab = form.querySelector('[data-fpb-link]');
+        if (builderTab) { builderTab.classList.remove('active'); builderTab.setAttribute('aria-selected', 'false'); }
         updateMetrics();
     }
 
@@ -904,22 +887,6 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    document.getElementById('save-draft-btn').addEventListener('click', function() {
-        syncContentToCanonical();
-        actionType.value = 'draft';
-        statusSelect.value = 'draft';
-        saveDraftSnapshot();
-        form.requestSubmit();
-    });
-
-    document.getElementById('publish-btn').addEventListener('click', function() {
-        syncContentToCanonical();
-        actionType.value = 'publish';
-        statusSelect.value = 'published';
-        saveDraftSnapshot();
-        form.requestSubmit();
-    });
-
     // ==========================================
     // 6. Live Theme Preview
     // ==========================================
@@ -957,7 +924,7 @@ document.addEventListener('DOMContentLoaded', function() {
         tokenField.name = '_token';
         tokenField.value = '<?php echo htmlspecialchars($_SESSION['_token'] ?? '', ENT_QUOTES, 'UTF-8'); ?>';
         tempForm.appendChild(tokenField);
-        ['id', '_content_revision'].forEach(function(name) {
+        ['id', '_content_revision', 'sidebar_layout'].forEach(function(name) {
             var source = form.querySelector('[name="' + name + '"]');
             if (source) { var field = document.createElement('input'); field.name = name; field.value = source.value; tempForm.appendChild(field); }
         });
@@ -1226,7 +1193,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         var inner;
         if (m.is_image) {
-            inner = '<img src="' + escapeMediaHtml(m.thumbnail_url || m.url) + '" alt="' + escapeMediaHtml(m.filename) + '" loading="lazy">';
+            inner = '<img src="' + escapeMediaHtml(m.thumbnail_url || m.url) + '" data-original-src="' + escapeMediaHtml(m.url) + '" alt="' + escapeMediaHtml(m.filename) + '" loading="lazy" onerror="if(this.dataset.originalSrc && this.src!==this.dataset.originalSrc){this.src=this.dataset.originalSrc;}else{this.style.display=\'none\';}">';
         } else if (m.is_video) {
             inner = '<div style="height: 80px; display: flex; align-items: center; justify-content: center; background: var(--admin-code-bg); color: var(--admin-code-text); font-size: 24px;">&#127916;</div>';
         } else if (m.is_audio) {
@@ -1324,7 +1291,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         var thumbEl = document.getElementById('attachment-thumb');
         if (selectedMedia.cat === 'image') {
-            thumbEl.innerHTML = '<img src="' + selectedMedia.url + '" style="max-width: 100%; max-height: 120px; object-fit: contain;">';
+            thumbEl.innerHTML = '<img src="' + escapeMediaHtml(selectedMedia.url) + '" style="max-width: 100%; max-height: 120px; object-fit: contain;" onerror="this.style.display=\'none\';">';
         } else {
             thumbEl.innerHTML = '<div style="padding: 24px; font-size: 32px;">&#128196;</div>';
         }
@@ -1399,7 +1366,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
                         var innerHtml = '';
                         if (m.is_image) {
-                            innerHtml = '<img src="' + (m.thumbnail_url || m.url) + '" alt="' + m.filename + '">';
+                            innerHtml = '<img src="' + escapeMediaHtml(m.thumbnail_url || m.url) + '" data-original-src="' + escapeMediaHtml(m.url) + '" alt="' + escapeMediaHtml(m.filename) + '" onerror="if(this.dataset.originalSrc && this.src!==this.dataset.originalSrc){this.src=this.dataset.originalSrc;}else{this.style.display=\'none\';}">';
                         } else {
                             innerHtml = '<div style="height: 80px; display: flex; align-items: center; justify-content: center; background: var(--admin-surface-elevated); font-size: 24px;">&#128196;</div>';
                         }
@@ -1620,3 +1587,5 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 <?php $workspaceType = 'post'; $workspaceRecord = $post ?? null; include APP_ROOT . '/resources/views/admin/partials/content-workspace.php'; ?>
+
+<?php if ($builderState): ?><script data-cms-builder-editor-mode><?php include APP_ROOT . '/public/assets/js/builder-content.js'; ?></script><?php endif; ?>
