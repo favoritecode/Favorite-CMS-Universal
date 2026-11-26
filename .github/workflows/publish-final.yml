@@ -1,0 +1,123 @@
+name: Publish verified final package
+on:
+  push:
+    branches: [main]
+    paths: ['Favorite-CMS-Universal-v1.2.1.zip']
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: final-package-publish
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    env:
+      PACKAGE_KIND: cms
+      PACKAGE_NAME: Favorite-CMS-Universal-v1.2.1.zip
+      PACKAGE_SHA: b4c38efd9520da1986a25752b92c0542060639268bd65b6d49b842030765d147
+      PACKAGE_VERSION: 1.2.1
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: sodium, mbstring, pdo, zip
+      - name: Validate and synchronize exact package source
+        shell: python
+        run: |
+          import hashlib,json,os,shutil,stat,subprocess,zipfile
+          from pathlib import Path,PurePosixPath
+          kind=os.environ['PACKAGE_KIND']; name=os.environ['PACKAGE_NAME']; version=os.environ['PACKAGE_VERSION']
+          source=Path(name); assert hashlib.sha256(source.read_bytes()).hexdigest()==os.environ['PACKAGE_SHA']
+          assets=Path(os.environ['RUNNER_TEMP'])/'final-assets';assets.mkdir(exist_ok=True)
+          shutil.copyfile(source,assets/name)
+          data={}
+          with zipfile.ZipFile(source) as z:
+           assert z.testzip() is None
+           for i in z.infolist():
+            p=PurePosixPath(i.filename)
+            assert not p.is_absolute() and '..' not in p.parts and '\\' not in i.filename
+            assert not stat.S_ISLNK(i.external_attr>>16)
+            if i.is_dir():continue
+            assert p.name!='.env' and not i.filename.endswith(('.secretbox','.key','.sqlite','.log'))
+            assert '.git' not in p.parts and 'runs' not in p.parts
+            assert 'sessions' not in p.parts or p.name in ('.gitkeep','.htaccess','index.php')
+            data[i.filename]=z.read(i)
+          if kind=='cms':
+           assert json.loads(data['release.json'])['version']==version
+           manifest=json.loads(data['app/Security/core-integrity.json']);assert len(manifest['files'])==475
+           for n,h in manifest['files'].items():assert hashlib.sha256(data[n]).hexdigest()==h,n
+           assert not any(n.startswith('favorite-server-license/') for n in data)
+           # Verify the publisher signature independently using PHP Sodium; no private key.
+           verifier=assets/'verify.php'
+           verifier.write_text('''<?php $m=json_decode(file_get_contents($argv[1]),true,64,JSON_THROW_ON_ERROR); if(!sodium_crypto_sign_verify_detached(base64_decode($m['signature']),json_encode($m['files'],JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR),base64_decode('vLAT9ZGSIoqUt0XRndW87gY2J0vP9ew/piPKBWywo64=')))exit(1);''')
+           inv=assets/'integrity.json';inv.write_bytes(data['app/Security/core-integrity.json'])
+           subprocess.run(['php',str(verifier),str(inv)],check=True)
+           guide=data['README.md']
+          else:
+           assert all(n.startswith('favorite-server-license/') for n in data)
+           manifest=json.loads(data['favorite-server-license/package-manifest.json']);assert manifest['version']==version
+           assert manifest['build_number']==2026112607
+           for n,h in manifest['files'].items():assert hashlib.sha256(data[n]).hexdigest()==h,n
+           assert set(manifest['files'])==set(data)-{'favorite-server-license/package-manifest.json'}
+           guide=data['favorite-server-license/README.md']
+           # Superseded standalone gateway source is replaced by the complete integrated
+           # gateway in favorite-server-license/oauth-gateway. Git history retains it.
+           for n in ('app','config','public','scripts','storage','tests'):
+            p=Path(n)
+            if p.is_dir():shutil.rmtree(p)
+           # Remove old root build candidates and superseded one-off reports, not keys.
+           for p in Path('.').iterdir():
+            if p.is_file() and (p.name.startswith('Favorite-') and (p.name.endswith('.zip') or p.name.endswith('.zip.sha256')) or p.name in ('COMPLETE-SERVER-TESTS.md','SERVER-UPDATER-TESTS.md','TEST-REPORT.md','SOURCE-MANIFEST.json','INSTALL-BN.md','USER-MANUAL-BN.md','SERVER-UPDATE-GUIDE.md','FRESH-GMAIL-BN.md','composer.json','phpunit.xml.dist','.env.example','.htaccess')):p.unlink()
+          for n,b in data.items():
+           p=Path(n);p.parent.mkdir(parents=True,exist_ok=True);p.write_bytes(b)
+          Path('README.md').write_bytes(guide)
+          Path('SHA256SUMS.txt').write_text(os.environ['PACKAGE_SHA']+'  '+name+'\n')
+          # Preserve the signed distribution bytes in fresh Git checkouts.
+          attributes=Path('.gitattributes');current=attributes.read_text() if attributes.exists() else ''
+          line='* -text\n'
+          if not current.startswith(line):attributes.write_text(line+current)
+          if source.exists():source.unlink()
+          for p in Path('.github/workflows').glob('Favorite-*.zip'):p.unlink()
+          for n,b in data.items():assert Path(n).read_bytes()==b,n
+          for n in data:
+           if n.endswith('.php'):subprocess.run(['php','-l',n],check=True,stdout=subprocess.DEVNULL)
+          (assets/(name+'.sha256')).write_text(os.environ['PACKAGE_SHA']+'  '+name+'\n')
+          (assets/'USING-GUIDE.md').write_bytes(guide)
+          notes='''Final consolidated same-version correction (26 November 2026).
+          
+          Download the named ZIP and verify its SHA-256. Superseded test/repair candidate assets on this current release have been removed. The complete current source is on main and this tag. Versions remain unchanged.
+          
+          '''+guide.decode()+'\n\nSHA-256: `'+os.environ['PACKAGE_SHA']+'`\n'
+          (assets/'NOTES.md').write_text(notes)
+          print('Verified complete package, protected inventory, source bytes and PHP syntax.')
+      - name: Commit consolidated source
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          if ! git diff --cached --quiet; then
+            git commit -m "Publish verified cms 1.2.1 source; consolidate final package"
+            git push origin HEAD:main
+          fi
+          git tag -f v1.2.1
+          git push --force origin refs/tags/v1.2.1
+      - name: Replace current release candidates with final assets
+        run: |
+          if gh release view v1.2.1 >/dev/null 2>&1; then
+            gh release view v1.2.1 --json assets --jq '.assets[].name' > "$RUNNER_TEMP/old-assets.txt"
+            while IFS= read -r asset; do
+              [ -z "$asset" ] || gh release delete-asset v1.2.1 "$asset" --yes
+            done < "$RUNNER_TEMP/old-assets.txt"
+            gh release edit v1.2.1 --title "Favorite CMS Universal v1.2.1" --notes-file "$RUNNER_TEMP/final-assets/NOTES.md" --latest
+          else
+            gh release create v1.2.1 --title "Favorite CMS Universal v1.2.1" --notes-file "$RUNNER_TEMP/final-assets/NOTES.md" --latest
+          fi
+          gh release upload v1.2.1 "$RUNNER_TEMP/final-assets/$PACKAGE_NAME" "$RUNNER_TEMP/final-assets/$PACKAGE_NAME.sha256" "$RUNNER_TEMP/final-assets/USING-GUIDE.md" --clobber
+          gh release view v1.2.1 --json url,assets
