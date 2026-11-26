@@ -13,6 +13,9 @@ if (!defined('APP_ROOT')) {
     define('APP_ROOT', __DIR__);
 }
 
+require_once APP_ROOT . '/app/Security/CoreIntegrity.php';
+\FavoriteCMS\Security\CoreIntegrity::check(APP_ROOT);
+
 require APP_ROOT . '/vendor/autoload.php';
 
 use FavoriteCMS\Core\Application;

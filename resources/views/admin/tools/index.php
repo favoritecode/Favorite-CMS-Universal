@@ -17,12 +17,12 @@ $h = static fn ($val): string => htmlspecialchars((string)$val, ENT_QUOTES, 'UTF
     </div>
 <?php endif; ?>
 
-<div class="form-row" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 20px; margin-bottom: 24px;">
+<div class="form-row" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr)); gap: 20px; margin-bottom: 24px;">
     <!-- Create Backup Card -->
     <div class="form-card" style="background: var(--admin-surface); border: 1px solid var(--admin-border); border-radius: 8px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
         <h2 style="font-size: 17px; font-weight: 700; margin: 0 0 10px; color: var(--admin-text-heading);">&#128230; Create Portable Site Backup</h2>
         <p style="color: var(--admin-text-muted); font-size: 13px; margin: 0 0 16px; line-height: 1.5;">
-            Creates a self-contained, portable <code>.zip</code> package including your full database SQL dump, media uploads, active themes, and plugins.
+            Creates a self-contained, portable <code>.zip</code> package with website files in <code>files/</code>, plus <code>database.sql</code> and a checksum inventory. Includes core, configuration, uploads, all themes and plugins by default. Temporary files, caches, sessions, logs and previous backups are excluded.
         </p>
 
         <form method="POST" action="<?php echo htmlspecialchars(site_path('/admin/tools/backup/create'), ENT_QUOTES, 'UTF-8'); ?>">
@@ -30,22 +30,22 @@ $h = static fn ($val): string => htmlspecialchars((string)$val, ENT_QUOTES, 'UTF
 
             <div style="margin-bottom: 14px; font-size: 13px; color: var(--admin-text);">
                 <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px; cursor: pointer;">
-                    <input type="checkbox" name="include_media" value="1" checked> Include Media Uploads (<code>public/uploads</code>)
+                    <input type="hidden" name="include_media" value="0"><input type="checkbox" name="include_media" value="1" checked> Include Media Uploads (<code>public/uploads</code>)
                 </label>
                 <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px; cursor: pointer;">
-                    <input type="checkbox" name="include_themes" value="1" checked> Include Themes (<code>themes/</code>)
+                    <input type="hidden" name="include_themes" value="0"><input type="checkbox" name="include_themes" value="1" checked> Include Themes (<code>themes/</code>)
                 </label>
                 <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-                    <input type="checkbox" name="include_plugins" value="1" checked> Include Plugins (<code>plugins/</code>)
+                    <input type="hidden" name="include_plugins" value="0"><input type="checkbox" name="include_plugins" value="1" checked> Include Plugins (<code>plugins/</code>)
                 </label>
             </div>
 
             <div style="display: flex; gap: 10px; flex-wrap: wrap;">
                 <button type="submit" class="btn btn-primary" style="padding: 9px 18px; font-weight: 600;">
-                    &#128190; Generate Full Backup (.zip)
+                    &#128190; Generate complete backup (.zip)
                 </button>
                 <a href="<?php echo htmlspecialchars(site_path('/admin/tools/export'), ENT_QUOTES, 'UTF-8'); ?>" class="btn" style="background: var(--admin-surface-subtle); color: var(--admin-text); border: 1px solid var(--admin-border); padding: 9px 14px; text-decoration: none; border-radius: 4px; font-weight: 500; font-size: 13px;">
-                    Download DB JSON
+                    Download database (.sql)
                 </a>
             </div>
         </form>
@@ -55,7 +55,7 @@ $h = static fn ($val): string => htmlspecialchars((string)$val, ENT_QUOTES, 'UTF
     <div class="form-card" style="background: var(--admin-surface); border: 1px solid var(--admin-border); border-radius: 8px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
         <h2 style="font-size: 17px; font-weight: 700; margin: 0 0 10px; color: var(--admin-text-heading);">&#128229; Restore Site from Backup</h2>
         <p style="color: var(--admin-text-muted); font-size: 13px; margin: 0 0 16px; line-height: 1.5;">
-            Restore your database and files from a <code>favorite_cms_backup_*.zip</code> package. Domain references are automatically migrated.
+            Restore database, uploads, themes and plugins from a <code>favorite_cms_backup_*.zip</code> package. Core and connection settings are retained. For complete hosting recovery, use the archive's <code>files/</code> folder and import <code>database.sql</code>.
         </p>
 
         <form method="POST" action="<?php echo htmlspecialchars(site_path('/admin/tools/restore'), ENT_QUOTES, 'UTF-8'); ?>" enctype="multipart/form-data" onsubmit="return confirm('WARNING: Restoring will overwrite existing database tables and files. Are you sure you want to proceed?');">
@@ -89,7 +89,7 @@ $h = static fn ($val): string => htmlspecialchars((string)$val, ENT_QUOTES, 'UTF
     </div>
 
     <p style="color: var(--admin-text-muted); font-size: 13px; margin: 0 0 18px; line-height: 1.5;">
-        Seamlessly migrate your blog from Google Blogger (Blogspot) into Favorite CMS. Supports Google Takeout backup ZIP archives (containing <code>feed.atom</code>), direct <code>feed.atom</code> uploads, or classic export XML (<code>blog-*.xml</code>).
+        Seamlessly migrate your blog from Google Blogger (Blogspot) into your website. Supports Google Takeout backup ZIP archives (containing <code>feed.atom</code>), direct <code>feed.atom</code> uploads, or classic export XML (<code>blog-*.xml</code>).
     </p>
 
     <?php if (!empty($bloggerPreview)): ?>
@@ -191,7 +191,7 @@ $h = static fn ($val): string => htmlspecialchars((string)$val, ENT_QUOTES, 'UTF
     <h2 style="font-size: 17px; font-weight: 700; margin: 0 0 14px; color: var(--admin-text-heading);">Existing Site Backups (<code>storage/backups/</code>)</h2>
 
     <?php if (empty($backups)): ?>
-        <p style="color: var(--admin-text-muted); font-size: 13px; margin: 0;">No backups generated yet. Click "Generate Full Backup" above to create your first snapshot.</p>
+        <p style="color: var(--admin-text-muted); font-size: 13px; margin: 0;">No backups generated yet. Click "Generate complete backup (.zip)" above to create your first snapshot.</p>
     <?php else: ?>
         <table class="wp-table" style="width: 100%; border-collapse: collapse; font-size: 13px;">
             <thead>
@@ -199,7 +199,7 @@ $h = static fn ($val): string => htmlspecialchars((string)$val, ENT_QUOTES, 'UTF
                     <th style="padding: 10px;">Archive File</th>
                     <th style="padding: 10px;">Date Created</th>
                     <th style="padding: 10px;">Size</th>
-                    <th style="padding: 10px;">CMS Version</th>
+                    <th style="padding: 10px;">site Version</th>
                     <th style="padding: 10px;">Tables</th>
                     <th style="padding: 10px; text-align: right;">Actions</th>
                 </tr>

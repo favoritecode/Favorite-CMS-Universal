@@ -7,9 +7,9 @@
  * $content (string or closure/callable)
  */
 try {
-    $siteName = class_exists(\FavoriteCMS\Models\Setting::class) ? \FavoriteCMS\Models\Setting::get('general', 'site_name', 'Favorite CMS') : 'Favorite CMS';
+    $siteName = class_exists(\FavoriteCMS\Models\Setting::class) ? \FavoriteCMS\Models\Setting::get('general', 'site_name', 'your website') : 'your website';
 } catch (\Throwable $e) {
-    $siteName = 'Favorite CMS';
+    $siteName = 'your website';
 }
 
 try {
@@ -36,7 +36,7 @@ $appearancePersist = true;
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?php echo htmlspecialchars($pageTitle ?? 'Admin', ENT_QUOTES, 'UTF-8'); ?> &lsaquo; <?php echo htmlspecialchars($siteName, ENT_QUOTES, 'UTF-8'); ?> &mdash; Favorite CMS</title>
+    <title><?php echo htmlspecialchars($pageTitle ?? 'Admin', ENT_QUOTES, 'UTF-8'); ?> &lsaquo; <?php echo htmlspecialchars($siteName, ENT_QUOTES, 'UTF-8'); ?></title>
     <?php include __DIR__ . '/../partials/appearance/head.php'; ?>
     <?php if (!empty($siteFaviconUrl)): ?>
         <?php

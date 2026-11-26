@@ -1,9 +1,9 @@
 <?php
 /**
- * Favorite CMS Universal — Standalone Core Fallback 404 View
+ * site software — Standalone Core Fallback 404 View
  */
 
-$siteName = (string)\FavoriteCMS\Models\Setting::get('general', 'site_name', 'Favorite CMS Universal');
+$siteName = (string)\FavoriteCMS\Models\Setting::get('general', 'site_name', 'site software');
 $base = (string)($GLOBALS['favorite_cms_base_path'] ?? '');
 ?>
 <!DOCTYPE html>

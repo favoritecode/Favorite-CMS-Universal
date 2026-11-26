@@ -29,12 +29,22 @@ class SettingController
         $this->capabilityService = new UploadCapabilityService($app);
     }
 
+    /** Keep the current settings section after save, validation errors and mail actions. */
+    private function redirectToSettingsTab(Request $request, string $fallback = 'site'): Response
+    {
+        $tab = $request->post('settings_tab', $fallback);
+        if (!is_string($tab) || !in_array($tab, ['site', 'permalink', 'smtp', 'storage'], true)) {
+            $tab = $fallback;
+        }
+        return Response::redirect('/admin/settings?tab=' . $tab);
+    }
+
     public function index(Request $request): Response
     {
         $serverLimits = $this->capabilityService->getServerLimits();
 
         $settings = [
-            'site_name'                 => Setting::get('general', 'site_name', 'Favorite CMS'),
+            'site_name'                 => Setting::get('general', 'site_name', 'Website'),
             'site_description'          => Setting::get('general', 'site_description', 'Fast, secure, modular CMS'),
             'site_url'                  => Setting::get('general', 'site_url', config('app.url', 'http://favorite-cms.local')),
             'site_logo_source'          => (string)Setting::get('general', 'site_logo_source', 'url'),
@@ -115,14 +125,14 @@ class SettingController
         $token = (string)$request->post('_token', '');
         if (empty($_SESSION['_token']) || !hash_equals($_SESSION['_token'], $token)) {
             $_SESSION['flash_error'] = 'Security verification failed (invalid CSRF token).';
-            return Response::redirect('/admin/settings');
+            return $this->redirectToSettingsTab($request);
         }
 
         unset($_SESSION['flash_error'], $_SESSION['flash_success']);
         foreach ($request->all() as $value) {
             if (is_array($value) || is_object($value)) {
                 $_SESSION['flash_error'] = 'Invalid settings value.';
-                return Response::redirect('/admin/settings');
+                return $this->redirectToSettingsTab($request);
             }
         }
         $db = $this->app->make(\FavoriteCMS\Core\Database::class);
@@ -158,7 +168,7 @@ class SettingController
             unset($_SESSION['flash_success']);
             $_SESSION['flash_error'] = 'Settings could not be saved. Your previous settings have been preserved.';
             error_log('Favorite CMS settings save failed: ' . $error->getMessage());
-            return Response::redirect('/admin/settings');
+            return $this->redirectToSettingsTab($request);
         }
     }
 
@@ -187,6 +197,10 @@ class SettingController
 
     private function applySettings(Request $request): Response
     {
+        $activeTab = $request->post('settings_tab', 'site');
+        $activeTab = is_string($activeTab) && in_array($activeTab, ['site', 'permalink', 'smtp', 'storage'], true) ? $activeTab : 'site';
+
+        if ($activeTab === 'site') {
         // These fields are rendered by Settings and read by the editor/theme.
         // Preserve omitted fields for existing integrations; an empty tagline is intentional.
         $siteIdentity = [];
@@ -195,19 +209,19 @@ class SettingController
             if ($value === null) continue;
             if (!is_string($value)) {
                 $_SESSION['flash_error'] = 'Invalid site settings value.';
-                return Response::redirect('/admin/settings');
+                return $this->redirectToSettingsTab($request);
             }
             $siteIdentity[$key] = trim($value);
         }
         if (isset($siteIdentity['site_name']) && $siteIdentity['site_name'] === '') {
             $_SESSION['flash_error'] = 'Site title cannot be empty.';
-            return Response::redirect('/admin/settings');
+            return $this->redirectToSettingsTab($request);
         }
         if (isset($siteIdentity['site_url']) &&
             (!filter_var($siteIdentity['site_url'], FILTER_VALIDATE_URL) ||
              !in_array(strtolower((string)parse_url($siteIdentity['site_url'], PHP_URL_SCHEME)), ['http', 'https'], true))) {
             $_SESSION['flash_error'] = 'Site address must be a valid HTTP or HTTPS URL.';
-            return Response::redirect('/admin/settings');
+            return $this->redirectToSettingsTab($request);
         }
 
         $userId = isset($_SESSION['auth_user_id']) ? (int)$_SESSION['auth_user_id'] : null;
@@ -237,7 +251,7 @@ class SettingController
                 Setting::set('general', 'site_logo_source', 'upload');
             } catch (\Throwable $e) {
                 $_SESSION['flash_error'] = 'Logo upload failed: ' . $e->getMessage();
-                return Response::redirect('/admin/settings');
+                return $this->redirectToSettingsTab($request);
             }
         } else {
             $logoSource = (string)$request->post('site_logo_source', 'url');
@@ -251,7 +265,7 @@ class SettingController
             $sanitizedLogoUrl = sanitize_branding_url($rawLogoUrl);
             if ($sanitizedLogoUrl === '') {
                 $_SESSION['flash_error'] = 'Invalid Logo URL. Only valid http://, https://, or local paths (e.g. /uploads/...) are allowed.';
-                return Response::redirect('/admin/settings');
+                return $this->redirectToSettingsTab($request);
             }
             Setting::set('general', 'site_logo_url', $sanitizedLogoUrl);
         } else {
@@ -275,7 +289,7 @@ class SettingController
                 Setting::set('general', 'site_favicon_source', 'upload');
             } catch (\Throwable $e) {
                 $_SESSION['flash_error'] = 'Favicon upload failed: ' . $e->getMessage();
-                return Response::redirect('/admin/settings');
+                return $this->redirectToSettingsTab($request);
             }
         } else {
             $faviconSource = (string)$request->post('site_favicon_source', 'url');
@@ -289,7 +303,7 @@ class SettingController
             $sanitizedFaviconUrl = sanitize_branding_url($rawFaviconUrl);
             if ($sanitizedFaviconUrl === '') {
                 $_SESSION['flash_error'] = 'Invalid Favicon URL. Only valid http://, https://, or local paths (e.g. /uploads/...) are allowed.';
-                return Response::redirect('/admin/settings');
+                return $this->redirectToSettingsTab($request);
             }
             Setting::set('general', 'site_favicon_url', $sanitizedFaviconUrl);
         } else {
@@ -297,6 +311,9 @@ class SettingController
         }
         Setting::set('general', 'admin_email', trim((string)$request->post('admin_email', 'admin@example.com')));
 
+        }
+
+        if ($activeTab === 'smtp') {
         // Email & Notification Settings
         $transport = strtolower(trim((string)$request->post('email_transport', 'auto')));
         if (!in_array($transport, ['auto', 'google', 'mail', 'smtp'], true)) {
@@ -312,7 +329,7 @@ class SettingController
         if ($senderEmail !== '') {
             if (!filter_var($senderEmail, FILTER_VALIDATE_EMAIL) || strpbrk($senderEmail, "\r\n\t") !== false) {
                 $_SESSION['flash_error'] = 'Invalid Sender Email address. Please enter a valid email address or leave blank to use the administration email.';
-                return Response::redirect('/admin/settings');
+                return $this->redirectToSettingsTab($request);
             }
             Setting::set('email', 'sender_email', $senderEmail);
         } else {
@@ -323,7 +340,7 @@ class SettingController
         $googleClientId = trim((string)$request->post('google_client_id', ''));
         if (strpbrk($googleClientId, "\r\n\t") !== false) {
             $_SESSION['flash_error'] = 'Invalid Google Client ID (CRLF characters not allowed).';
-            return Response::redirect('/admin/settings');
+            return $this->redirectToSettingsTab($request);
         }
         Setting::set('email', 'google_client_id', $googleClientId);
 
@@ -332,7 +349,7 @@ class SettingController
             $normalizedGatewayUrl = GoogleOAuthService::normalizeGatewayUrl($rawGoogleGatewayUrl);
             if (!GoogleOAuthService::validateGatewayUrl($normalizedGatewayUrl) || strpbrk($normalizedGatewayUrl, "\r\n\t") !== false) {
                 $_SESSION['flash_error'] = 'Invalid Google OAuth Gateway URL format. Must be a valid HTTPS URL without credentials, query parameters, or fragments (HTTP allowed for localhost only).';
-                return Response::redirect('/admin/settings');
+                return $this->redirectToSettingsTab($request);
             }
             Setting::set('email', 'google_gateway_url', $normalizedGatewayUrl);
         } else {
@@ -347,7 +364,7 @@ class SettingController
             if ($submittedGoogleSecret !== '' && $submittedGoogleSecret !== '********') {
                 if (strpbrk($submittedGoogleSecret, "\r\n") !== false) {
                     $_SESSION['flash_error'] = 'Invalid Google Client Secret (CRLF characters not allowed).';
-                    return Response::redirect('/admin/settings');
+                    return $this->redirectToSettingsTab($request);
                 }
                 GoogleOAuthService::storeClientSecret($submittedGoogleSecret);
             }
@@ -357,14 +374,14 @@ class SettingController
         $smtpHost = trim((string)$request->post('smtp_host', ''));
         if (strpbrk($smtpHost, "\r\n\t") !== false) {
             $_SESSION['flash_error'] = 'Invalid SMTP host (CRLF characters not allowed).';
-            return Response::redirect('/admin/settings');
+            return $this->redirectToSettingsTab($request);
         }
         Setting::set('email', 'smtp_host', $smtpHost);
 
         $smtpPort = (int)$request->post('smtp_port', 587);
         if ($smtpPort < 1 || $smtpPort > 65535) {
             $_SESSION['flash_error'] = 'Invalid SMTP port. Must be between 1 and 65535.';
-            return Response::redirect('/admin/settings');
+            return $this->redirectToSettingsTab($request);
         }
         Setting::set('email', 'smtp_port', $smtpPort, 'int');
 
@@ -374,14 +391,14 @@ class SettingController
         }
         if (!in_array($smtpEncryption, ['none', 'ssl', 'tls'], true)) {
             $_SESSION['flash_error'] = 'Invalid SMTP encryption. Allowed: none, ssl, tls.';
-            return Response::redirect('/admin/settings');
+            return $this->redirectToSettingsTab($request);
         }
         Setting::set('email', 'smtp_encryption', $smtpEncryption);
 
         $smtpUsername = trim((string)$request->post('smtp_username', ''));
         if (strpbrk($smtpUsername, "\r\n\t") !== false) {
             $_SESSION['flash_error'] = 'Invalid SMTP username (CRLF characters not allowed).';
-            return Response::redirect('/admin/settings');
+            return $this->redirectToSettingsTab($request);
         }
         Setting::set('email', 'smtp_username', $smtpUsername);
 
@@ -392,7 +409,7 @@ class SettingController
             if ($submittedPass !== '' && $submittedPass !== '********') {
                 if (strpbrk($submittedPass, "\r\n") !== false) {
                     $_SESSION['flash_error'] = 'Invalid SMTP password (CRLF characters not allowed).';
-                    return Response::redirect('/admin/settings');
+                    return $this->redirectToSettingsTab($request);
                 }
                 Setting::set('email', 'smtp_password', $submittedPass);
             }
@@ -404,11 +421,14 @@ class SettingController
         }
         Setting::set('email', 'smtp_timeout', $smtpTimeout, 'int');
 
+        }
+
+        if ($activeTab === 'site') {
         // Validate and save site timezone
         $submittedTimezone = trim((string)$request->post('timezone', 'UTC'));
         if (!\FavoriteCMS\Core\DateTime::isValidTimezone($submittedTimezone)) {
             $_SESSION['flash_error'] = "Invalid Timezone '{$submittedTimezone}'. Please select a valid IANA timezone identifier.";
-            return Response::redirect('/admin/settings');
+            return $this->redirectToSettingsTab($request);
         }
         Setting::set('general', 'timezone', $submittedTimezone);
 
@@ -419,7 +439,7 @@ class SettingController
         $normalizedCurrency = Currency::normalize($rawCurrency);
         if (!Currency::isSupported($normalizedCurrency)) {
             $_SESSION['flash_error'] = "Invalid Primary Currency '{$rawCurrency}'. Please select a supported currency.";
-            return Response::redirect('/admin/settings');
+            return $this->redirectToSettingsTab($request);
         }
 
         $currentCurrency = Currency::getPrimaryCurrency();
@@ -427,14 +447,14 @@ class SettingController
             $reason = null;
             if (!Currency::canChangePrimaryCurrency($normalizedCurrency, $reason)) {
                 $_SESSION['flash_error'] = $reason ?? "Primary Currency cannot be changed.";
-                return Response::redirect('/admin/settings');
+                return $this->redirectToSettingsTab($request);
             }
 
             try {
                 Currency::setPrimaryCurrency($normalizedCurrency);
             } catch (\Throwable $e) {
                 $_SESSION['flash_error'] = $e->getMessage();
-                return Response::redirect('/admin/settings');
+                return $this->redirectToSettingsTab($request);
             }
         }
 
@@ -452,6 +472,9 @@ class SettingController
         }
 
 
+        }
+
+        if ($activeTab === 'permalink') {
         // Permalink settings: allow only known route patterns; default to legacy-compatible URLs.
         $postBase = (string)$request->post('post_base', 'post');
         if (!in_array($postBase, ['post', 'blog'], true)) { $postBase = 'post'; }
@@ -460,14 +483,23 @@ class SettingController
         Setting::set('permalinks', 'post_base', $postBase);
         Setting::set('permalinks', 'page_base', $pageBase);
 
+        }
+
+        if ($activeTab === 'storage') {
         $uploadStructure = (string)$request->post('upload_structure', 'year_month');
         if (!in_array($uploadStructure, ['year_month', 'year', 'flat'], true)) { $uploadStructure = 'year_month'; }
         Setting::set('media', 'upload_structure', $uploadStructure);
+        }
+
+        if ($activeTab === 'site') {
         Setting::set('reading', 'front_page_type', (string)$request->post('front_page_type', 'posts'));
         Setting::set('reading', 'front_page_id', (int)$request->post('front_page_id', 0), 'int');
 
         Setting::set('writing', 'default_category', (int)$request->post('default_category', 1), 'int');
 
+        }
+
+        if ($activeTab === 'storage') {
         // Media & Role Upload limits
         $adminLimitMb     = (float)$request->post('max_upload_size_admin_mb', 7168);
         $moderatorLimitMb = (float)$request->post('max_upload_size_moderator_mb', 500);
@@ -481,14 +513,17 @@ class SettingController
         Setting::set('media', 'max_upload_size_moderator', $moderatorBytes, 'int');
         Setting::set('media', 'max_upload_size_user', $userBytes, 'int');
 
+        }
+
+        if ($activeTab === 'site') {
         foreach ($siteIdentity as $key => $value) {
             Setting::set('general', $key, $value);
         }
 
+        }
+
         $_SESSION['flash_success'] = 'Settings saved successfully.';
-        $tab = (string)$request->post('settings_tab', 'site');
-        $tab = in_array($tab, ['site', 'permalink', 'smtp', 'storage'], true) ? $tab : 'site';
-        return Response::redirect('/admin/settings?tab=' . $tab);
+        return $this->redirectToSettingsTab($request);
     }
 
     public function sendTestEmail(Request $request): Response
@@ -496,7 +531,7 @@ class SettingController
         $token = (string)$request->post('_token', '');
         if (empty($_SESSION['_token']) || !hash_equals($_SESSION['_token'], $token)) {
             $_SESSION['flash_error'] = 'Security verification failed (invalid CSRF token).';
-            return Response::redirect('/admin/settings');
+            return $this->redirectToSettingsTab($request, 'smtp');
         }
 
         $userId = isset($_SESSION['auth_user_id']) ? (int)$_SESSION['auth_user_id'] : null;
@@ -508,10 +543,10 @@ class SettingController
         $recipient = trim((string)$request->post('test_email', ''));
         if (!filter_var($recipient, FILTER_VALIDATE_EMAIL) || strpbrk($recipient, "\r\n\t") !== false) {
             $_SESSION['flash_error'] = 'Please enter a valid recipient email address for the test email.';
-            return Response::redirect('/admin/settings');
+            return $this->redirectToSettingsTab($request, 'smtp');
         }
 
-        $siteName = (string)Setting::get('general', 'site_name', 'Favorite CMS');
+        $siteName = (string)Setting::get('general', 'site_name', 'Website');
         $senderName = \FavoriteCMS\Services\MailService::resolveFromName();
         $senderEmail = \FavoriteCMS\Services\MailService::resolveFromEmail();
 
@@ -535,7 +570,7 @@ class SettingController
             $_SESSION['flash_error'] = "Mail transport failed to send the test message. Please verify the configured mail settings.{$serverDetail}";
         }
 
-        return Response::redirect('/admin/settings');
+        return $this->redirectToSettingsTab($request, 'smtp');
     }
 
     public function testSmtpConnection(Request $request): Response
@@ -543,7 +578,7 @@ class SettingController
         $token = (string)$request->post('_token', '');
         if (empty($_SESSION['_token']) || !hash_equals($_SESSION['_token'], $token)) {
             $_SESSION['flash_error'] = 'Security verification failed (invalid CSRF token).';
-            return Response::redirect('/admin/settings');
+            return $this->redirectToSettingsTab($request, 'smtp');
         }
 
         $userId = isset($_SESSION['auth_user_id']) ? (int)$_SESSION['auth_user_id'] : null;
@@ -565,7 +600,7 @@ class SettingController
 
         if ($host === '') {
             $_SESSION['flash_error'] = 'Please specify an SMTP Host before testing the connection.';
-            return Response::redirect('/admin/settings');
+            return $this->redirectToSettingsTab($request, 'smtp');
         }
 
         try {
@@ -589,7 +624,7 @@ class SettingController
             $_SESSION['flash_error'] = "✗ SMTP configuration error: " . htmlspecialchars($e->getMessage(), ENT_QUOTES, 'UTF-8');
         }
 
-        return Response::redirect('/admin/settings');
+        return $this->redirectToSettingsTab($request, 'smtp');
     }
 
     public function startGoogleAuth(Request $request): Response
@@ -597,7 +632,7 @@ class SettingController
         $token = (string)$request->post('_token', '');
         if (empty($_SESSION['_token']) || !hash_equals($_SESSION['_token'], $token)) {
             $_SESSION['flash_error'] = 'Security verification failed (invalid CSRF token).';
-            return Response::redirect('/admin/settings');
+            return $this->redirectToSettingsTab($request, 'smtp');
         }
 
         $userId = isset($_SESSION['auth_user_id']) ? (int)$_SESSION['auth_user_id'] : null;
@@ -613,7 +648,7 @@ class SettingController
                 $normalizedGateway = GoogleOAuthService::normalizeGatewayUrl($rawGatewayUrl);
                 if (!GoogleOAuthService::validateGatewayUrl($normalizedGateway) || strpbrk($normalizedGateway, "\r\n\t") !== false) {
                     $_SESSION['flash_error'] = 'Invalid Google OAuth Gateway URL format. Must be a valid HTTPS URL without credentials, query parameters, or fragments (HTTP allowed for localhost only).';
-                    return Response::redirect('/admin/settings');
+                    return $this->redirectToSettingsTab($request, 'smtp');
                 }
                 Setting::set('email', 'google_gateway_url', $normalizedGateway);
             } else {
@@ -625,12 +660,12 @@ class SettingController
         if (GoogleOAuthService::isGatewayMode()) {
             if (!GoogleOAuthService::isGatewayConfigured()) {
                 $_SESSION['flash_error'] = 'Google OAuth Gateway is not configured. Please enter and save your Google OAuth Gateway URL in the settings below, or configure Custom Google Cloud credentials.';
-                return Response::redirect('/admin/settings');
+                return $this->redirectToSettingsTab($request, 'smtp');
             }
         } else {
             if (!GoogleOAuthService::hasClientId() || !GoogleOAuthService::hasClientSecret()) {
                 $_SESSION['flash_error'] = 'Please enter and save both your Google Client ID and Client Secret before connecting in Custom GCP mode.';
-                return Response::redirect('/admin/settings');
+                return $this->redirectToSettingsTab($request, 'smtp');
             }
         }
 
@@ -639,7 +674,7 @@ class SettingController
             $authUrl = GoogleOAuthService::buildAuthUrl($state);
         } catch (\Throwable $e) {
             $_SESSION['flash_error'] = 'Failed to initiate Google OAuth: ' . htmlspecialchars($e->getMessage(), ENT_QUOTES, 'UTF-8');
-            return Response::redirect('/admin/settings');
+            return $this->redirectToSettingsTab($request, 'smtp');
         }
 
         return Response::redirect($authUrl);
@@ -656,13 +691,13 @@ class SettingController
         $error = (string)$request->get('error', '');
         if ($error !== '') {
             $_SESSION['flash_error'] = 'Google authentication was not completed: ' . htmlspecialchars($error, ENT_QUOTES, 'UTF-8');
-            return Response::redirect('/admin/settings');
+            return $this->redirectToSettingsTab($request, 'smtp');
         }
 
         $state = (string)$request->get('state', '');
         if ($state === '') {
             $_SESSION['flash_error'] = 'Missing OAuth state token. Please try again.';
-            return Response::redirect('/admin/settings');
+            return $this->redirectToSettingsTab($request, 'smtp');
         }
 
         $ticket = (string)$request->get('ticket', '');
@@ -670,7 +705,7 @@ class SettingController
 
         if ($ticket === '' && $code === '') {
             $_SESSION['flash_error'] = 'Missing authorization ticket or code from Google OAuth.';
-            return Response::redirect('/admin/settings');
+            return $this->redirectToSettingsTab($request, 'smtp');
         }
 
         try {
@@ -681,7 +716,7 @@ class SettingController
                 // Custom GCP Mode: direct authorization code exchange
                 if (!GoogleOAuthService::validateState($state)) {
                     $_SESSION['flash_error'] = 'Invalid or expired Google OAuth state token. Please try again.';
-                    return Response::redirect('/admin/settings');
+                    return $this->redirectToSettingsTab($request, 'smtp');
                 }
                 $result = GoogleOAuthService::exchangeCode($code);
             }
@@ -697,7 +732,7 @@ class SettingController
             $_SESSION['flash_error'] = "Google connection error: " . htmlspecialchars($e->getMessage(), ENT_QUOTES, 'UTF-8');
         }
 
-        return Response::redirect('/admin/settings');
+        return $this->redirectToSettingsTab($request, 'smtp');
     }
 
     public function disconnectGoogle(Request $request): Response
@@ -705,7 +740,7 @@ class SettingController
         $token = (string)$request->post('_token', '');
         if (empty($_SESSION['_token']) || !hash_equals($_SESSION['_token'], $token)) {
             $_SESSION['flash_error'] = 'Security verification failed (invalid CSRF token).';
-            return Response::redirect('/admin/settings');
+            return $this->redirectToSettingsTab($request, 'smtp');
         }
 
         $userId = isset($_SESSION['auth_user_id']) ? (int)$_SESSION['auth_user_id'] : null;
@@ -721,7 +756,7 @@ class SettingController
         }
 
         $_SESSION['flash_success'] = 'Google Mail has been disconnected successfully.';
-        return Response::redirect('/admin/settings');
+        return $this->redirectToSettingsTab($request, 'smtp');
     }
 
     public function testGoogleConnection(Request $request): Response
@@ -729,7 +764,7 @@ class SettingController
         $token = (string)$request->post('_token', '');
         if (empty($_SESSION['_token']) || !hash_equals($_SESSION['_token'], $token)) {
             $_SESSION['flash_error'] = 'Security verification failed (invalid CSRF token).';
-            return Response::redirect('/admin/settings');
+            return $this->redirectToSettingsTab($request, 'smtp');
         }
 
         $userId = isset($_SESSION['auth_user_id']) ? (int)$_SESSION['auth_user_id'] : null;
@@ -740,14 +775,14 @@ class SettingController
 
         if (!GoogleOAuthService::isConnected()) {
             $_SESSION['flash_error'] = 'Google Mail is not connected. Please connect your Google account before testing.';
-            return Response::redirect('/admin/settings');
+            return $this->redirectToSettingsTab($request, 'smtp');
         }
 
         try {
             $tokenValue = GoogleOAuthService::getValidAccessToken();
             if ($tokenValue === null || $tokenValue === '') {
                 $_SESSION['flash_error'] = 'Failed to refresh Google OAuth access token. Please reconnect your Google account.';
-                return Response::redirect('/admin/settings');
+                return $this->redirectToSettingsTab($request, 'smtp');
             }
 
             $accountEmail = GoogleOAuthService::getAccountEmail();
@@ -776,7 +811,7 @@ class SettingController
             $_SESSION['flash_error'] = "✗ Google connection error: " . htmlspecialchars($e->getMessage(), ENT_QUOTES, 'UTF-8');
         }
 
-        return Response::redirect('/admin/settings');
+        return $this->redirectToSettingsTab($request, 'smtp');
     }
 }
 

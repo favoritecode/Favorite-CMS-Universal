@@ -1,6 +1,6 @@
 <?php
 /**
- * Favorite CMS Universal — Standalone Core Fallback Index View
+ * site software — Standalone Core Fallback Index View
  *
  * Rendered when no external theme is active or when themes are decoupled.
  *
@@ -12,8 +12,8 @@
  * @var int $totalPosts
  */
 
-$siteName = (string)\FavoriteCMS\Models\Setting::get('general', 'site_name', 'Favorite CMS Universal');
-$siteDesc = (string)\FavoriteCMS\Models\Setting::get('general', 'site_description', 'One CMS. Any Website.');
+$siteName = (string)\FavoriteCMS\Models\Setting::get('general', 'site_name', 'site software');
+$siteDesc = (string)\FavoriteCMS\Models\Setting::get('general', 'site_description', 'One site. Any Website.');
 $base = (string)($GLOBALS['favorite_cms_base_path'] ?? '');
 $currentVersion = defined('APP_VERSION') ? APP_VERSION : '1.0.0';
 ?>
@@ -286,10 +286,10 @@ $currentVersion = defined('APP_VERSION') ? APP_VERSION : '1.0.0';
             </article>
         <?php else: ?>
             <div class="hero">
-                <span class="hero-badge">Favorite CMS Universal v<?php echo htmlspecialchars($currentVersion); ?></span>
+                <span class="hero-badge">site software v<?php echo htmlspecialchars($currentVersion); ?></span>
                 <h2>Welcome to Your New Website</h2>
                 <p>
-                    Your Favorite CMS Universal Core is active and operational. Themes and plugins are fully decoupled for speed, reliability, and security. You can install official themes and plugins at any time from your administration panel.
+                    Your site software is active and operational. Themes and plugins are fully decoupled for speed, reliability, and security. You can install official themes and plugins at any time from your administration panel.
                 </p>
                 <div class="hero-actions">
                     <a href="<?php echo $base; ?>/admin">Go to Admin Dashboard &rarr;</a>
@@ -330,7 +330,7 @@ $currentVersion = defined('APP_VERSION') ? APP_VERSION : '1.0.0';
 
     <footer>
         <div class="container">
-            <p style="margin: 0 0 6px 0;">Powered by <a href="https://github.com/favoritecode/Favorite-CMS-Universal" target="_blank" rel="noopener" style="color: var(--primary); text-decoration: none;">Favorite CMS Universal</a> v<?php echo htmlspecialchars($currentVersion); ?></p>
+            
             <p style="margin: 0;">&copy; <?php echo date('Y'); ?> <?php echo htmlspecialchars($siteName); ?>. All rights reserved.</p>
         </div>
     </footer>

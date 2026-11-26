@@ -112,13 +112,9 @@ class ToolController
             return Response::make('Backup file not found.', 404);
         }
 
-        $response = Response::make((string)file_get_contents($filePath), 200);
-        $response->header('Content-Type', 'application/zip');
-        $response->header('Content-Disposition', 'attachment; filename="' . $safeName . '"');
-        $response->header('Content-Length', (string)filesize($filePath));
-        $response->header('Cache-Control', 'no-store, no-cache, must-revalidate');
-
-        return $response;
+        $real=realpath($filePath);$base=realpath(APP_ROOT.'/storage/backups');
+        if(is_link($filePath)||!$real||!$base||dirname($real)!==$base)return Response::make('Invalid backup file request.',400);
+        return new \FavoriteCMS\Core\FileDownloadResponse($real,$safeName,'application/zip');
     }
 
     public function deleteBackup(Request $request): Response
@@ -143,10 +139,11 @@ class ToolController
     public function restoreBackup(Request $request): Response
     {
         $this->validateCsrf($request);
+        if ((new \FavoriteCMS\Services\Update\UpdateManager($this->app))->isExecutionRunning()) return Response::make('A software update is running. Wait until it finishes before restoring site data.', 409);
 
         $file = $_FILES['restore_file'] ?? null;
         if (!$file || empty($file['tmp_name']) || $file['error'] !== UPLOAD_ERR_OK) {
-            $_SESSION['_flash_error'] = 'Please select a valid Favorite CMS backup (.zip) archive to restore.';
+            $_SESSION['_flash_error'] = 'Please select a valid site backup (.zip) archive to restore.';
             return Response::redirect('/admin/tools');
         }
 
@@ -174,6 +171,8 @@ class ToolController
                 true
             );
 
+            (new \FavoriteCMS\Services\Update\UpdateManager($this->app))->acknowledgeDatabaseRestore();
+
             $_SESSION['_flash_notice'] = "Site successfully restored! {$result['tables_restored']} tables restored; {$result['migrated_urls']} URL references migrated." . (!empty($result['warnings']) ? ' ' . implode(' ', $result['warnings']) : '');
         } catch (Throwable $e) {
             $_SESSION['_flash_error'] = "Restore failed: " . $e->getMessage();
@@ -184,28 +183,12 @@ class ToolController
 
     public function export(Request $request): Response
     {
-        $db = $this->app->make(Database::class);
-        $tables = $db->select('SHOW TABLES');
-
-        $backup = [
-            'cms_version' => defined('APP_VERSION') ? APP_VERSION : '1.0.0-beta',
-            'exported_at' => date('c'),
-            'tables'      => [],
-        ];
-
-        foreach ($tables as $t) {
-            $tableName = array_values((array)$t)[0];
-            $rows = $db->select("SELECT * FROM `{$tableName}`");
-            $backup['tables'][$tableName] = $rows;
-        }
-
-        $json = json_encode($backup, JSON_PRETTY_PRINT);
-        $filename = 'favorite_cms_backup_' . date('Y-m-d_His') . '.json';
-
-        $response = Response::make((string)$json, 200);
-        $response->header('Content-Type', 'application/json');
-        $response->header('Content-Disposition', 'attachment; filename="' . $filename . '"');
-        return $response;
+        $path=APP_ROOT.'/storage/backups/database-export-'.bin2hex(random_bytes(16)).'.sql';
+        try{
+            if(function_exists('set_time_limit'))@set_time_limit(300);
+            $db=$this->app->make(Database::class);$this->backupService->dumpDatabase($db->getPdo(),$db->prefix(),$path);
+            return new \FavoriteCMS\Core\FileDownloadResponse($path,'favorite_cms_database_'.date('Y-m-d_His').'.sql','application/sql',true);
+        }catch(Throwable $e){if(is_file($path))@unlink($path);$_SESSION['_flash_error']='Database export failed; no incomplete dump was offered. '.mb_substr(strip_tags($e->getMessage()),0,350);return Response::redirect('/admin/tools');}
     }
 
     public function bloggerImportPreview(Request $request): Response

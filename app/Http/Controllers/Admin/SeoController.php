@@ -24,7 +24,7 @@ class SeoController
 
         $seo = [
             'separator'                  => Setting::get('seo', 'title_separator', '—'),
-            'meta_description'           => Setting::get('seo', 'meta_description', 'Welcome to our website powered by Favorite CMS.'),
+            'meta_description'           => Setting::get('seo', 'meta_description', 'Welcome to our website.'),
             'og_image'                   => Setting::get('seo', 'og_image', ''),
             'robots_txt'                 => Setting::get('seo', 'robots_txt', $defaultRobots),
             'google_site_verification'   => Setting::get('seo', 'google_site_verification', ''),

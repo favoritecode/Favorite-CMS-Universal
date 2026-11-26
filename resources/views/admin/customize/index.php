@@ -1,6 +1,6 @@
 <?php
 /**
- * Generic Fallback Customizer View — Favorite CMS Universal Core
+ * Generic Fallback Customizer View — site software
  * Rendered inside the master Fullscreen Customizer Shell for themes without a customizer.php.
  */
 

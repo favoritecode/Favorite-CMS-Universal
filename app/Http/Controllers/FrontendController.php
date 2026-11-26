@@ -77,7 +77,7 @@ class FrontendController
         }
 
         $seo = $post->getSeoMeta();
-        $siteTitle = Setting::get('general', 'site_name', 'Favorite CMS');
+        $siteTitle = Setting::get('general', 'site_name', 'Website');
         $sep = Setting::get('seo', 'title_separator', '—');
         $metaTitle = ($seo && $seo->meta_title) ? $seo->meta_title : "{$post->title} {$sep} {$siteTitle}";
         $metaDesc = ($seo && $seo->meta_description) ? $seo->meta_description : $post->excerpt;
@@ -114,7 +114,7 @@ class FrontendController
     protected function renderPage(Page $page): Response
     {
         $seo = $page->getSeoMeta();
-        $siteTitle = Setting::get('general', 'site_name', 'Favorite CMS');
+        $siteTitle = Setting::get('general', 'site_name', 'Website');
         $sep = Setting::get('seo', 'title_separator', '—');
         $metaTitle = ($seo && $seo->meta_title) ? $seo->meta_title : "{$page->title} {$sep} {$siteTitle}";
         $metaDesc = ($seo && $seo->meta_description) ? $seo->meta_description : '';
@@ -356,7 +356,7 @@ class FrontendController
 
     protected function siteTitle(): string
     {
-        return (string)Setting::get('general', 'site_name', 'Favorite CMS');
+        return (string)Setting::get('general', 'site_name', 'Website');
     }
 
     protected function titleSeparator(): string

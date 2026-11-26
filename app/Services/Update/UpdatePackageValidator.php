@@ -141,6 +141,15 @@ class UpdatePackageValidator
                 return $contents !== false ? $contents : null;
             };
 
+            // Only publisher-signed mandatory-connection builds can replace this protected runtime.
+            if(!function_exists('sodium_crypto_sign_verify_detached'))throw new SecurityException('PHP sodium is required to verify the publisher signature.');
+            $integrity=json_decode((string)$getArchiveFile('app/Security/core-integrity.json'),true);
+            if(!is_array($integrity)||!is_array($integrity['files']??null))throw new SecurityException('A signed protected-core manifest is required.');
+            $files=$integrity['files'];$sig=base64_decode((string)($integrity['signature']??''),true);$message=json_encode($files,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);
+            if(!is_string($sig)||strlen($sig)!==64||!sodium_crypto_sign_verify_detached($sig,$message,base64_decode(\FavoriteCMS\Central\Authority::PUBLISHER_PUBLIC,true)))throw new SecurityException('Publisher signature is invalid.');
+            foreach(['app/Central/Authority.php','app/Central/LocalAddress.php','app/Central/LocalEnrollment.php','app/Central/AccountDirectory.php','app/Central/Recovery.php','app/Central/Bridge.php','app/Central/Client.php','app/Core/Kernel.php']as$required)if(!isset($files[$required]))throw new SecurityException('This release does not preserve the current signed registration and account-directory support.');
+            foreach($files as$name=>$digest){$bytes=$getArchiveFile($name);if(!is_string($name)||str_contains($name,'..')||!is_string($digest)||!is_string($bytes)||!hash_equals($digest,hash('sha256',$bytes)))throw new SecurityException('Protected source differs from the signed release.');}
+
             // 3. Inspect release.json or manifest.json if present
             $manifestJson = $getArchiveFile('release.json') ?? $getArchiveFile('manifest.json');
             if ($manifestJson !== null) {

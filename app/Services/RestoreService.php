@@ -102,6 +102,12 @@ class RestoreService
                 }
                 $checksumStatus = 'verified';
             }
+            if(($manifest['manifest_version']??1)>=2){
+                if(($manifest['files_prefix']??'')!=='files/')throw new RuntimeException('Backup file layout is invalid.');
+                if(!is_array($manifest['files']??null)||count($manifest['files'])!==($manifest['file_count']??-1))throw new RuntimeException('Backup file inventory is invalid.');
+                $seen=[];for($i=0;$i<$zip->numFiles;$i++){$name=$zip->getNameIndex($i);if(isset($seen[$name]))throw new RuntimeException('Backup contains duplicate archive entries.');$seen[$name]=true;if(str_ends_with($name,'/'))continue;if(!in_array($name,['manifest.json','database.sql'],true)&&(!str_starts_with($name,'files/')||!array_key_exists($name,$manifest['files'])))throw new RuntimeException('Backup contains a file without a checksum inventory entry.');}
+                foreach($manifest['files']as$name=>$entry){$stream=$zip->getStream($name);if(!$stream)throw new RuntimeException('Backup is missing a website file.');$hash=hash_init('sha256');$bytes=hash_update_stream($hash,$stream);fclose($stream);if($bytes!==($entry['size']??-1)||!hash_equals((string)($entry['sha256']??''),hash_final($hash)))throw new RuntimeException('Backup website file checksum mismatch.');}
+            }
             $size = filesize($zipPath);
 
             return [
@@ -150,8 +156,8 @@ class RestoreService
         $pdo = $targetDb->getPdo();
 
         // 2. Check for existing tables with target prefix
-        $existingStmt = $pdo->query("SHOW TABLES LIKE '{$targetPrefix}%'");
-        $existingTables = $existingStmt->fetchAll(PDO::FETCH_COLUMN);
+        $existingStmt = $pdo->query('SHOW TABLES');
+        $existingTables = array_values(array_filter($existingStmt->fetchAll(PDO::FETCH_COLUMN),static fn($name)=>str_starts_with((string)$name,$targetPrefix)));
 
         if (!empty($existingTables) && !$confirmOverwrite) {
             return [
@@ -204,6 +210,8 @@ class RestoreService
             // 6. Restore media files to public/uploads
             for ($i = 0; $i < $zip->numFiles; $i++) {
                 $entryName = $zip->getNameIndex($i);
+                $archiveEntryName=$entryName;
+                if(($manifest['files_prefix']??'')==='files/') {if(!str_starts_with($entryName,'files/'))continue;$entryName=substr($entryName,6);}
 
                 // Extract public/uploads/
                 if (str_starts_with($entryName, 'public/uploads/')) {
@@ -214,7 +222,7 @@ class RestoreService
                         if (!is_dir($destDir)) {
                             @mkdir($destDir, 0775, true);
                         }
-                        copy("zip://{$zipPath}#{$entryName}", $destPath);
+                        if(!copy("zip://{$zipPath}#{$archiveEntryName}", $destPath))throw new RuntimeException("A backup file could not be restored: ".$entryName);
                     }
                 }
 
@@ -227,7 +235,7 @@ class RestoreService
                         if (!is_dir($destDir)) {
                             @mkdir($destDir, 0775, true);
                         }
-                        copy("zip://{$zipPath}#{$entryName}", $destPath);
+                        if(!copy("zip://{$zipPath}#{$archiveEntryName}", $destPath))throw new RuntimeException("A backup file could not be restored: ".$entryName);
                     }
                 }
 
@@ -240,7 +248,7 @@ class RestoreService
                         if (!is_dir($destDir)) {
                             @mkdir($destDir, 0775, true);
                         }
-                        copy("zip://{$zipPath}#{$entryName}", $destPath);
+                        if(!copy("zip://{$zipPath}#{$archiveEntryName}", $destPath))throw new RuntimeException("A backup file could not be restored: ".$entryName);
                     }
                 }
             }
@@ -272,42 +280,20 @@ class RestoreService
      */
     protected function executeSqlDump(PDO $pdo, string $sqlFile, string $oldPrefix, string $targetPrefix): void
     {
-        $handle = fopen($sqlFile, 'r');
-        if (!$handle) {
-            throw new RuntimeException("Could not open SQL dump file for execution: {$sqlFile}");
-        }
-
-        $pdo->exec('SET FOREIGN_KEY_CHECKS=0;');
-        $pdo->exec('SET NAMES utf8mb4;');
-
-        $currentQuery = '';
-        $prefixDiffers = ($oldPrefix !== $targetPrefix && $oldPrefix !== '');
-
-        while (($line = fgets($handle)) !== false) {
-            $trimmed = trim($line);
-            if ($trimmed === '' || str_starts_with($trimmed, '--') || str_starts_with($trimmed, '/*')) {
-                continue;
-            }
-
-            if ($prefixDiffers) {
-                // Safely translate backtick table names
-                $line = str_replace('`' . $oldPrefix, '`' . $targetPrefix, $line);
-            }
-
-            $currentQuery .= $line;
-
-            if (str_ends_with($trimmed, ';')) {
-                $pdo->exec($currentQuery);
-                $currentQuery = '';
+        $map=[];
+        if($oldPrefix!==$targetPrefix&&$oldPrefix!==''){
+            // Build one object map before execution, including unquoted routine references.
+            foreach(SqlDumpScript::statements($sqlFile)as$sql){
+                if(preg_match('/^CREATE\s+(?:ALGORITHM=\S+\s+)?(?:SQL\s+SECURITY\s+\w+\s+)?(?:TABLE|VIEW|PROCEDURE|FUNCTION|TRIGGER|EVENT)\s+(?:IF\s+NOT\s+EXISTS\s+)?(?:`((?:``|[^`])+)`|([A-Za-z0-9_]+))/i',$sql,$m)){
+                    $name=str_replace('``','`',($m[1]??'')!==''?$m[1]:($m[2]??''));if(str_starts_with($name,$oldPrefix))$map[$name]=$targetPrefix.substr($name,strlen($oldPrefix));
+                }
             }
         }
+        $oldFk=$pdo->query('SELECT @@FOREIGN_KEY_CHECKS')->fetchColumn();
+        $pdo->exec('SET FOREIGN_KEY_CHECKS=0;');$pdo->exec('SET NAMES utf8mb4;');
+        try{foreach(SqlDumpScript::statements($sqlFile)as$sql)$pdo->exec(SqlDumpScript::identifiers($sql,$map));}
+        finally{$pdo->exec('SET FOREIGN_KEY_CHECKS='.(int)$oldFk);}
 
-        if (trim($currentQuery) !== '') {
-            $pdo->exec($currentQuery);
-        }
-
-        $pdo->exec('SET FOREIGN_KEY_CHECKS=1;');
-        fclose($handle);
     }
 
     /**

@@ -1,6 +1,6 @@
 <?php
 /**
- * Favorite CMS Universal — Standalone Core Fallback Archive View
+ * site software — Standalone Core Fallback Archive View
  *
  * Rendered when no external theme is active or when themes are decoupled.
  */

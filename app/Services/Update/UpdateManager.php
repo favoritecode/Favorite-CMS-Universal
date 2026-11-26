@@ -112,13 +112,20 @@ class UpdateManager
 
     public function isUpdateInProgress(): bool
     {
-        if (($this->getState()['state'] ?? '') === self::STATE_RECOVERY_REQUIRED && $this->maintenance->isActive()) {
+        $state = $this->getState();
+        if (($state['state'] ?? '') === self::STATE_RECOVERY_REQUIRED && $this->maintenance->isActive()) return true;
+        $running = $this->isExecutionRunning();
+        if (!$running && $this->maintenance->isActive() && !empty($state['database_rollback_required']) && !in_array($state['state'] ?? '', [self::STATE_COMPLETED, self::STATE_FAILED], true)) {
+            $this->updateState(self::STATE_RECOVERY_REQUIRED, ['error' => 'An interrupted database migration needs the saved database backup restored before file repair.']);
             return true;
         }
-        if (!is_file($this->lockFile)) {
-            return false;
-        }
+        return $running;
+    }
 
+    /** A real running update lock, distinct from a persisted recovery-required state. */
+    public function isExecutionRunning(): bool
+    {
+        if (!is_file($this->lockFile)) return false;
         $lockData = $this->getLockData();
         if ($lockData === null) {
             return false;
@@ -361,6 +368,9 @@ class UpdateManager
      */
     public function runUpdate(string $zipPath, array $options = []): array
     {
+        // Request-local, bounded update budget; shared-host hard limits still apply.
+        if (function_exists('set_time_limit')) @set_time_limit(300);
+        if (function_exists('ignore_user_abort')) @ignore_user_abort(true);
         if ($this->isUpdateInProgress()) {
             throw new RuntimeException('An update or recovery is already in progress. Complete recovery before trying another update.');
         }
@@ -397,6 +407,26 @@ class UpdateManager
         $filesTouched = false;
         $databaseMayHaveChanged = false;
         $maintenanceEnabled = false;
+        $pipelineFinished = false;
+        register_shutdown_function(function () use (&$pipelineFinished, &$filesTouched, &$databaseMayHaveChanged, $sessionId): void {
+            if ($pipelineFinished) return;
+            $last = error_get_last();
+            if (!$last || !in_array($last['type'], [E_ERROR, E_USER_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR], true)) return;
+            $lock = $this->getLockData();
+            if (($lock['session_id'] ?? '') !== $sessionId) return;
+            try {
+                if (function_exists('set_time_limit')) @set_time_limit(15);
+                $this->updateState($databaseMayHaveChanged ? self::STATE_RECOVERY_REQUIRED : self::STATE_FAILED, [
+                    'error' => 'The update was interrupted. Keep maintenance enabled and use administrator recovery with the saved backup/official ZIP.',
+                    'interrupted' => true,
+                    'files_may_have_changed' => $filesTouched,
+                    'database_rollback_required' => $databaseMayHaveChanged,
+                ]);
+                if (!$this->maintenance->isActive()) $this->maintenance->enable(['phase' => 'INTERRUPTED_UPDATE']);
+                $this->log('Interrupted update recorded; repair login remains available.');
+                $this->releaseLock();
+            } catch (Throwable) { /* Host hard termination can prevent shutdown recovery; retain backups. */ }
+        });
 
         try {
             // 3. Pre-Update Health Check
@@ -495,6 +525,7 @@ class UpdateManager
                     }
                 }
             }
+            $this->updateState(self::STATE_MIGRATIONS_STARTED, ['database_rollback_required' => $databaseMayHaveChanged]);
             $appliedMigrations = $migrator->migrate($this->appRoot . '/database/migrations');
 
             $this->updateState(self::STATE_MIGRATIONS_COMPLETED, [
@@ -519,6 +550,7 @@ class UpdateManager
             $this->updateState(self::STATE_COMPLETED, [
                 'installed_version' => $targetVersion,
                 'completed_at'      => date('c'),
+                'database_rollback_required' => false,
             ]);
 
             // Release lock
@@ -530,6 +562,13 @@ class UpdateManager
 
             // Clear cache
             $this->clearCache();
+
+            // Clear stale central retry timers so upgraded installations reconcile immediately.
+            try {
+                if (class_exists(\FavoriteCMS\Central\Client::class)) {
+                    (new \FavoriteCMS\Central\Client($this->appRoot))->resetRetryTimers();
+                }
+            } catch (Throwable) {}
 
             $this->log("SUCCESS: Core updated to version {$targetVersion}.");
 
@@ -597,7 +636,20 @@ class UpdateManager
             }
 
             throw $e;
+        } finally {
+            $pipelineFinished = true;
         }
+    }
+
+    /** Only call after the authenticated RestoreService has successfully restored the database. */
+    public function acknowledgeDatabaseRestore(): void
+    {
+        $state = $this->getState();
+        if ($this->isExecutionRunning() || ($state['state'] ?? '') !== self::STATE_RECOVERY_REQUIRED) return;
+        $this->updateState(self::STATE_FAILED, [
+            'database_rollback_required' => false,
+            'error' => 'Database backup restored. Upload the complete official signed ZIP to finish file recovery.',
+        ]);
     }
 
     // -------------------------------------------------------------------------
@@ -873,6 +925,15 @@ class UpdateManager
             $pdo = $db->getPdo();
             if ($pdo === null) {
                 $errors[] = 'Database connection could not be established.';
+            }
+
+            // Do not report success while the installed signed runtime would
+            // immediately restrict the site on its next request.
+            $integrity = \FavoriteCMS\Security\CoreIntegrity::report($this->appRoot);
+            if (($integrity['status'] ?? '') !== 'verified') {
+                $errors[] = 'Official core verification failed after update: ' .
+                    ($integrity['reason'] ?? $integrity['status'] ?? 'unavailable') .
+                    (!empty($integrity['failed_file']) ? ' (' . $integrity['failed_file'] . ')' : '');
             }
 
             // 2. Settings check

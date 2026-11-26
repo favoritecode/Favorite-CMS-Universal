@@ -150,7 +150,7 @@
         <div class="form-group seo-pixel-id">
             <label for="meta_pixel_id">Meta Pixel ID</label>
             <input type="text" id="meta_pixel_id" name="meta_pixel_id" class="form-control" style="max-width:100%;" value="<?php echo htmlspecialchars($seo['meta_pixel_id'] ?? '', ENT_QUOTES, 'UTF-8'); ?>" placeholder="e.g. 123456789012345">
-            <span class="description">Enter the numeric Pixel ID from Meta Events Manager. The CMS validates the ID before saving.</span>
+            <span class="description">Enter the numeric Pixel ID from Meta Events Manager. The site validates the ID before saving.</span>
         </div>
 
         </div>

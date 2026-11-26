@@ -26,6 +26,15 @@ class UpdateController
 
     public function index(Request $request): Response
     {
+        if (!empty($GLOBALS['favorite_cms_repair_mode'])) {
+            $state = $this->updateManager->getState();
+            $pendingPackage = $_SESSION['_pending_update_package'] ?? null;
+            $notice = $_SESSION['_flash_notice'] ?? null; $error = $_SESSION['_flash_error'] ?? null;
+            unset($_SESSION['_flash_notice'], $_SESSION['_flash_error']);
+            $inProgress = $this->updateManager->isUpdateInProgress();
+            ob_start(); include APP_ROOT . '/resources/views/admin/updates/repair.php';
+            return Response::make((string)ob_get_clean(), 200, ['Cache-Control' => 'no-store, private']);
+        }
         $forceCheck = ($request->get('refresh') === '1');
         $discovery = $this->updateManager->getDiscovery()->check($forceCheck);
         $extensionUpdates = $this->extensionDiscovery->checkUpdates($forceCheck);
@@ -78,7 +87,7 @@ class UpdateController
             } elseif (!empty($discovery['repair_inspection_error'])) {
                 $_SESSION['_flash_notice'] = 'No newer Core release was found, but missing-file inspection could not be completed. Retry the check or upload the official Core ZIP to repair files.';
             } else {
-                $_SESSION['_flash_notice'] = "Your Favorite CMS Universal installation is up to date (version " . (defined('APP_VERSION') ? APP_VERSION : '1.0.0') . ").";
+                $_SESSION['_flash_notice'] = "Your site software is up to date (version " . (defined('APP_VERSION') ? APP_VERSION : '1.0.0') . ").";
             }
         } catch (Throwable $e) {
             $_SESSION['_flash_error'] = "Failed to check for updates: " . $e->getMessage();
@@ -97,7 +106,7 @@ class UpdateController
         }
 
         if (empty($_FILES['update_package']['name']) || !is_uploaded_file($_FILES['update_package']['tmp_name'])) {
-            $_SESSION['_flash_error'] = "Please select a valid Favorite CMS update ZIP file to upload.";
+            $_SESSION['_flash_error'] = "Please select a valid site update ZIP file to upload.";
             return Response::redirect('/admin/updates');
         }
 

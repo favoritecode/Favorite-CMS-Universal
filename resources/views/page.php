@@ -1,14 +1,14 @@
 <?php
 /**
- * Favorite CMS Universal — Standalone Core Fallback Page View
+ * site software — Standalone Core Fallback Page View
  *
  * Rendered when no external theme is active or when themes are decoupled.
  *
  * @var object|array $page
  */
 
-$siteName = (string)\FavoriteCMS\Models\Setting::get('general', 'site_name', 'Favorite CMS Universal');
-$siteDesc = (string)\FavoriteCMS\Models\Setting::get('general', 'site_description', 'One CMS. Any Website.');
+$siteName = (string)\FavoriteCMS\Models\Setting::get('general', 'site_name', 'site software');
+$siteDesc = (string)\FavoriteCMS\Models\Setting::get('general', 'site_description', 'One site. Any Website.');
 $base = (string)($GLOBALS['favorite_cms_base_path'] ?? '');
 $currentVersion = defined('APP_VERSION') ? APP_VERSION : '1.0.0';
 
@@ -168,7 +168,7 @@ $content = (string)($pageObj->content ?? '');
 
     <footer>
         <div class="container">
-            <p style="margin: 0 0 6px 0;">Powered by <a href="https://github.com/favoritecode/Favorite-CMS-Universal" target="_blank" rel="noopener" style="color: var(--primary); text-decoration: none;">Favorite CMS Universal</a> v<?php echo htmlspecialchars($currentVersion); ?></p>
+            
             <p style="margin: 0;">&copy; <?php echo date('Y'); ?> <?php echo htmlspecialchars($siteName); ?>. All rights reserved.</p>
         </div>
     </footer>

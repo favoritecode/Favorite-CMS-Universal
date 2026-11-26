@@ -5,7 +5,7 @@
             <h1 class="page-title">Settings</h1>
             <p class="settings-page-subtitle">Manage your website configuration from one place.</p>
         </div>
-        <span class="settings-page-badge">CMS Configuration</span>
+        <span class="settings-page-badge">site Configuration</span>
     </div>
     <style>
         .settings-page { width:100%; max-width:none; }
@@ -18,6 +18,8 @@
         .settings-page .form-control { max-width:100%; }
         .settings-page .description { line-height:1.6; }
         .settings-panel[hidden] { display:none !important; }
+        .settings-page [data-mail-mode-panel][hidden] { display:none !important; }
+        @media (max-width:700px) { .settings-page [data-smtp-grid] { grid-template-columns:minmax(0,1fr) !important; } }
         @media (max-width:700px) { .settings-page-header { align-items:flex-start; flex-direction:column; } .settings-page-badge { display:none; } }
     </style>
     <div class="form-card">
@@ -277,7 +279,7 @@
                 <!-- Method Overview & Recommendations -->
                 <div style="background: var(--wp-surface, rgba(0,0,0,0.02)); border: 1px solid var(--wp-border); border-radius: 6px; padding: 12px 14px;">
                     <div style="font-weight: 600; margin-bottom: 6px; color: var(--wp-text-heading, #0f172a);">Supported Email Delivery Methods</div>
-                    <p style="margin: 0 0 8px 0;">Favorite CMS Universal provides four distinct, provider-independent delivery modes to accommodate any hosting environment or email service:</p>
+                    <p style="margin: 0 0 8px 0;">site software provides four distinct, provider-independent delivery modes to accommodate any hosting environment or email service:</p>
                     <ol style="margin: 0; padding-left: 20px;">
                         <li><strong>Auto Detect:</strong> Automatically uses the best active transport in strict hierarchical priority.</li>
                         <li><strong>Continue with Google:</strong> Authenticated Gmail OAuth 2.0/XOAUTH2 delivery without passwords or insecure app passwords.</li>
@@ -303,21 +305,21 @@
                     <ul style="margin: 0; padding-left: 18px; font-size: 12px; color: var(--wp-text-muted, #94a3b8);">
                         <li>No duplicate email is ever sent; only the highest-priority functional transport is dispatched.</li>
                         <li>Auto Detect does not magically discover private SMTP passwords &mdash; you must configure your credentials.</li>
-                        <li>If Google is not connected and SMTP is not configured, CMS may use PHP Mail if the hosting server supports it.</li>
-                        <li>If no transport is available or configured, CMS reports a clear configuration error.</li>
+                        <li>If Google is not connected and SMTP is not configured, site may use PHP Mail if the hosting server supports it.</li>
+                        <li>If no transport is available or configured, site reports a clear configuration error.</li>
                     </ul>
                 </div>
 
                 <!-- 2. Continue with Google -->
                 <div>
                     <h4 style="font-size: 13px; font-weight: 700; margin: 0 0 6px; color: var(--wp-text-heading, #0f172a);">2. Continue with Google (OAuth 2.0 / XOAUTH2)</h4>
-                    <p style="margin: 0 0 6px;">Continue with Google allows Favorite CMS to send email through an authorized Google account using OAuth 2.0/XOAUTH2:</p>
+                    <p style="margin: 0 0 6px;">Continue with Google allows your website to send email through an authorized Google account using OAuth 2.0/XOAUTH2:</p>
                     <ol style="margin: 0 0 8px; padding-left: 20px; font-size: 12px;">
                         <li>Click the <strong>[ Continue with Google ]</strong> button.</li>
                         <li>Sign in to your Google account in the secure authorization window.</li>
                         <li>Approve the requested Gmail send permissions.</li>
-                        <li>Return to Favorite CMS automatically &mdash; Google Mail becomes connected.</li>
-                        <li>CMS stores only the protected credential material required for future sending, encrypted with AES-256-GCM.</li>
+                        <li>Return to your website automatically &mdash; Google Mail becomes connected.</li>
+                        <li>site stores only the protected credential material required for future sending, encrypted with AES-256-GCM.</li>
                         <li>Short-lived access tokens are refreshed over backchannel and kept in memory only.</li>
                     </ol>
                     <div style="background: rgba(59, 130, 246, 0.08); border-left: 3px solid var(--admin-info-border); padding: 8px 10px; border-radius: 4px; font-size: 12px;">
@@ -333,8 +335,8 @@
                         <li>Requires an active project in Google Cloud Console with the Gmail API enabled.</li>
                         <li>Configure an OAuth consent screen and create an OAuth 2.0 Web Application credential.</li>
                         <li>Set the <strong>Authorized redirect URI</strong> to match the CMS-generated callback URL shown under Advanced settings.</li>
-                        <li>Enter your Google Client ID and Google Client Secret into the protected CMS settings fields.</li>
-                        <li>Credentials must never be shared publicly; they are safely stored encrypted in your local CMS database.</li>
+                        <li>Enter your Google Client ID and Google Client Secret into the protected site settings fields.</li>
+                        <li>Credentials must never be shared publicly; they are safely stored encrypted in your local site database.</li>
                     </ul>
                 </div>
 
@@ -423,7 +425,7 @@
                 <div>
                     <h4 style="font-size: 13px; font-weight: 700; margin: 0 0 6px; color: var(--wp-text-heading, #0f172a);">7. Diagnostic Testing Tools</h4>
                     <ul style="margin: 0; padding-left: 18px; font-size: 12px; color: var(--wp-text-muted, #94a3b8);">
-                        <li><strong>Test SMTP Connection:</strong> Checks whether Favorite CMS can connect to the configured SMTP server and complete the required TLS/authentication steps without sending an email. <em>A successful connection test does not guarantee inbox delivery.</em></li>
+                        <li><strong>Test SMTP Connection:</strong> Checks whether your website can connect to the configured SMTP server and complete the required TLS/authentication steps without sending an email. <em>A successful connection test does not guarantee inbox delivery.</em></li>
                         <li><strong>Send Test Email:</strong> Sends an actual test message through the currently selected mail transport. Enter a recipient email, click Send Test Email, and check your inbox and Spam/Junk folder. <em>Distinguish server transport acceptance from inbox delivery.</em></li>
                     </ul>
                 </div>
@@ -469,7 +471,7 @@
                         <li><strong>SMTP:</strong> Directly determines outgoing email delivery through whatever host you configure.</li>
                         <li><strong>MX records:</strong> Primarily handle incoming email destined for your domain.</li>
                         <li><strong>SPF/DKIM/DMARC:</strong> Authenticate that the sending server is authorized by the domain owner.</li>
-                        <li>Favorite CMS does NOT require Blogger IP addresses, old website A records, Cloudflare Email Routing, or any specific hosting provider. For exact requirements, consult your email provider's official SMTP documentation.</li>
+                        <li>your website does NOT require Blogger IP addresses, old website A records, Cloudflare Email Routing, or any specific hosting provider. For exact requirements, consult your email provider's official SMTP documentation.</li>
                     </ul>
                 </div>
 
@@ -484,7 +486,7 @@
         <!-- Sender Fields -->
         <div class="form-group">
             <label for="sender_name">Sender Name</label>
-            <input type="text" id="sender_name" name="sender_name" class="form-control" value="<?php echo htmlspecialchars($settings['sender_name'] ?? '', ENT_QUOTES, 'UTF-8'); ?>" placeholder="<?php echo htmlspecialchars($settings['site_name'] ?? 'Favorite CMS', ENT_QUOTES, 'UTF-8'); ?>">
+            <input type="text" id="sender_name" name="sender_name" class="form-control" value="<?php echo htmlspecialchars($settings['sender_name'] ?? '', ENT_QUOTES, 'UTF-8'); ?>" placeholder="<?php echo htmlspecialchars($settings['site_name'] ?? 'your website', ENT_QUOTES, 'UTF-8'); ?>">
             <span class="description">The display name appearing in the "From" header of outgoing emails. Leave blank to use the Site Title.</span>
         </div>
 
@@ -525,8 +527,21 @@
             </div>
         </div>
 
+        <!-- Display-only mail transport panels. Form fields remain enabled to preserve saved credentials. -->
+        <div data-mail-mode-panel="auto" <?php echo $activeTransport !== 'auto' ? 'hidden' : ''; ?> role="region" aria-label="Automatic mail delivery" style="border:1px solid var(--wp-border);border-radius:6px;padding:16px;margin:16px 0;background:var(--wp-surface,transparent);">
+            <strong style="font-size:14px;">Automatic Mail Delivery</strong>
+            <p class="description" style="margin:8px 0 0;">Auto Detect uses a connected Google account first, then configured SMTP, and finally native PHP Mail where available. To connect Google or edit SMTP credentials, select that transport mode and save its settings.</p>
+            <p class="description" style="margin:8px 0 0;">Google: <strong><?php echo $googleConnected ? 'Connected' : 'Not connected'; ?></strong> &middot; SMTP: <strong><?php echo $smtpConfigured ? 'Configured' : 'Not configured'; ?></strong> &middot; PHP Mail: <strong><?php echo $mailAvailable ? 'Available' : 'Unavailable'; ?></strong></p>
+        </div>
+
+        <div data-mail-mode-panel="mail" <?php echo $activeTransport !== 'mail' ? 'hidden' : ''; ?> role="region" aria-label="PHP Mail delivery" style="border:1px solid var(--wp-border);border-radius:6px;padding:16px;margin:16px 0;background:var(--wp-surface,transparent);">
+            <strong style="font-size:14px;">PHP Mail (Native Server)</strong>
+            <p class="description" style="margin:8px 0 0;">This mode sends through your server's PHP mail() / local mail transfer agent. No Google or external SMTP credentials are needed here. Your hosting provider must configure outbound email delivery for this to work reliably.</p>
+            <p class="description" style="margin:8px 0 0;">Server PHP mail(): <strong><?php echo $mailAvailable ? 'Available' : 'Unavailable'; ?></strong></p>
+        </div>
+
         <!-- Google Mail (OAuth 2.0) Panel -->
-        <div style="border: 1px solid var(--wp-border); border-radius: 6px; padding: 16px; margin: 16px 0; background: var(--wp-surface, transparent);">
+        <div data-mail-mode-panel="google" <?php echo $activeTransport !== 'google' ? 'hidden' : ''; ?> role="region" aria-label="Google Mail settings" style="border: 1px solid var(--wp-border); border-radius: 6px; padding: 16px; margin: 16px 0; background: var(--wp-surface, transparent);">
             <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
                 <div style="display: flex; align-items: center; gap: 8px;">
                     <svg width="20" height="20" viewBox="0 0 24 24">
@@ -550,7 +565,7 @@
 
             <?php if (!$googleConnected): ?>
                 <p style="font-size: 13px; color: var(--wp-text, #334155); margin-bottom: 14px; line-height: 1.5;">
-                    Connect your Google account to send CMS emails. No Google Cloud Console, Client ID, or Client Secret required.
+                    Connect your Google account to send site emails. Use Continue with Google. Your site selects its configured mail service automatically.
                 </p>
                 <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
                     <button type="submit" formmethod="POST" formaction="<?php echo htmlspecialchars(app_url('/admin/settings/google-auth'), ENT_QUOTES, 'UTF-8'); ?>" class="btn btn-primary" style="display: inline-flex; align-items: center; gap: 8px; font-weight: 600; padding: 8px 18px;">
@@ -565,7 +580,7 @@
                 </div>
             <?php else: ?>
                 <p style="font-size: 12px; color: var(--wp-text-muted, #94a3b8); margin-bottom: 12px; line-height: 1.5;">
-                    Your Google account is securely connected. Outgoing CMS emails will be dispatched through Gmail's authenticated infrastructure via XOAUTH2.
+                    Your Google account is securely connected. Outgoing site emails will be dispatched through Gmail's authenticated infrastructure via XOAUTH2.
                 </p>
                 <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 12px;">
                     <button type="submit" formmethod="POST" formaction="<?php echo htmlspecialchars(app_url('/admin/settings/test-google'), ENT_QUOTES, 'UTF-8'); ?>" class="btn btn-secondary">Test Google Connection</button>
@@ -636,7 +651,7 @@
         </div>
 
         <!-- SMTP Configuration Panel -->
-        <div style="border: 1px solid var(--wp-border); border-radius: 6px; padding: 16px; margin: 16px 0; background: var(--wp-surface, transparent);">
+        <div data-mail-mode-panel="smtp" <?php echo $activeTransport !== 'smtp' ? 'hidden' : ''; ?> role="region" aria-label="Manual SMTP settings" style="border: 1px solid var(--wp-border); border-radius: 6px; padding: 16px; margin: 16px 0; background: var(--wp-surface, transparent);">
             <div style="font-size: 14px; font-weight: 600; margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between;">
                 <span>SMTP Server Settings</span>
                 <?php if (!empty($settings['smtp_password_set'])): ?>
@@ -644,7 +659,7 @@
                 <?php endif; ?>
             </div>
 
-            <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 12px; margin-bottom: 12px;">
+            <div data-smtp-grid style="display: grid; grid-template-columns: 2fr 1fr; gap: 12px; margin-bottom: 12px;">
                 <div>
                     <label for="smtp_host" style="font-size: 12px; font-weight: 600;">SMTP Host</label>
                     <input type="text" id="smtp_host" name="smtp_host" class="form-control" value="<?php echo htmlspecialchars($settings['smtp_host'] ?? '', ENT_QUOTES, 'UTF-8'); ?>" placeholder="e.g. smtp.example.com or smtp-relay.example.com">
@@ -655,7 +670,7 @@
                 </div>
             </div>
 
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+            <div data-smtp-grid style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
                 <div>
                     <label for="smtp_encryption" style="font-size: 12px; font-weight: 600;">Encryption</label>
                     <select id="smtp_encryption" name="smtp_encryption" class="form-control">
@@ -670,7 +685,7 @@
                 </div>
             </div>
 
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+            <div data-smtp-grid style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
                 <div>
                     <label for="smtp_username" style="font-size: 12px; font-weight: 600;">SMTP Username</label>
                     <input type="text" id="smtp_username" name="smtp_username" class="form-control" value="<?php echo htmlspecialchars($settings['smtp_username'] ?? '', ENT_QUOTES, 'UTF-8'); ?>" placeholder="e.g. user@example.com" autocomplete="off">
@@ -695,7 +710,7 @@
         <!-- Send Test Email Panel -->
         <div style="border: 1px solid var(--wp-border); border-radius: 6px; padding: 14px 16px; margin: 16px 0 24px; background: var(--wp-surface, transparent);">
             <div style="font-size: 13px; font-weight: 600; margin-bottom: 4px;">Send Test Email</div>
-            <p style="font-size: 12px; color: var(--wp-text-muted, #94a3b8); margin-bottom: 10px;">Send a diagnostic test message through the currently selected transport (<?php echo strtoupper($resolved); ?>) to verify outgoing delivery.</p>
+            <p style="font-size: 12px; color: var(--wp-text-muted, #94a3b8); margin-bottom: 10px;">Send a diagnostic test message using the saved transport (<?php echo strtoupper($resolved); ?>). Save Changes first if you changed the radio selection.</p>
             <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
                 <input type="email" id="test_email" name="test_email" class="form-control" style="max-width: 320px;" placeholder="recipient@example.com">
                 <button type="submit" formmethod="POST" formaction="<?php echo htmlspecialchars(app_url('/admin/settings/test-email'), ENT_QUOTES, 'UTF-8'); ?>" class="btn btn-secondary">Send Test Email</button>
@@ -803,7 +818,7 @@
                 <option value="page" <?php echo ($settings['page_base'] === 'page') ? 'selected' : ''; ?>>/page/page-title/ (current default)</option>
                 <option value="root" <?php echo ($settings['page_base'] === 'root') ? 'selected' : ''; ?>>/page-title/ (short professional URL)</option>
             </select>
-            <span class="description">Root-level page URLs can conflict with other route names; reserved CMS routes take priority.</span>
+            <span class="description">Root-level page URLs can conflict with other route names; reserved site routes take priority.</span>
         </div>
 
         </section>
@@ -864,7 +879,7 @@
                 </div>
             </div>
             <div style="margin-top: 10px; font-size: 11px; color: var(--wp-text-muted);">
-                The effective server upload limit is determined by the lower of <code>upload_max_filesize</code> and <code>post_max_size</code>. The CMS automatically respects this bottleneck.
+                The effective server upload limit is determined by the lower of <code>upload_max_filesize</code> and <code>post_max_size</code>. The site automatically respects this bottleneck.
             </div>
         </div>
 
@@ -875,7 +890,7 @@
             $adminMb = round($adminBytes / (1024 * 1024), 1);
             ?>
             <input type="number" id="max_upload_size_admin_mb" name="max_upload_size_admin_mb" class="form-control" style="width: 140px;" value="<?php echo $adminMb; ?>" min="1" step="any">
-            <span class="description">Configured CMS allowance for administrators (default 7 GB / 7,168 MB). Effective server cap: <strong><?php echo htmlspecialchars($serverLimits['effective_server_formatted']); ?></strong>.</span>
+            <span class="description">Configured site allowance for administrators (default 7 GB / 7,168 MB). Effective server cap: <strong><?php echo htmlspecialchars($serverLimits['effective_server_formatted']); ?></strong>.</span>
         </div>
 
         <div class="form-group">
@@ -885,7 +900,7 @@
             $modMb = round($modBytes / (1024 * 1024), 1);
             ?>
             <input type="number" id="max_upload_size_moderator_mb" name="max_upload_size_moderator_mb" class="form-control" style="width: 140px;" value="<?php echo $modMb; ?>" min="1" step="any">
-            <span class="description">Configured CMS allowance for moderators and editors (default 500 MB). Strictly capped by server limits.</span>
+            <span class="description">Configured site allowance for moderators and editors (default 500 MB). Strictly capped by server limits.</span>
         </div>
 
         <div class="form-group">
@@ -902,8 +917,39 @@
         <input type="hidden" name="settings_tab" value="<?php echo htmlspecialchars($settingsTab, ENT_QUOTES, 'UTF-8'); ?>">
         <div style="margin-top: 24px;">
             <button type="submit" class="btn btn-primary">Save Changes</button>
-            <span class="description" style="display:block;margin-top:6px;">Settings are saved together to preserve compatibility with existing site configuration.</span>
+            <span class="description" style="display:block;margin-top:6px;">Only the selected tab is saved. Other settings remain unchanged.</span>
         </div>
     </form>
+    <script>
+    (function () {
+      var page = document.querySelector('.settings-page');
+      if (!page) return;
+      var form = page.querySelector('form[action*="/admin/settings/update"]');
+      if (!form) return;
+      // Hide unrelated transport configuration without disabling inputs: the
+      // server-side SMTP save handler persists all transport credentials.
+      var transportInputs = form.querySelectorAll('input[name="email_transport"]');
+      var transportPanels = form.querySelectorAll('[data-mail-mode-panel]');
+      function refreshMailTransportPanels() {
+        var checked = form.querySelector('input[name="email_transport"]:checked');
+        var mode = checked ? checked.value : 'auto';
+        transportPanels.forEach(function (panel) {
+          panel.hidden = panel.getAttribute('data-mail-mode-panel') !== mode;
+        });
+      }
+      transportInputs.forEach(function (radio) { radio.addEventListener('change', refreshMailTransportPanels); });
+      refreshMailTransportPanels();
+      // Inactive panels must not be validated or submitted by the browser.
+      // Server-side tab isolation remains authoritative if JS is unavailable.
+      var selected = form.querySelector('input[name="settings_tab"]');
+      var tab = selected ? selected.value : 'site';
+      form.querySelectorAll('[data-settings-panel]').forEach(function (panel) {
+        var inactive = panel.getAttribute('data-settings-panel') !== tab;
+        panel.querySelectorAll('input, select, textarea, button').forEach(function (control) {
+          if (inactive) control.disabled = true;
+        });
+      });
+    })();
+    </script>
     </div>
 </div>

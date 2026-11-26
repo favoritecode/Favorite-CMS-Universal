@@ -1,6 +1,6 @@
 <?php
 /**
- * Master Fullscreen Customizer Shell — Favorite CMS Universal Core
+ * Master Fullscreen Customizer Shell — site software
  *
  * Provides a dedicated full-viewport visual editing application for /admin/customize.
  * Normal Admin sidebar and topbar are completely excluded.
@@ -18,7 +18,7 @@ $adminTheme = \FavoriteCMS\Services\Appearance::resolve($currentAdminUser);
 $appearancePersist = true;
 $csrfToken = $csrfToken ?? csrf_token();
 $pageTitle = $pageTitle ?? "Customize: {$themeName}";
-$siteName = $siteName ?? 'Favorite CMS';
+$siteName = $siteName ?? 'your website';
 $siteFaviconUrl = $siteFaviconUrl ?? '';
 $isThemeCustomizer = isset($contentView) && is_string($contentView) && file_exists($contentView) && $contentView !== APP_ROOT . '/resources/views/admin/customize/index.php';
 ?>

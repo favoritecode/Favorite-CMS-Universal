@@ -106,6 +106,8 @@ class MaintenanceMode
      */
     public function isBypassed(Request $request): bool
     {
+        // Authentication/recovery entry points remain reachable, not anonymously actionable.
+        if (in_array($request->path(), ['/admin', '/admin/', '/admin/tools', '/admin/login', '/admin/two-step', '/admin/logout', '/admin/connection-status', '/admin/tools/backup/create', '/admin/tools/backup/download', '/admin/tools/restore', '/forgot-password', '/reset-password'], true) || $request->path() === '/admin/updates' || str_starts_with($request->path(), '/admin/updates/')) return true;
         // 1. Check session bypass token
         $meta = $this->getMetadata();
         $expectedToken = $meta['token'] ?? null;

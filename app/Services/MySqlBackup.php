@@ -1,0 +1,46 @@
+<?php
+declare(strict_types=1);
+namespace FavoriteCMS\Services;
+use PDO;
+use RuntimeException;
+final class MySqlBackup {
+ private static function id(string $name):string{return '`'.str_replace('`','``',$name).'`';}
+ private static function portable(string $ddl,string $schema):string{
+  $ddl=preg_replace('/^(CREATE\s+(?:ALGORITHM=\S+\s+)?)(?:DEFINER\s*=\s*`(?:``|[^`])*`\s*@\s*`(?:``|[^`])*`\s*)/i','$1',$ddl);return SqlDumpScript::identifiers($ddl,[],$schema);
+ }
+ static function dump(PDO $pdo,string $prefix,string $path):array{
+  if($pdo->getAttribute(PDO::ATTR_DRIVER_NAME)!=='mysql')throw new RuntimeException('This export requires a MySQL/MariaDB database.');
+  if($pdo->inTransaction())throw new RuntimeException('Finish the current database transaction before creating a backup.');
+  $h=fopen($path,'xb');if(!$h)throw new RuntimeException('Database dump could not be created.');@chmod($path,0600);
+  $write=static function(string $s)use($h):void{$n=strlen($s);$offset=0;while($offset<$n){$v=fwrite($h,substr($s,$offset));if($v===false||$v===0)throw new RuntimeException('Database dump could not be completely written.');$offset+=$v;}};
+  $oldMode=(string)$pdo->query('SELECT @@SESSION.sql_mode')->fetchColumn();$oldZone=(string)$pdo->query('SELECT @@SESSION.time_zone')->fetchColumn();$buffered=$pdo->getAttribute(PDO::MYSQL_ATTR_USE_BUFFERED_QUERY);$own=false;$locked=false;$needsLocks=false;
+  try{
+   $schema=(string)$pdo->query('SELECT DATABASE()')->fetchColumn();$pdo->exec("SET SESSION sql_mode='NO_AUTO_VALUE_ON_ZERO'");$pdo->exec("SET SESSION time_zone='+00:00'");$pdo->exec('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ');$pdo->exec('START TRANSACTION WITH CONSISTENT SNAPSHOT');$own=true;
+   $tables=[];$views=[];$columns=[];$definitions=[];$objects=['views'=>[],'triggers'=>[],'procedures'=>[],'functions'=>[],'events'=>[]];
+   foreach($pdo->query('SHOW FULL TABLES')->fetchAll(PDO::FETCH_NUM)as$row){$name=(string)$row[0];if(!str_starts_with($name,$prefix))continue;$kind=strtoupper($row[1]);if($kind==='VIEW'){$views[]=$name;$objects['views'][]=$name;}elseif($kind==='BASE TABLE')$tables[]=$name;else throw new RuntimeException('Unsupported database object: '.$name);}
+   sort($tables);sort($views);foreach(array_merge($tables,$views)as$name){$kind=in_array($name,$views,true)?'VIEW':'TABLE';$r=$pdo->query('SHOW CREATE '.$kind.' '.self::id($name))->fetch(PDO::FETCH_NUM);if(empty($r[1]))throw new RuntimeException('Database structure could not be read: '.$name);$definitions[$name]=self::portable($r[1],$schema);$columns[$name]=$pdo->query('SHOW FULL COLUMNS FROM '.self::id($name))->fetchAll(PDO::FETCH_ASSOC);if($kind==='TABLE'){$st=$pdo->prepare('SELECT ENGINE FROM information_schema.TABLES WHERE TABLE_SCHEMA=? AND TABLE_NAME=?');$st->execute([$schema,$name]);if(strtoupper((string)$st->fetchColumn())!=='INNODB')$needsLocks=true;}}
+   $ddl=[];
+   foreach(['PROCEDURE'=>'procedures','FUNCTION'=>'functions']as$type=>$group){$st=$pdo->prepare('SHOW '.$type.' STATUS WHERE Db=?');$st->execute([$schema]);foreach($st->fetchAll(PDO::FETCH_ASSOC)as$row){$name=$row['Name'];if(!str_starts_with($name,$prefix))continue;$r=$pdo->query('SHOW CREATE '.$type.' '.self::id($name))->fetch(PDO::FETCH_ASSOC);$create=$r['Create '.ucfirst(strtolower($type))]??null;if(!is_string($create)||$create==='')throw new RuntimeException('Permission is missing to back up routine '.$name);$ddl[$group][$name]=['sql'=>self::portable($create,$schema),'mode'=>(string)($r['sql_mode']??'NO_AUTO_VALUE_ON_ZERO')];$objects[$group][]=$name;}}
+   foreach($pdo->query('SHOW TRIGGERS')->fetchAll(PDO::FETCH_ASSOC)as$row){if(!in_array($row['Table'],$tables,true))continue;$name=$row['Trigger'];$r=$pdo->query('SHOW CREATE TRIGGER '.self::id($name))->fetch(PDO::FETCH_ASSOC);$create=$r['SQL Original Statement']??null;if(!$create)throw new RuntimeException('Trigger structure is unavailable: '.$name);$ddl['triggers'][$name]=['sql'=>self::portable($create,$schema),'mode'=>(string)($r['sql_mode']??'NO_AUTO_VALUE_ON_ZERO')];$objects['triggers'][]=$name;}
+   foreach($pdo->query('SHOW EVENTS')->fetchAll(PDO::FETCH_ASSOC)as$row){$name=$row['Name'];if(!str_starts_with($name,$prefix))continue;$r=$pdo->query('SHOW CREATE EVENT '.self::id($name))->fetch(PDO::FETCH_ASSOC);if(empty($r['Create Event']))throw new RuntimeException('Event structure is unavailable: '.$name);$ddl['events'][$name]=['sql'=>self::portable($r['Create Event'],$schema),'mode'=>(string)($r['sql_mode']??'NO_AUTO_VALUE_ON_ZERO'),'zone'=>(string)($r['time_zone']??'+00:00')];$objects['events'][]=$name;}
+   if($needsLocks){$pdo->commit();$own=false;$pdo->exec('LOCK TABLES '.implode(',',array_map(static fn($name)=>self::id($name).' READ',array_merge($tables,$views))));$locked=true;}
+   $write("-- Favorite CMS MySQL/MariaDB backup\n-- Import into the selected database. No CREATE DATABASE or USE statement is included.\nSET @FCP_OLD_FK=@@FOREIGN_KEY_CHECKS, @FCP_OLD_MODE=@@SQL_MODE, @FCP_OLD_TZ=@@TIME_ZONE;\nSET FOREIGN_KEY_CHECKS=0;\nSET SQL_MODE='NO_AUTO_VALUE_ON_ZERO';\nSET TIME_ZONE='+00:00';\nSET NAMES utf8mb4;\n");
+   foreach($views as$name)$write('DROP VIEW IF EXISTS '.self::id($name).";\n");foreach($tables as$name)$write('DROP TABLE IF EXISTS '.self::id($name).";\n".$definitions[$name].";\n");
+   foreach($views as$name){$cols=[];foreach($columns[$name]as$c)$cols[]=self::id($c['Field']).' '.$c['Type'].' NULL';$write('CREATE TABLE '.self::id($name).' ('.implode(',',$cols).");\n");}
+   $summary=[];$total=0;
+   foreach($tables as$name){$names=[];$select=[];$binary=[];$spatial=[];foreach($columns[$name]as$c){if(preg_match('/(?:VIRTUAL|STORED) GENERATED/i',$c['Extra']))continue;$col=$c['Field'];$names[]=$col;$type=strtolower($c['Type']);if(preg_match('/^(?:geometry|point|linestring|polygon|multipoint|multilinestring|multipolygon|geometrycollection)\b/',$type)){$alias='__fcp_srid_'.count($spatial);$spatial[$col]=$alias;$select[]='ST_AsWKB('.self::id($col).') AS '.self::id($col);$select[]='ST_SRID('.self::id($col).') AS '.self::id($alias);}elseif(str_starts_with($type,'bit(')){$select[]='CAST('.self::id($col).' AS UNSIGNED) AS '.self::id($col);$binary[$col]='bit';}else{$select[]=self::id($col);if(preg_match('/^(?:binary|varbinary|tinyblob|blob|mediumblob|longblob|bit)\b/',$type))$binary[$col]=str_starts_with($type,'bit')?'bit':'bytes';}}
+    $pdo->setAttribute(PDO::MYSQL_ATTR_USE_BUFFERED_QUERY,false);$st=$pdo->query('SELECT '.implode(',',$select).' FROM '.self::id($name));$count=0;
+    while($row=$st->fetch(PDO::FETCH_ASSOC)){$values=[];foreach($names as$col){$v=$row[$col];if($v===null)$values[]='NULL';elseif(isset($spatial[$col]))$values[]="ST_GeomFromWKB(X'".bin2hex($v)."',".(int)$row[$spatial[$col]].')';elseif(($binary[$col]??'')==='bit'){$bits=(string)$v;if(!preg_match('/^[0-9]+$/D',$bits))throw new RuntimeException('BIT value could not be encoded.');$values[]=$bits;}elseif(isset($binary[$col]))$values[]="X'".bin2hex($v)."'";else{$quoted=$pdo->quote((string)$v);if($quoted===false)throw new RuntimeException('Database value could not be encoded.');$values[]=$quoted;}}$write('INSERT INTO '.self::id($name).' ('.implode(',',array_map([self::class,'id'],$names)).') VALUES ('.implode(',',$values).");\n");$count++;}
+    $st->closeCursor();$pdo->setAttribute(PDO::MYSQL_ATTR_USE_BUFFERED_QUERY,$buffered);$summary[$name]=$count;$total+=$count;
+   }
+   $complex=static function(array $object)use($write,$pdo):void{$sql=$object['sql'];$write('SET SQL_MODE='.$pdo->quote($object['mode']).";\n");if(isset($object['zone']))$write('SET TIME_ZONE='.$pdo->quote($object['zone']).";\n");do{$end='_FCP_'.bin2hex(random_bytes(4)).'_';}while(str_contains($sql,$end));$write("DELIMITER ".$end."\n".$sql."\n".$end."\nDELIMITER ;\nSET SQL_MODE='NO_AUTO_VALUE_ON_ZERO';\nSET TIME_ZONE='+00:00';\n");};
+   foreach(['procedures'=>'PROCEDURE','functions'=>'FUNCTION']as$group=>$type)foreach($ddl[$group]??[]as$name=>$sql){$write('DROP '.$type.' IF EXISTS '.self::id($name).";\n");$complex($sql);}
+   foreach($views as$name){$write('DROP TABLE '.self::id($name).";\n".$definitions[$name].";\n");$summary[$name]=0;}
+   foreach(['triggers'=>'TRIGGER','events'=>'EVENT']as$group=>$type)foreach($ddl[$group]??[]as$name=>$sql){$write('DROP '.$type.' IF EXISTS '.self::id($name).";\n");$complex($sql);}
+   foreach($definitions as$name=>$sql){$kind=in_array($name,$views,true)?'VIEW':'TABLE';$r=$pdo->query('SHOW CREATE '.$kind.' '.self::id($name))->fetch(PDO::FETCH_NUM);if(self::portable($r[1],$schema)!==$sql)throw new RuntimeException('Database structure changed during backup; retry.');}
+   $write("SET FOREIGN_KEY_CHECKS=@FCP_OLD_FK;\nSET SQL_MODE=@FCP_OLD_MODE;\nSET TIME_ZONE=@FCP_OLD_TZ;\n");if($locked){$pdo->exec('UNLOCK TABLES');$locked=false;}if($own){$pdo->commit();$own=false;}if(!fflush($h))throw new RuntimeException('Database dump could not be flushed.');return ['tables'=>$summary,'total_rows'=>$total,'objects'=>$objects];
+  }catch(\Throwable $e){if(isset($st)&&$st instanceof \PDOStatement)$st->closeCursor();if($own&&$pdo->inTransaction())$pdo->rollBack();throw $e;}
+  finally{if($locked)$pdo->exec('UNLOCK TABLES');$pdo->setAttribute(PDO::MYSQL_ATTR_USE_BUFFERED_QUERY,$buffered);$pdo->exec('SET SESSION sql_mode='.$pdo->quote($oldMode));$pdo->exec('SET SESSION time_zone='.$pdo->quote($oldZone));fclose($h);}
+ }
+}
+
