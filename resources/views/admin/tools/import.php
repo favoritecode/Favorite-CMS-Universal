@@ -6,7 +6,7 @@ $h = static fn ($val): string => htmlspecialchars((string)$val, ENT_QUOTES, 'UTF
         <span>📥</span> Universal Content Import &amp; Migration
     </h1>
     <p style="color: var(--admin-text-muted); font-size: 13px; margin: 4px 0 0;">
-        Migrate your articles, pages, comments, taxonomies, and media assets seamlessly from other platforms into Favorite CMS.
+        Migrate your articles, pages, comments, taxonomies, and media assets seamlessly from other platforms into your website.
     </p>
 </div>
 
@@ -276,7 +276,7 @@ $h = static fn ($val): string => htmlspecialchars((string)$val, ENT_QUOTES, 'UTF
         📊 Platform Migration Readiness Matrix
     </h2>
     <p style="color: var(--admin-text-muted); font-size: 13px; margin: 0 0 16px;">
-        Core audit status for official export formats across major CMS systems.
+        Core audit status for official export formats across major site systems.
     </p>
 
     <table class="wp-table" style="width: 100%; border-collapse: collapse; font-size: 13px;">

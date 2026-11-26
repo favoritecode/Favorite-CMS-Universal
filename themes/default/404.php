@@ -1,5 +1,5 @@
 <?php
-$siteTitle = \FavoriteCMS\Models\Setting::get('general', 'site_name', 'Favorite CMS');
+$siteTitle = \FavoriteCMS\Models\Setting::get('general', 'site_name', 'Website');
 $metaTitle = '404 Page Not Found — ' . $siteTitle;
 $fcdHasSidebar = false;
 require __DIR__ . '/header.php';

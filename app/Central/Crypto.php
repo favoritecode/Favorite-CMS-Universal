@@ -3,7 +3,7 @@ declare(strict_types=1);
 namespace FavoriteCMS\Central;
 final class Crypto {
  static function canonical(array $data):string{
-  $sort=static function(mixed $v)use(&$sort):mixed{if(!is_array($v))return $v;if(!array_is_list($v))ksort($v,SORT_STRING);foreach($v as$k=>$x)$v[$k]=$sort($x);return $v;};
+  $sort=static function(mixed $v)use(&$sort):mixed{if($v instanceof \stdClass)$v=(array)$v;if(!is_array($v))return $v;if(!array_is_list($v))ksort($v,SORT_STRING);foreach($v as$k=>$x)$v[$k]=$sort($x);return $v;};
   return json_encode($sort($data),JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
  }
  static function envelope(array $data,array $config):array{return ['payload'=>$data,'key_id'=>$config['signing_key_id'],'signature'=>base64_encode(sodium_crypto_sign_detached(self::canonical($data),base64_decode($config['signing_secret'],true)))];}

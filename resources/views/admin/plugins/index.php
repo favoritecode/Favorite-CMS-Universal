@@ -40,7 +40,7 @@
             <span style="font-size: 18px;">📦</span>
             <h2 style="font-size: 15px; font-weight: 600; margin: 0; color: var(--wp-text-main);">Upload & Install Plugin</h2>
         </div>
-        <span style="font-size: 12px; color: var(--wp-text-muted);">Supports standard Favorite CMS plugin .zip packages</span>
+        <span style="font-size: 12px; color: var(--wp-text-muted);">Supports standard your website plugin .zip packages</span>
     </div>
     <form method="POST" action="<?php echo htmlspecialchars(site_path('/admin/plugins/upload'), ENT_QUOTES, 'UTF-8'); ?>" enctype="multipart/form-data" id="plugin-upload-form" style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
         <input type="hidden" name="_token" value="<?php echo htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8'); ?>">

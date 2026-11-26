@@ -1,15 +1,17 @@
 <IfModule mod_rewrite.c>
     RewriteEngine On
 
-    # Redirect Trailing Slashes If Not A Folder
+    # Redirect Trailing Slashes If Not A Folder (exempt Central API/service endpoints)
     RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteCond %{REQUEST_URI} !^/(?:public/)?favorite-central-(?:api|setup|recovery|oauth)(?:/|$)
     RewriteCond %{REQUEST_URI} (.+)/$
     RewriteRule ^ %1 [L,R=301]
 
-    # Only the short-lived central ownership challenge is public.
+    # Allow short-lived central ownership challenge and live identity verification.
     RewriteRule ^\.well-known/favorite-central\.json$ - [L]
 
-    # Block access to dotfiles
+    # Block access to dotfiles (except live identity verification routed to PHP)
+    RewriteCond %{REQUEST_URI} !^/(?:public/)?\.well-known/favorite-central-live$
     RewriteRule (^\.|/\.) - [F]
 
     # Block access to specific directories' PHP files

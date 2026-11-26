@@ -1,6 +1,6 @@
 <?php
 /**
- * Favorite CMS Universal — Core Updates Admin View
+ * site software — Core Updates Admin View
  *
  * @var string $currentVersion
  * @var array $discovery
@@ -28,7 +28,7 @@ $base = (string)($GLOBALS['favorite_cms_base_path'] ?? '');
                 </span>
             </h1>
             <p style="color: var(--admin-text-muted); font-size: 13.5px; margin: 0;">
-                Safely upgrade Favorite CMS Universal Core without losing posts, pages, plugins, media, or settings.
+                Safely upgrade site software without losing posts, pages, plugins, media, or settings.
             </p>
         </div>
 
@@ -158,7 +158,7 @@ $base = (string)($GLOBALS['favorite_cms_base_path'] ?? '');
                                 <?php if (!empty($discovery['repair_available']) && empty($discovery['update_available'])): ?>
                                 The current Core package can be re-applied to restore <?php echo count((array)($discovery['missing_core_files'] ?? [])); ?> missing Core file(s).
                             <?php else: ?>
-                                A newer version of Favorite CMS Universal is ready. Published on <?php echo htmlspecialchars(date('M j, Y', strtotime((string)$discovery['published_at']))); ?>.
+                                A newer version of site software is ready. Published on <?php echo htmlspecialchars(date('M j, Y', strtotime((string)$discovery['published_at']))); ?>.
                             <?php endif; ?>
                             </p>
 
@@ -185,7 +185,7 @@ $base = (string)($GLOBALS['favorite_cms_base_path'] ?? '');
                             <div style="font-size: 36px; margin-bottom: 10px;">✅</div>
                             <h4 style="margin: 0 0 6px 0; color: var(--admin-text-heading); font-size: 16px;">No Newer Core Release Found</h4>
                             <p style="color: var(--admin-text-muted); font-size: 13px; margin: 0;">
-                                Installed version: Favorite CMS Universal v<?php echo htmlspecialchars($currentVersion); ?>.
+                                Installed version: site software v<?php echo htmlspecialchars($currentVersion); ?>.
                             </p>
                         </div>
                     <?php endif; ?>
@@ -324,7 +324,7 @@ $base = (string)($GLOBALS['favorite_cms_base_path'] ?? '');
                 </div>
                 <div class="card-body" style="font-size: 12.5px; color: var(--admin-text-muted); line-height: 1.6;">
                     <p style="margin-bottom: 10px;">
-                        Favorite CMS Universal uses a strict allowlist/denylist boundary:
+                        site software uses a strict allowlist/denylist boundary:
                     </p>
                     <ul style="padding-left: 18px; margin-bottom: 12px;">
                         <li><strong>Database:</strong> Preserved completely; only non-destructive additive migrations are run.</li>

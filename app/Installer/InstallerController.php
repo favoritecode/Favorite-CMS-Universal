@@ -216,7 +216,22 @@ class InstallerController
             return $this->show($request, [$installMessage], [], $old, ['review' => [$installMessage]]);
         }
 
+        // Best-effort automatic central enrollment immediately after a fresh install.
+        // Never make the installer dependent on external DNS, SSL or license services.
+        // Subsequent normal requests keep using the existing bounded retry mechanism.
+        $centralFreeLicenseActive = false;
+        try {
+            if (!is_file(APP_ROOT . '/favorite-server-license/bootstrap.php')) {
+                $centralClient = new \FavoriteCMS\Central\Client();
+                $centralClient->autoConnect();
+                $centralFreeLicenseActive = !empty($centralClient->config()['secret']);
+            }
+        } catch (\Throwable) {
+            // Installation completed successfully; connection errors are stored for retry.
+        }
+
         $content = $this->renderView('installer/success', [
+            'centralFreeLicenseActive' => $centralFreeLicenseActive,
             'siteName' => $site['data']['name'],
             'siteUrl' => $site['data']['url'],
             'adminUsername' => $admin['data']['username'],

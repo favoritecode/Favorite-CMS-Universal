@@ -46,269 +46,61 @@ class BackupService
      */
     public function createBackup(array $options = []): array
     {
-        if (!class_exists(ZipArchive::class)) {
-            throw new RuntimeException('The PHP Zip extension is required to create backup archives.');
-        }
-
-        $includeMedia = $options['include_media'] ?? true;
-        $includeThemes = $options['include_themes'] ?? true;
-        $includePlugins = $options['include_plugins'] ?? true;
-
-        $db = app(Database::class);
-        $pdo = $db->getPdo();
-
-        $timestamp = date('Y-m-d_His');
-        $randomSuffix = bin2hex(random_bytes(3));
-        $filename = "favorite_cms_backup_{$timestamp}_{$randomSuffix}.zip";
-        $zipPath = $this->backupDir . '/' . $filename;
-
-        $tempSqlFile = $this->backupDir . "/dump_{$timestamp}_{$randomSuffix}.sql";
-
-        $this->sqliteSnapshots = [];
+        if (!class_exists(ZipArchive::class)) throw new RuntimeException('PHP Zip is required.');
+        if (function_exists('set_time_limit')) @set_time_limit(300);
+        $db = app(Database::class); $suffix = date('Y-m-d_His').'_'.bin2hex(random_bytes(6));
+        $filename='favorite_cms_backup_'.$suffix.'.zip'; $zipPath=$this->backupDir.'/'.$filename; $sql=$this->backupDir.'/dump_'.$suffix.'.sql';
+        $working=$zipPath.'.partial';$zip=new ZipArchive();$opened=false;$this->sqliteSnapshots=[];
         try {
-            // 1. Dump database to SQL file
-            $dumpResult = $this->dumpDatabase($pdo, $db->prefix(), $tempSqlFile);
-
-            // 2. Initialize ZIP archive
-            $zip = new ZipArchive();
-            if ($zip->open($zipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
-                throw new RuntimeException("Could not create backup zip archive at {$zipPath}");
-            }
-
-            // 3. Add database SQL dump
-            $zip->addFile($tempSqlFile, 'database.sql');
-
-            // 4. Collect file inventory and checksums
-            $fileInventory = [];
-            $appRoot = defined('APP_ROOT') ? APP_ROOT : dirname(__DIR__, 2);
-            $appRoot = $this->appRoot;
-
-            if ($includeMedia && is_dir($appRoot . '/public/uploads')) {
-                $this->addDirectoryToZip($zip, $appRoot . '/public/uploads', 'public/uploads', $fileInventory);
-            }
-
-            if ($includeThemes && is_dir($appRoot . '/themes')) {
-                $this->addDirectoryToZip($zip, $appRoot . '/themes', 'themes', $fileInventory);
-            }
-
-            if ($includePlugins && is_dir($appRoot . '/plugins')) {
-                $this->addDirectoryToZip($zip, $appRoot . '/plugins', 'plugins', $fileInventory);
-            }
-
-            // Preserve central identities and keys in protected backups, never distributable packages.
-            foreach (['favorite-central-client', 'favorite-central-private'] as $centralDirectory) {
-                if (is_dir($appRoot . '/storage/' . $centralDirectory)) {
-                    $this->addDirectoryToZip($zip, $appRoot . '/storage/' . $centralDirectory, 'storage/' . $centralDirectory, $fileInventory);
+            $dump=$this->dumpDatabase($db->getPdo(),$db->prefix(),$sql);
+            $files=$this->collectFiles($options);
+            if($zip->open($working,ZipArchive::CREATE|ZipArchive::EXCL)!==true)throw new RuntimeException('Backup archive could not be created.');$opened=true;@chmod($working,0600);
+            if(!$zip->addFile($sql,'database.sql'))throw new RuntimeException('Database dump could not be archived.');
+            $inventory=[];
+            foreach($files as$name=>$file){
+                if($file===null){if(!$zip->addEmptyDir('files/'.rtrim($name,'/')))throw new RuntimeException('Empty directory could not be archived: '.$name);continue;}
+                $source=$file;
+                if(preg_match('~^storage/favorite-central-private/oauth/database/gateway-[a-f0-9]{16}\.sqlite$~',$name)){
+                    $snapshot=$this->backupDir.'/oauth-snapshot-'.bin2hex(random_bytes(12)).'.sqlite';$this->sqliteSnapshots[]=$snapshot;
+                    $sqlite=new PDO('sqlite:file:'.str_replace('\\','/',$file).'?mode=ro',null,null,[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION]);$sqlite->exec('VACUUM INTO '.$sqlite->quote($snapshot));$sqlite=null;@chmod($snapshot,0600);$source=$snapshot;
                 }
+                $hash=hash_file('sha256',$source);$size=filesize($source);if($hash===false||$size===false||!$zip->addFile($source,'files/'.$name))throw new RuntimeException('File could not be backed up: '.$name);
+                $inventory['files/'.$name]=['size'=>$size,'sha256'=>$hash];
             }
-            if (is_dir($appRoot . '/favorite-server-license')) {
-                $this->addDirectoryToZip($zip, $appRoot . '/favorite-server-license', 'favorite-server-license', $fileInventory);
-            }
-
-            // 5. Build and add manifest.json
-            $manifest = [
-                'manifest_version' => 1,
-                'cms_name'         => 'Favorite CMS Universal',
-                'cms_version'      => defined('APP_VERSION') ? APP_VERSION : '1.0.0-beta',
-                'schema_version'   => $this->getSchemaVersion($db),
-                'created_at'       => date('c'),
-                'site_name'        => Setting::get('general', 'site_name', 'Favorite CMS'),
-                'site_url'         => Setting::get('general', 'site_url', (string)env('APP_URL', 'http://localhost')),
-                'table_prefix'     => $db->prefix(),
-                'tables'           => $dumpResult['tables'],
-                'total_rows'       => $dumpResult['total_rows'],
-                'database_size'    => filesize($tempSqlFile),
-                'includes'         => [
-                    'database' => true,
-                    'media'    => $includeMedia,
-                    'themes'   => $includeThemes,
-                    'plugins'  => $includePlugins,
-                ],
-                'file_count'       => count($fileInventory),
-                'sql_checksum'     => hash_file('sha256', $tempSqlFile),
-            ];
-
-            $zip->addFromString('manifest.json', (string)json_encode($manifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
-            $zip->close();
-
-            // Clean up temporary SQL file
-            @unlink($tempSqlFile);
-            foreach ($this->sqliteSnapshots as $snapshot) @unlink($snapshot);
-            $this->sqliteSnapshots = [];
-
-            $zipSize = filesize($zipPath);
-            $zipHash = hash_file('sha256', $zipPath);
-
-            return [
-                'success'   => true,
-                'filename'  => $filename,
-                'path'      => $zipPath,
-                'size'      => $zipSize,
-                'sha256'    => $zipHash,
-                'manifest'  => $manifest,
-            ];
-        } catch (\Throwable $e) {
-            @unlink($tempSqlFile);
-            foreach ($this->sqliteSnapshots as $snapshot) @unlink($snapshot);
-            $this->sqliteSnapshots = [];
-            if (file_exists($zipPath)) {
-                @unlink($zipPath);
-            }
-            throw $e;
-        }
+            $manifest=['manifest_version'=>2,'files_prefix'=>'files/','cms_name'=>'Favorite CMS Universal','cms_version'=>defined('APP_VERSION')?APP_VERSION:'1.2.1','schema_version'=>$this->getSchemaVersion($db),'created_at'=>date('c'),'site_name'=>Setting::get('general','site_name','Favorite CMS'),'site_url'=>Setting::get('general','site_url',(string)env('APP_URL','http://localhost')),'table_prefix'=>$db->prefix(),'tables'=>$dump['tables'],'database_objects'=>$dump['objects']??[],'total_rows'=>$dump['total_rows'],'database_size'=>filesize($sql),'includes'=>['database'=>true,'core'=>true,'configuration'=>true,'media'=>$options['include_media']??true,'themes'=>$options['include_themes']??true,'plugins'=>$options['include_plugins']??true],'excluded_runtime_paths'=>['storage/backups (including this archive)','storage/temp','storage/cache','storage/logs','storage/sessions','private server update staging','transient lock files; installed.lock is retained'],'file_count'=>count($inventory),'files'=>$inventory,'sql_checksum'=>hash_file('sha256',$sql)];
+            if(!$zip->addFromString('manifest.json',json_encode($manifest,JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES|JSON_THROW_ON_ERROR)))throw new RuntimeException('Backup manifest could not be written.');
+            if(!$zip->close())throw new RuntimeException('Archive could not be finalized; check free disk space.');$opened=false;
+            $verify=new ZipArchive();if($verify->open($working,ZipArchive::CHECKCONS)!==true)throw new RuntimeException('Completed backup archive is corrupt.');
+            try{foreach($inventory+['database.sql'=>['size'=>filesize($sql),'sha256'=>$manifest['sql_checksum']]]as$name=>$entry){$stream=$verify->getStream($name);if(!$stream)throw new RuntimeException('Backup file is missing: '.$name);$hash=hash_init('sha256');$size=hash_update_stream($hash,$stream);fclose($stream);if($size!==$entry['size']||!hash_equals($entry['sha256'],hash_final($hash)))throw new RuntimeException('Backup file changed or was truncated: '.$name);}}finally{$verify->close();}
+            if(array_keys($files)!==array_keys($this->collectFiles($options)))throw new RuntimeException('Website files changed during backup; retry when changes are paused.');
+            if(!rename($working,$zipPath))throw new RuntimeException('Verified backup could not be published.');
+            return ['success'=>true,'filename'=>$filename,'path'=>$zipPath,'size'=>filesize($zipPath),'sha256'=>hash_file('sha256',$zipPath),'manifest'=>$manifest];
+        }catch(\Throwable $e){if($opened)try{$zip->close();}catch(\Throwable){}if(is_file($working))@unlink($working);if(is_file($zipPath))@unlink($zipPath);throw $e;}
+        finally{if(is_file($sql))@unlink($sql);foreach($this->sqliteSnapshots as$file)if(is_file($file))@unlink($file);$this->sqliteSnapshots=[];}
     }
 
-    /**
-     * Dump database tables to a SQL file using chunked streaming.
-     */
-    public function dumpDatabase(PDO $pdo, string $prefix, string $outputPath): array
+    public function dumpDatabase(PDO $pdo,string $prefix,string $outputPath): array
     {
-        $handle = fopen($outputPath, 'w');
-        if (!$handle) {
-            throw new RuntimeException("Could not open file for writing database dump: {$outputPath}");
-        }
-
-        fwrite($handle, "-- Favorite CMS Universal Database Dump\n");
-        fwrite($handle, "-- Generated: " . date('c') . "\n");
-        fwrite($handle, "SET FOREIGN_KEY_CHECKS=0;\n");
-        fwrite($handle, "SET SQL_MODE=\"NO_AUTO_VALUE_ON_ZERO\";\n");
-        fwrite($handle, "SET NAMES utf8mb4;\n\n");
-
-        // Fetch tables matching prefix
-        $tablesStmt = $pdo->query("SHOW TABLES LIKE '{$prefix}%'");
-        $tables = $tablesStmt->fetchAll(PDO::FETCH_COLUMN);
-
-        $tablesSummary = [];
-        $totalRows = 0;
-
-        foreach ($tables as $table) {
-            // Write DROP and CREATE TABLE
-            fwrite($handle, "-- --------------------------------------------------------\n");
-            fwrite($handle, "-- Table structure for `{$table}`\n");
-            fwrite($handle, "-- --------------------------------------------------------\n");
-            fwrite($handle, "DROP TABLE IF EXISTS `{$table}`;\n");
-
-            $createStmt = $pdo->query("SHOW CREATE TABLE `{$table}`");
-            $createRow = $createStmt->fetch(PDO::FETCH_ASSOC);
-            $createSql = $createRow['Create Table'] ?? '';
-            fwrite($handle, $createSql . ";\n\n");
-
-            // Dump data in chunks of 500 rows to prevent high memory usage
-            fwrite($handle, "-- Dumping data for `{$table}`\n");
-            $countStmt = $pdo->query("SELECT COUNT(*) FROM `{$table}`");
-            $rowCount = (int)$countStmt->fetchColumn();
-            $tablesSummary[$table] = $rowCount;
-            $totalRows += $rowCount;
-
-            if ($rowCount > 0) {
-                $offset = 0;
-                $chunkSize = 500;
-
-                while ($offset < $rowCount) {
-                    $rowsStmt = $pdo->query("SELECT * FROM `{$table}` LIMIT {$chunkSize} OFFSET {$offset}");
-                    $rows = $rowsStmt->fetchAll(PDO::FETCH_ASSOC);
-
-                    if (!empty($rows)) {
-                        $columns = array_keys($rows[0]);
-                        $escapedColumns = array_map(fn($c) => "`" . str_replace('`', '``', $c) . "`", $columns);
-                        $colList = implode(', ', $escapedColumns);
-
-                        $valListArray = [];
-                        foreach ($rows as $row) {
-                            $escapedVals = [];
-                            foreach ($row as $val) {
-                                if ($val === null) {
-                                    $escapedVals[] = 'NULL';
-                                } elseif (is_int($val) || is_float($val)) {
-                                    $escapedVals[] = $val;
-                                } else {
-                                    $escapedVals[] = $pdo->quote((string)$val);
-                                }
-                            }
-                            $valListArray[] = "(" . implode(', ', $escapedVals) . ")";
-                        }
-
-                        fwrite($handle, "INSERT INTO `{$table}` ({$colList}) VALUES\n" . implode(",\n", $valListArray) . ";\n");
-                    }
-
-                    $offset += $chunkSize;
-                }
-            }
-
-            fwrite($handle, "\n");
-        }
-
-        fwrite($handle, "SET FOREIGN_KEY_CHECKS=1;\n");
-        fclose($handle);
-
-        return [
-            'tables'     => $tablesSummary,
-            'total_rows' => $totalRows,
-        ];
+        return MySqlBackup::dump($pdo,$prefix,$outputPath);
     }
 
-    /**
-     * Recursively add a directory to ZIP, strictly excluding dev/runtime caches and secrets.
-     */
-    protected function addDirectoryToZip(ZipArchive $zip, string $dir, string $zipPrefix, array &$inventory): void
+    /** All website files, including dotfiles/keys. Exclusions are narrowly scoped runtime data. */
+    protected function collectFiles(array $options):array
     {
-        if (!is_dir($dir)) {
-            return;
-        }
-
-        $files = new \RecursiveIteratorIterator(
-            new \RecursiveDirectoryIterator($dir, \RecursiveDirectoryIterator::SKIP_DOTS),
-            \RecursiveIteratorIterator::LEAVES_ONLY
-        );
-
-        $excludePatterns = [
-            '/\.git/',
-            '/\.github/',
-            '/tests/',
-            '/\.env/',
-            '/installed\.lock/',
-            '/\.log$/',
-            '/cache\//',
-            '/sessions\//',
-        ];
-
-        foreach ($files as $file) {
-            if (!$file->isFile()) {
-                continue;
+        $root=realpath($this->appRoot);$backup=realpath($this->backupDir);if(!$root||!$backup)throw new RuntimeException('Backup paths are unavailable.');$files=[];
+        $walk=function(string $dir,string $relative='')use(&$walk,&$files,$root,$backup,$options):void{
+            $names=scandir($dir);if($names===false)throw new RuntimeException('A website directory cannot be read.');
+            foreach($names as$name){if($name==='.'||$name==='..')continue;$path=$dir.'/'.$name;$rel=$relative===''?$name:$relative.'/'.$name;
+                if($path===$backup||realpath($path)===$backup)continue;
+                $omit=false;foreach(['storage/backups','storage/temp','storage/cache','storage/logs','storage/sessions','storage/favorite-central-private/server-update/pending']as$prefix)if($rel===$prefix||str_starts_with($rel,$prefix.'/')){$omit=true;break;}
+                foreach(['include_media'=>'public/uploads','include_themes'=>'themes','include_plugins'=>'plugins']as$flag=>$prefix)if(($options[$flag]??true)===false&&($rel===$prefix||str_starts_with($rel,$prefix.'/')))$omit=true;
+                if($omit)continue;
+                if(is_link($path))throw new RuntimeException('A symbolic link needs a separate backup plan: '.$rel);
+                if(in_array($rel,['storage/update.lock','storage/maintenance.lock'],true)||preg_match('~^storage/favorite-central-(?:client|private)/.*\.lock$~',$rel))continue;
+                if(preg_match('~^storage/favorite-central-private/oauth/database/gateway-[a-f0-9]{16}\.sqlite-(?:wal|shm)$~',$rel))continue;
+                if(is_dir($path)){$files[$rel.'/']=null;$walk($path,$rel);}elseif(is_file($path)&&is_readable($path)){$files[$rel]=$path;}else throw new RuntimeException('A website file cannot be read: '.$rel);
             }
-
-            $filePath = $file->getRealPath();
-            $relativePath = substr($filePath, strlen($dir) + 1);
-            $normalizedRelative = str_replace('\\', '/', $relativePath);
-            $zipEntryPath = $zipPrefix . '/' . $normalizedRelative;
-
-            // Check exclusions
-            $skip = false;
-            foreach ($excludePatterns as $pattern) {
-                if (preg_match($pattern, '/' . $zipEntryPath)) {
-                    $skip = true;
-                    break;
-                }
-            }
-
-            if ($skip) {
-                continue;
-            }
-
-            // Snapshot the integrated OAuth SQLite store consistently, including committed WAL rows.
-            if (preg_match('~^storage/favorite-central-private/oauth/database/gateway-[a-f0-9]{16}\.sqlite-(?:wal|shm)$~', $zipEntryPath)) continue;
-            if (preg_match('~^storage/favorite-central-private/oauth/database/gateway-[a-f0-9]{16}\.sqlite$~', $zipEntryPath)) {
-                $snapshot = $this->backupDir . '/oauth-snapshot-' . bin2hex(random_bytes(12)) . '.sqlite';
-                $this->sqliteSnapshots[] = $snapshot;
-                $sourceDb = new PDO('sqlite:file:' . str_replace('\\', '/', $filePath) . '?mode=ro', null, null, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
-                $sourceDb->exec('VACUUM INTO ' . $sourceDb->quote($snapshot));
-                $sourceDb = null;
-                @chmod($snapshot, 0600);
-                $filePath = $snapshot;
-            }
-            $zip->addFile($filePath, $zipEntryPath);
-            $inventory[$zipEntryPath] = filesize($filePath);
-        }
+        };$walk($root);ksort($files,SORT_STRING);return $files;
     }
 
     /**

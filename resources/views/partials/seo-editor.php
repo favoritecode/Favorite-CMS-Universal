@@ -1,5 +1,5 @@
 <?php
-$seoEditorConfig=['site'=>(string)\FavoriteCMS\Models\Setting::get('general','site_name','Favorite CMS'),'separator'=>(string)\FavoriteCMS\Models\Setting::get('seo','title_separator','|')];
+$seoEditorConfig=['site'=>(string)\FavoriteCMS\Models\Setting::get('general','site_name','your website'),'separator'=>(string)\FavoriteCMS\Models\Setting::get('seo','title_separator','|')];
 $seoEditorIssues=$seoEditorItem?\FavoriteCMS\Services\SeoAudit::issues($seoEditorItem):[];
 $seoRelated=$seoEditorItem?\FavoriteCMS\Services\SeoAudit::related($seoEditorItem):[];
 ?>

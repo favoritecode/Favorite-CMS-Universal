@@ -51,9 +51,9 @@ class CustomizeController
         $elementsRegistry = BuilderElementRegistry::getInstance()->all();
 
         try {
-            $siteName = Setting::get('general', 'site_name', 'Favorite CMS');
+            $siteName = Setting::get('general', 'site_name', 'Website');
         } catch (\Throwable) {
-            $siteName = 'Favorite CMS';
+            $siteName = 'Website';
         }
 
         $adminTheme = \FavoriteCMS\Services\Appearance::resolve(current_user());

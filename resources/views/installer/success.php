@@ -32,6 +32,13 @@ $pageTitle = $isRestore ? 'Site restored - Favorite CMS' : 'Favorite CMS install
                 <p><?php echo $isRestore ? 'Favorite CMS site restored successfully.' : 'Favorite CMS installed successfully.'; ?></p>
             </div>
 
+            <?php if (!empty($centralFreeLicenseActive) && !$isRestore): ?>
+            <div class="fc-alert fc-alert--success" role="status">
+                <p><strong>Congratulations! Your Favorite CMS Free License has been activated successfully.</strong></p>
+                <p>Your website is connected to CMS Central Control. No extra setup is needed.</p>
+            </div>
+            <?php endif; ?>
+
             <dl class="fc-review">
                 <div class="fc-review__row"><dt>Site name</dt><dd><?php echo $h($siteName); ?></dd></div>
                 <div class="fc-review__row"><dt>Site URL</dt><dd><?php echo $h($siteUrl); ?></dd></div>

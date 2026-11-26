@@ -127,6 +127,17 @@ class GoogleOAuthService
             }
         }
 
+        // An installed local Server supplies Gmail through the same Settings flow.
+        // Explicit saved gateways above stay authoritative for existing token bindings.
+        if (defined('APP_ROOT') && is_file(APP_ROOT . '/favorite-server-license/bootstrap.php')) {
+            require_once APP_ROOT . '/favorite-server-license/bootstrap.php';
+            try {
+                $gateway = new \FavoriteCentral\OAuthGateway(\FavoriteCentral\Runtime::store(), APP_ROOT);
+                if (!empty($gateway->read()['enabled'])) return rtrim((string)config('app.url'), '/') . \FavoriteCentral\OAuthGateway::PREFIX;
+                return null;
+            } catch (\Throwable) { return null; /* The local service needs Owner setup, never a silent remote switch. */ }
+        }
+
         // 2. Environment variable (if defined)
         $envUrl = getenv('FAVORITE_OAUTH_GATEWAY_URL');
         if (!is_string($envUrl) || trim($envUrl) === '') {
@@ -157,7 +168,9 @@ class GoogleOAuthService
         // The official Gateway is part of the Core product contract, so a
         // fresh installation must work without requiring the administrator
         // to manually enter the Gateway URL.
-        return 'https://oauth.favoriteweb.net';
+        $central = function_exists('config') ? trim((string)config('central.url', 'https://favoriteweb.net')) : 'https://favoriteweb.net';
+        if (static::validateGatewayUrl($central)) return rtrim($central, '/') . '/favorite-central-oauth';
+        return null;
     }
 
     /**

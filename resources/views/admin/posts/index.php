@@ -1,6 +1,6 @@
 
 <style>
-/* Small, scoped, theme-variable-aware CMS page action menu. */
+/* Small, scoped, theme-variable-aware site page action menu. */
 .fpb-edit-picker{display:inline-block;position:relative;vertical-align:baseline}
 .fpb-edit-picker summary{display:inline-flex;align-items:center;gap:3px;cursor:pointer;color:var(--wp-blue,var(--admin-primary,#2271b1));list-style:none;border-radius:4px;padding:2px 3px}
 .fpb-edit-picker summary::-webkit-details-marker{display:none}

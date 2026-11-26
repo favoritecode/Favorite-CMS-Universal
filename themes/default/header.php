@@ -1,7 +1,7 @@
 <?php
 require_once __DIR__ . '/functions.php';
 
-$siteTitle   = $siteTitle ?? \FavoriteCMS\Models\Setting::get('general', 'site_name', 'Favorite CMS');
+$siteTitle   = $siteTitle ?? \FavoriteCMS\Models\Setting::get('general', 'site_name', 'Website');
 $siteTagline = $siteTagline ?? \FavoriteCMS\Models\Setting::get('general', 'site_description', '');
 $metaTitle   = $metaTitle ?? $siteTitle;
 $metaDesc    = $metaDescription ?? \FavoriteCMS\Models\Setting::get('seo', 'meta_description', '');

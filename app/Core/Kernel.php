@@ -50,6 +50,7 @@ class Kernel
             $request->setBasePath($urls->basePath($request));
             $GLOBALS['favorite_cms_base_path'] = $request->basePath();
             $path = $request->path();
+            $GLOBALS['favorite_cms_repair_mode'] = false;
 
             // Private gateway endpoints retain their own OAuth/HMAC protocol and no CMS session dependency.
             $centralServer = APP_ROOT . '/favorite-server-license/bootstrap.php';
@@ -88,7 +89,40 @@ class Kernel
                 return $maintenance->renderResponse($request);
             }
 
-            \FavoriteCMS\Central\Bridge::boot();
+            // Dynamic ownership proof fallback for hosts that deny direct .well-known files.
+            // It exposes only the short-lived public registration challenge, never stored credentials.
+            if ($path === '/favorite-central-verify' && $request->isGet()) {
+                $file = APP_ROOT . '/public/.well-known/favorite-central.json';
+                $body = is_file($file) ? @file_get_contents($file) : false;
+                if (is_string($body) && strlen($body) <= 4096 && is_array(json_decode($body, true))) {
+                    return Response::make($body, 200, [
+                        'Content-Type' => 'application/json; charset=utf-8',
+                        'Cache-Control' => 'no-store, private',
+                        'X-Robots-Tag' => 'noindex, nofollow',
+                    ]);
+                }
+                return Response::json(['error' => 'verification_not_pending'], 404)->header('Cache-Control', 'no-store');
+            }
+
+            // Public challenge for an owner-initiated Central identity check. No credentials exposed.
+            // Supports both /.well-known/favorite-central-live and non-dotfile /favorite-central-live fallback.
+            if (($path === '/.well-known/favorite-central-live' || $path === '/favorite-central-live') && $request->isGet()) {
+                $challenge=(string)$request->get('challenge','');
+                $proof=(new \FavoriteCMS\Central\Client())->identityChallenge($challenge);
+                return Response::json($proof,isset($proof['error'])?400:200)
+                    ->header('Cache-Control','no-store, private')
+                    ->header('X-Robots-Tag','noindex, nofollow');
+            }
+
+            $repairRoute = \FavoriteCMS\Central\Bridge::recoveryAllowed($path);
+            if ($repairRoute && ($path === '/admin/connection-status' || $request->get('safe_repair') === '1')) $_SESSION['_favorite_safe_repair'] = true;
+            if ($repairRoute && $request->get('safe_repair') === '0') unset($_SESSION['_favorite_safe_repair']);
+            $repairOnly = $repairRoute && (!empty($_SESSION['_favorite_safe_repair']) || $maintenance->isActive() || \FavoriteCMS\Central\Bridge::repairMode());
+            $GLOBALS['favorite_cms_repair_mode'] = $repairOnly;
+            \FavoriteCMS\Central\Bridge::boot(\FavoriteCMS\Security\CoreIntegrity::report(APP_ROOT)['status'] === 'verified');
+            // Keep normal authentication, two-step, role and CSRF checks, but do not
+            // boot themes/plugins, publication jobs or content redirects during repair.
+            if ($repairOnly) return $this->dispatch($request);
             $centralRestriction = \FavoriteCMS\Central\Bridge::policyResponse($request);
             if ($centralRestriction !== null) return $centralRestriction;
 
@@ -422,6 +456,10 @@ class Kernel
             if (!is_string($submitted) || !is_string($stored) || $stored === '' || !hash_equals($stored, $submitted)) {
                 return Response::make('Invalid security token.', 403);
             }
+        }
+
+        if ($path === '/admin/connection-status' || (!empty($GLOBALS['favorite_cms_repair_mode']) && in_array($path, ['/admin', '/admin/', '/admin/tools'], true))) {
+            return \FavoriteCMS\Central\Recovery::response($request);
         }
 
         if ($path === '/admin/account/security') return (new \FavoriteCMS\Http\Controllers\Admin\AccountSecurityController())->handle($request);
@@ -801,7 +839,15 @@ class Kernel
     // -------------------------------------------------------------------------
     protected function showLogin(Request $request, string $error = ''): Response
     {
+        // Explicit, validated return targets always take precedence. On the initial
+        // GET only, recover the originating same-site page when a login-required
+        // tool (or an ordinary login link) did not include ?redirect=.
+        // The login form already carries this path through password/remembered
+        // login and two-step verification; no persistent session redirect needed.
         $redirect = $this->requestedRedirect($request);
+        if ($redirect === null && $request->isGet()) {
+            $redirect = $this->sameSiteLoginReferrer($request);
+        }
 
         if (!empty($_SESSION['auth_user_id'])) {
             return Response::redirect($redirect ?? '/admin');
@@ -991,6 +1037,7 @@ class Kernel
                 return Response::redirect('/admin/users/profile');
             }
 
+            if (!empty($GLOBALS['favorite_cms_repair_mode'])) $returnPath = $this->requestedRedirect($request);
             return Response::redirect($returnPath ?? $this->requestedRedirect($request) ?? '/admin');
 
     }
@@ -1154,11 +1201,56 @@ class Kernel
     }
 
     /**
+     * Recover a same-origin return page for login links that lack a redirect
+     * parameter. Never trust a Referrer as an external destination. This is a
+     * graceful fallback only: browsers can legitimately omit the header.
+     */
+    protected function sameSiteLoginReferrer(Request $request): ?string
+    {
+        $referrer = trim($request->header('Referer'));
+        $hostHeader = trim((string)($request->server()['HTTP_HOST'] ?? $request->server()['SERVER_NAME'] ?? ''));
+        if ($referrer === '' || $hostHeader === '') {
+            return null;
+        }
+
+        $ref = parse_url($referrer);
+        $site = parse_url('https://' . $hostHeader);
+        if (!is_array($ref) || !is_array($site)
+            || !in_array(strtolower((string)($ref['scheme'] ?? '')), ['http', 'https'], true)
+            || empty($ref['host']) || empty($site['host'])
+            || strcasecmp($ref['host'], $site['host']) !== 0
+            || isset($ref['user']) || isset($ref['pass'])
+        ) {
+            return null;
+        }
+
+        // Reject a different explicit port. Do not infer the public-facing
+        // port from PHP's HTTPS flag: reverse proxies may terminate TLS.
+        if (($ref['port'] ?? null) !== ($site['port'] ?? null)) {
+            return null;
+        }
+        if (in_array(strtolower((string)($request->server()['HTTPS'] ?? '')), ['on', '1'], true)
+            && strtolower($ref['scheme']) !== 'https') {
+            return null;
+        }
+
+        $path = ($ref['path'] ?? '/') . (isset($ref['query']) ? '?' . $ref['query'] : '');
+        return SafeRedirect::localPath($path);
+    }
+
+    /**
      * Resolve a validated local return path from the request (form field first, then query string).
      */
     protected function requestedRedirect(Request $request): ?string
     {
-        return SafeRedirect::localPath($request->post('redirect', $request->get('redirect')));
+        $target = SafeRedirect::localPath($request->post('redirect', $request->get('redirect')));
+        if (!empty($GLOBALS['favorite_cms_repair_mode'])) {
+            $relative = $target ?? ''; $base = (string)($GLOBALS['favorite_cms_base_path'] ?? '');
+            if ($base !== '' && str_starts_with($relative, $base . '/')) $relative = substr($relative, strlen($base));
+            $route = (string)(parse_url($relative, PHP_URL_PATH) ?? '');
+            if ($route === '' || in_array($route, ['/admin', '/admin/', '/admin/login', '/admin/two-step'], true) || !\FavoriteCMS\Central\Bridge::recoveryAllowed($route)) return '/admin/connection-status';
+        }
+        return $target;
     }
 
     protected function passwordRecovery(Request $request, bool $reset): Response

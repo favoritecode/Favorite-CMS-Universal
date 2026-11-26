@@ -20,14 +20,23 @@ final class Transport {
  static function request(string $url,?string $body=null,array $headers=[]):array{
   if(is_callable(self::$testTransport))return (self::$testTransport)($url,$body,$headers);
   $p=parse_url($url);$host=strtolower((string)($p['host']??''));if(($p['scheme']??'')!=='https'||!$host||isset($p['user'])||isset($p['pass'])||isset($p['port'])&&(int)$p['port']!==443||!function_exists('curl_init'))throw new \RuntimeException('A verified HTTPS connection is unavailable.');
-  $ips=[];foreach(@dns_get_record($host,DNS_A|DNS_AAAA)?:[]as$r){$ip=$r['ip']??$r['ipv6']??null;if(!$ip)continue;if(!self::publicIp($ip))throw new \RuntimeException('Non-public destination rejected.');$ips[]=$ip;}if(!$ips)throw new \RuntimeException('Destination cannot be verified.');
-  $ip=$ips[0];if(str_contains($ip,':'))$ip='['.$ip.']';$ch=curl_init($url);$response='';
-  try{
-   $options=[CURLOPT_FOLLOWLOCATION=>false,CURLOPT_MAXREDIRS=>0,CURLOPT_PROXY=>'',CURLOPT_SSL_VERIFYPEER=>true,CURLOPT_SSL_VERIFYHOST=>2,CURLOPT_CONNECTTIMEOUT_MS=>1000,CURLOPT_TIMEOUT_MS=>4000,CURLOPT_RESOLVE=>[$host.':443:'.$ip],CURLOPT_HTTPHEADER=>array_merge(['Accept: application/json','Content-Type: application/json','Accept-Encoding: identity'],$headers),CURLOPT_WRITEFUNCTION=>static function($h,string $s)use(&$response):int{if(strlen($response)+strlen($s)>262144)return 0;$response.=$s;return strlen($s);}];
-   if(defined('CURLOPT_PROTOCOLS_STR'))$options[CURLOPT_PROTOCOLS_STR]='https';else $options[CURLOPT_PROTOCOLS]=CURLPROTO_HTTPS;
-   if($body!==null){$options[CURLOPT_POST]=true;$options[CURLOPT_POSTFIELDS]=$body;}
-   curl_setopt_array($ch,$options);if(curl_exec($ch)===false)throw new \RuntimeException('Central service could not be reached.');
-   return ['status'=>(int)curl_getinfo($ch,CURLINFO_HTTP_CODE),'body'=>$response];
-  }finally{unset($ch);}
+  $v4=[];$v6=[];
+  foreach(@dns_get_record($host,DNS_A|DNS_AAAA)?:[]as$r){
+   $ip=$r['ip']??$r['ipv6']??null;if(!$ip)continue;
+   if(!self::publicIp($ip))throw new \RuntimeException('Non-public destination rejected.');
+   if(str_contains($ip,':'))$v6[]=$ip;else $v4[]=$ip;
+  }
+  $ips=array_slice(array_values(array_unique(array_merge($v4,$v6))),0,3);
+  if(!$ips)throw new RemoteError('temporary_network_failure','Destination cannot be resolved temporarily.',503);
+  foreach($ips as $ip){
+   $resolved=str_contains($ip,':')?'['.$ip.']':$ip;$ch=curl_init($url);$response='';
+   try{
+    $options=[CURLOPT_FOLLOWLOCATION=>false,CURLOPT_MAXREDIRS=>0,CURLOPT_PROXY=>'',CURLOPT_SSL_VERIFYPEER=>true,CURLOPT_SSL_VERIFYHOST=>2,CURLOPT_CONNECTTIMEOUT_MS=>2500,CURLOPT_TIMEOUT_MS=>6000,CURLOPT_RESOLVE=>[$host.':443:'.$resolved],CURLOPT_HTTPHEADER=>array_merge(['Accept: application/json','Content-Type: application/json','Accept-Encoding: identity'],$headers),CURLOPT_WRITEFUNCTION=>static function($h,string $s)use(&$response):int{if(strlen($response)+strlen($s)>262144)return 0;$response.=$s;return strlen($s);}];
+    if(defined('CURLOPT_PROTOCOLS_STR'))$options[CURLOPT_PROTOCOLS_STR]='https';else $options[CURLOPT_PROTOCOLS]=CURLPROTO_HTTPS;
+    if($body!==null){$options[CURLOPT_POST]=true;$options[CURLOPT_POSTFIELDS]=$body;}
+    curl_setopt_array($ch,$options);if(curl_exec($ch)!==false)return ['status'=>(int)curl_getinfo($ch,CURLINFO_HTTP_CODE),'body'=>$response];
+   }finally{unset($ch);}
+  }
+  throw new RemoteError('temporary_network_failure','Central service could not be reached.',503);
  }
 }

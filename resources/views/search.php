@@ -1,6 +1,6 @@
 <?php
 /**
- * Favorite CMS Universal — Standalone Core Fallback Search View
+ * site software — Standalone Core Fallback Search View
  *
  * Rendered when no external theme is active or when themes are decoupled.
  */
