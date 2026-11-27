@@ -133,7 +133,7 @@ $h = static fn ($val): string => htmlspecialchars((string)$val, ENT_QUOTES, 'UTF
                     <?php foreach ($preview['sample_posts'] as $sp): ?>
                         <li>
                             <strong><?php echo $h($sp['title']); ?></strong>
-                            <span style="color: var(--admin-text-muted);">(<?php echo $h($sp['date']); ?>, <?php echo $h($sp['status']); ?> by <?php echo $h($sp['author']); ?>)</span>
+                            <span style="color: var(--admin-text-muted);">(<?php echo $h(format_date($sp['date'], 'Y-m-d H:i')); ?>, <?php echo $h($sp['status']); ?> by <?php echo $h($sp['author']); ?>)</span>
                         </li>
                     <?php endforeach; ?>
                 </ul>

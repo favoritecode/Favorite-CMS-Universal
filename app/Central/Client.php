@@ -20,6 +20,10 @@ final class Client {
   $boundary=str_replace('\\','/',(string)$base);$resolved=str_replace('\\','/',(string)$storage);
   if(DIRECTORY_SEPARATOR==='\\'){$boundary=strtolower($boundary);$resolved=strtolower($resolved);}
   if(!$base||!$storage||!str_starts_with($resolved.'/',$boundary.'/'))throw new RemoteError('shared_storage_path','Connection storage must belong to this installation root.',409);
+  if(!empty($config['pending_since'])&&!empty($config['secret'])&&!empty($config['installation_id'])&&!empty($config['policy_envelope'])){
+   // A publisher-signed decision exists: the "pending" clock is finished and must not restart a stale grace window later.
+   unset($config['pending_since']);try{\FavoriteCMS\Models\Setting::set('central','pending_since','0');}catch(\Throwable){}
+  }
   $raw=json_encode($config,JSON_THROW_ON_ERROR|JSON_UNESCAPED_SLASHES);$temp=$this->dir.'/'.bin2hex(random_bytes(12)).'.tmp';
   if(file_put_contents($temp,$raw,LOCK_EX)!==strlen($raw))throw new \RuntimeException('Central connection could not be saved.');
   @chmod($temp,0600);if(!rename($temp,$this->dir.'/client.json')){unlink($temp);throw new \RuntimeException('Central connection could not be activated.');}
@@ -45,6 +49,7 @@ final class Client {
   $c=$this->config();
   if(LocalAddress::canonical((string)config('app.url'))!==null){(new LocalEnrollment($this,$this->root))->sync($force);return;}
   if(($c['installation_kind']??'')==='local'){
+   if(!empty($c['public_unverified'])){if(!empty($c['secret']))$this->maintainUnverified($c,$force);else(new LocalEnrollment($this,$this->root))->syncPublic($force);return;}
    if(!empty($c['secret'])){try{$this->transfer();$c=$this->config();}catch(\Throwable $e){$c['registry_last_error']=substr(strip_tags($e->getMessage()),0,240);$this->save($c);return;}}
    else{$this->save(['previous_local_id'=>$c['installation_id']??'']);$c=$this->config();}
   }
@@ -123,8 +128,21 @@ final class Client {
    $this->save($connected);
    $this->logDiagnostic('info','Central automatic registration succeeded',['installation_id'=>$connected['installation_id']??'','site_url'=>$connected['site_url']??'']);
   }catch(\Throwable $e){
-   $this->recordRegistrationFailure($e->getMessage(),$e instanceof RemoteError?$e->errorCode:'verification_failure');
+   $code=$e instanceof RemoteError?$e->errorCode:'verification_failure';
+   $this->recordRegistrationFailure($e->getMessage(),$code);
+   // Hosting blocks the domain proof (browser challenge, read-only public directory ...): connect automatically by key possession instead.
+   if(!in_array($code,self::NO_UNVERIFIED_FALLBACK,true)){try{(new LocalEnrollment($this,$this->root))->syncPublic(true);}catch(\Throwable){}}
   }
+ }
+ /** Failures that are not a domain-proof problem: server/network trouble or a delegation problem that a key-possession registration cannot fix either. */
+ private const NO_UNVERIFIED_FALLBACK=['temporary_network_failure','rate_limited','authority_certificate_required','untrusted_authority','verification_in_progress','suspended_license'];
+ /** Public site connected without domain proof: keep outbound heartbeats and periodically try to upgrade to a verified domain. */
+ private function maintainUnverified(array $c,bool $force):void{
+  if($force||(int)($c['transfer_retry_after']??0)<=time()){
+   $c['transfer_retry_after']=time()+21600;try{$this->save($c);}catch(\Throwable){}
+   try{$this->transfer();return;}catch(\Throwable $e){$c=$this->config();$c['transfer_last_error']=substr(strip_tags($e->getMessage()),0,240);try{$this->save($c);}catch(\Throwable){}}
+  }
+  (new LocalEnrollment($this,$this->root))->syncPublic($force);
  }
  /** Non-secret diagnostic for the site owner's hosting support/administrator. */
  private function recordRegistrationFailure(string $reason,string $code='temporary_network_failure'):void{
@@ -209,7 +227,7 @@ final class Client {
   if(!is_dir(dirname($path))&&!mkdir(dirname($path),0755,true))throw new \RuntimeException('Verification directory is not writable.');
   $raw=Crypto::canonical(['installation_id'=>$id,'site_url'=>$site,'proof'=>$proof,'timestamp'=>time()]);
   $h=fopen($path,'x');if(!$h)throw new \RuntimeException('Ownership proof cannot be created.');fwrite($h,$raw);fclose($h);
-  try{$this->request(['action'=>'transfer','site_url'=>$site,'proof'=>$proof]);$fresh=$this->config();$fresh['site_url']=$site;$fresh['installation_kind']='public';unset($fresh['local_url'],$fresh['local_root'],$fresh['local_private'],$fresh['local_public'],$fresh['policy']);$this->save($fresh);}
+  try{$this->request(['action'=>'transfer','site_url'=>$site,'proof'=>$proof]);$fresh=$this->config();$fresh['site_url']=$site;$fresh['installation_kind']='public';unset($fresh['local_url'],$fresh['local_root'],$fresh['local_private'],$fresh['local_public'],$fresh['policy'],$fresh['public_unverified'],$fresh['transfer_retry_after'],$fresh['transfer_last_error']);$this->save($fresh);}
   finally{if(is_file($path)&&hash_equals($raw,(string)file_get_contents($path)))unlink($path);}
  }
  public function connect(string $server,bool $recoverMissing=false):void{
@@ -348,6 +366,7 @@ final class Client {
   try{
    $this->save($working);
    if(LocalAddress::canonical((string)config('app.url'))!==null){$working['local_rebind_pending']=true;$this->save($working);(new LocalEnrollment($this,$this->root))->sync(true);$fresh=$this->config();if(!empty($fresh['local_rebind_pending'])||empty($fresh['secret']))throw new \RuntimeException('The local installation key could not be reverified. Restore its original connection backup.');}
+   elseif(!empty($working['public_unverified'])){$working['local_rebind_pending']=true;$this->save($working);(new LocalEnrollment($this,$this->root))->syncPublic(true);$fresh=$this->config();if(!empty($fresh['local_rebind_pending'])||empty($fresh['secret']))throw new \RuntimeException('The installation key could not be reverified. Restore its original connection backup.');}
    else $this->connect(Authority::ORIGIN,!empty($working['secret']));
    $this->policy(true);
   }catch(\Throwable $e){$this->save($original);throw $e;}
@@ -355,7 +374,7 @@ final class Client {
  public function registrationRequest(array $input):array{return $this->http(Authority::ENDPOINT,Crypto::canonical($input),[]);}
  private function canonicalBinding(array $c):string{
   if(($c['installation_kind']??'')==='local'){
-   $url=LocalAddress::canonical((string)config('app.url'));
+   $url=!empty($c['public_unverified'])?Transport::site((string)config('app.url')):LocalAddress::canonical((string)config('app.url'));
    if($url===null||($c['local_url']??'')!==$url||($c['local_root']??'')!==hash('sha256',(string)realpath($this->root)."\0".php_uname('n')))throw new RemoteError('domain_mismatch','Local installation identity belongs to another site root.',409);
    return 'local://'.(string)($c['installation_id']??'');
   }
@@ -380,14 +399,17 @@ final class Client {
  }
  public function policy(bool $force=false):array{
   $c=$this->config();
-  if(empty($c['secret'])||empty($c['installation_id'])){
-   if($this->offlineRegistrationPending($c))return ['cms_license'=>'free','policy_status'=>'registration_pending','policy_reason'=>'Registration is pending while the official service is temporarily unavailable. Automatic retries continue.'];
-   return $this->connectionDenied('Verified registration is required before this site can operate.');
+  if($this->isControlSite($c)){
+   $managed=[];foreach($this->localServer('SELECT DISTINCT product_id,kind FROM fcp_catalog WHERE product_id IS NOT NULL')as$r)$managed[(string)$r->product_id]=(string)$r->kind;
+   return ['cms_license'=>'free','license_type'=>'owner','license_status'=>'active','policy_status'=>'active','policy_reason'=>null,'owner_policy_status'=>'active','managed_products'=>$managed];
   }
-  if(!Authority::endpoint((string)($c['server_url']??'')))return $this->connectionDenied('The official service connection must be restored.');
+  if(empty($c['secret'])||empty($c['installation_id'])){
+   return $this->registrationPending($c);
+  }
+  if(!Authority::endpoint((string)($c['server_url']??''))){return empty($c['policy_envelope'])?$this->registrationPending($c,'The official service connection is being restored automatically.'):$this->connectionDenied('The official service connection must be restored.');}
   $cached=$this->verifiedPolicy($c);$now=time();
   if(!$force&&$cached!==null&&(int)($c['policy_checked_at']??0)>$now-30)return $cached;
-  if(!$force&&(int)($c['policy_retry_after']??0)>$now)return $cached??$this->connectionDenied('The central service could not verify this site. Retrying shortly.');
+  if(!$force&&(int)($c['policy_retry_after']??0)>$now)return $cached??(empty($c['policy_envelope'])?$this->registrationPending($c):$this->connectionDenied('The central service could not verify this site. Retrying shortly.'));
   try{
    $this->request(['action'=>'status']);$fresh=$this->config();$fresh['policy_checked_at']=$now;unset($fresh['policy_retry_after'],$fresh['policy_last_error'],$fresh['policy_error_code']);$this->save($fresh);
    $verified=$this->verifiedPolicy($fresh);
@@ -397,19 +419,87 @@ final class Client {
    $fresh=$this->config();$fresh['policy_retry_after']=$now+5;$fresh['policy_last_error']=mb_substr(strip_tags($e->getMessage()),0,300);$fresh['policy_error_code']=$e instanceof RemoteError?$e->errorCode:'verification_failure';$this->save($fresh);
    // Once registered, preserve the last verified action during a service outage.
    if($cached!==null)return $cached;
+   // A site that never received a publisher-signed decision keeps running; only a signed Owner action restricts it.
+   if(empty($fresh['policy_envelope']))return $this->registrationPending($fresh);
    return $this->connectionDenied('The central service could not verify this site. The administrator can sign in to restore the connection.');
   }
  }
- /** Outage-only first-use access; never overrides a previously registered or denied site. */
- private function offlineRegistrationPending(array $c):bool{
-  if(!empty($c['secret'])||!empty($c['connected_at'])||!empty($c['registration_verified_at'])||!empty($c['policy_envelope'])||is_file($this->root.'/favorite-server-license/bootstrap.php'))return false;
-  if(!in_array($c['registration_error_code']??'', ['temporary_network_failure','rate_limited'],true)||empty($c['registration_last_attempt']))return false;
-  if(!Authority::endpoint((string)($c['server_url']??''))||!preg_match('/^[a-f0-9]{32,64}$/D',(string)($c['installation_id']??'')))return false;
+ /** An unverified site may run for a bounded grace period (hosting/network trouble); afterwards it is restricted until it connects. */
+ private const PENDING_GRACE=259200;
+ /** Earliest moment this installation was seen without a verified connection. Kept in the connection file AND the database, so deleting one does not restart the clock. */
+ private function pendingSince(array $c):int{
+  $file=(int)($c['pending_since']??0);$db=0;
+  try{$db=(int)\FavoriteCMS\Models\Setting::get('central','pending_since','0');}catch(\Throwable){}
+  $known=array_values(array_filter([$file,$db],static fn(int $t):bool=>$t>0));
+  $since=$known?min($known):time();
+  if($file!==$since){try{$c['pending_since']=$since;$this->save($c);}catch(\Throwable){}}
+  if($db!==$since){try{\FavoriteCMS\Models\Setting::set('central','pending_since',(string)$since);}catch(\Throwable){}}
+  return $since;
+ }
+ private function registrationPending(array $c,string $fallback=''):array{
+  $reason=trim((string)($c['registration_last_error']??$c['policy_last_error']??''));
+  $detail=$reason!==''?$reason:($fallback!==''?$fallback:'Registration is pending. Your website keeps running while the connection is retried automatically.');
+  $left=is_file($this->root.'/favorite-server-license/bootstrap.php')?PHP_INT_MAX:$this->pendingSince($c)+self::PENDING_GRACE-time();
+  $code=(string)($c['registration_error_code']??$c['policy_error_code']??'');
+  if($left<=0)return ['cms_license'=>'free','policy_status'=>'connection_required','policy_reason'=>'Verified registration is required before this site can operate.','policy_detail'=>$detail,'policy_error_code'=>$code];
+  return ['cms_license'=>'free','policy_status'=>'registration_pending','policy_reason'=>$detail,'policy_error_code'=>$code,'grace_seconds_left'=>$left];
+ }
+ /** Local, network-free status for the administrator interface. Never throws. */
+ public function adminNotice():array{
   try{
-   $site=$this->canonicalBinding($c);
-   if(($c['site_url']??'')!==$site)return false;
-   return (string)\FavoriteCMS\Models\Setting::get('central','registered_'.hash('sha256',$site),'')!== '1';
-  }catch(\Throwable){return false;}
+   $c=$this->config();
+   if(is_file($this->root.'/favorite-server-license/bootstrap.php'))return ['pending'=>false,'welcome'=>false];
+   $registered=!empty($c['secret'])&&!empty($c['installation_id'])&&(!empty($c['registration_verified_at'])||!empty($c['connected_at'])||!empty($c['registry_verified_at'])||!empty($c['policy_envelope']));
+   $since=max((int)($c['registration_verified_at']??0),(int)(strtotime((string)($c['connected_at']??''))?:0));
+   $reason=trim((string)($c['registration_last_error']??$c['registry_last_error']??$c['policy_last_error']??''));
+   $left=$registered?0:$this->pendingSince($c)+self::PENDING_GRACE-time();$vp=$registered&&!empty($c['public_unverified'])?$this->verifiedPolicy($c):null;$vd=(int)($vp['verification_deadline']??0);
+   return ['pending'=>!$registered,'reason'=>substr(strip_tags($reason),0,300),'code'=>(string)($c['registration_error_code']??$c['registry_error_code']??$c['policy_error_code']??''),'grace_hours_left'=>$registered?0:max(0,(int)ceil($left/3600)),'restricted'=>!$registered&&$left<=0,'unverified'=>$registered&&!empty($c['public_unverified'])&&!($vp!==null&&($vp['verification']??'')==='verified'),'verified_notice'=>$registered&&!empty($c['public_unverified'])&&$vp!==null&&($vp['verification']??'')==='verified'&&empty($c['verified_notice_shown_at']),'license_alerts'=>$this->licenseAlerts(),'verify_hours_left'=>($vp&&($vp['verification']??'')==='unverified'&&$vd>0)?max(0,(int)ceil(($vd-time())/3600)):null,'welcome'=>$registered&&empty($c['welcome_shown_at'])&&$since>time()-604800];
+  }catch(\Throwable){return ['pending'=>false,'welcome'=>false];}
+ }
+ /** Turns an entitlement answer into something an administrator can read. managed=false: nothing to show (a free, unmanaged extension). */
+ public static function describeLicense(array $e,string $kind='plugin'):array{
+  $mode=(string)($e['mode']??'');$reason=(string)($e['reason']??'');$until=(string)($e['valid_until']??'');
+  if($mode==='legacy_free')return ['managed'=>false];
+  $ts=$until!==''?strtotime($until.' UTC'):false;$days=$ts!==false?max(0,(int)ceil(($ts-time())/86400)):null;
+  $end=$ts!==false?(function_exists('format_date')?format_date($until,'M j, Y g:i a'):$until.' UTC'):'';
+  $r=['managed'=>true,'blocked'=>empty($e['allowed']),'mode'=>$mode!==''?$mode:$reason,'days_left'=>$days,'ends'=>$end,'buy'=>false,'manage'=>false,'tone'=>'info','label'=>'','short'=>'','detail'=>''];
+  if($mode==='owner'){$r['tone']='ok';$r['label']='Owner access';$r['detail']='The control site never needs a license.';}
+  elseif($mode==='free'){$r['tone']='ok';$r['label']='Free';$r['detail']='No license needed.';}
+  elseif($mode==='trial'){$r['tone']=($days!==null&&$days<=2)?'warn':'info';$r['buy']=true;$r['label']='Free trial';$r['short']='Free trial · '.($days!==null?$days.' day'.($days===1?'':'s').' left':'running');$r['detail']=($end!==''?'Ends '.$end.'. ':'').'Buy a license before it ends to keep using it.';}
+  elseif($mode==='paid'){$r['tone']='ok';$r['manage']=true;$r['label']='Licensed';$r['detail']=$end!==''?'Valid until '.$end.'.':'Lifetime license.';}
+  elseif($reason==='trial_not_started'){$r['buy']=true;$r['label']='Free trial available';$r['detail']='A free trial starts when you activate it. After the trial a license is required.';}
+  elseif($reason==='purchase_required'){$r['tone']='bad';$r['buy']=true;$r['label']='License needed';$r['detail']='The free trial has ended. Buy a license to use this '.$kind.'.';}
+  elseif($reason==='license_expired'){$r['tone']='bad';$r['buy']=true;$r['label']='License expired';$r['detail']='Renew the license to keep using this '.$kind.'.';}
+  elseif($reason==='central_connection_required'){$r['tone']='warn';$r['label']='Connect to manage license';$r['detail']='This site is not connected to Favorite CMS Central yet.';}
+  elseif($reason==='central_temporarily_unavailable'){$r['tone']='warn';$r['label']='License check unavailable';$r['detail']='The license server could not be reached; it will be checked again shortly.';}
+  elseif($reason==='policy_suspension'){$r['tone']='bad';$r['label']='Restricted';$r['detail']='This site is restricted by the platform owner.';}
+  else{$r['tone']='warn';$r['label']=ucfirst(str_replace('_',' ',$reason!==''?$reason:'License check'));$r['detail']='';}
+  if($r['short']==='')$r['short']=$r['label'];
+  return $r;
+ }
+ /** License state for one extension (starts the trial only when $active). */
+ public function licenseState(array $manifest,bool $active,string $kind='plugin'):array{
+  return self::describeLicense($kind==='theme'?$this->theme($manifest,false,$active):$this->plugin($manifest,false,$active),$kind);
+ }
+ /** Cached license states needing attention (no network): trials ending within 2 days and blocked extensions. */
+ public function licenseAlerts():array{
+  try{
+   if($this->isControlSite())return [];
+   $out=[];
+   foreach((array)($this->config()['entitlements']??[])as$id=>$row){
+    $id=(string)$id;$theme=str_starts_with($id,'theme--');
+    if(!is_dir($this->root.($theme?'/themes/'.substr($id,7):'/plugins/'.$id)))continue;
+    $s=self::describeLicense((array)($row['data']??[]),$theme?'theme':'plugin');if(empty($s['managed']))continue;
+    if(($s['mode']==='trial'&&$s['days_left']!==null&&$s['days_left']<=2)||in_array($s['mode'],['purchase_required','license_expired'],true))$out[]=['id'=>$id,'theme'=>$theme,'label'=>$s['label'],'detail'=>$s['detail']];
+   }
+   return array_slice($out,0,4);
+  }catch(\Throwable){return [];}
+ }
+ public function markVerifiedNoticeShown():void{
+  try{$c=$this->config();if(empty($c['secret'])||!empty($c['verified_notice_shown_at']))return;$c['verified_notice_shown_at']=time();$this->save($c);}catch(\Throwable){}
+ }
+ public function markWelcomeShown():void{
+  try{$c=$this->config();if(empty($c['secret'])||!empty($c['welcome_shown_at']))return;$c['welcome_shown_at']=time();$this->save($c);}catch(\Throwable){}
  }
  private function connectionDenied(string $reason):array{return ['cms_license'=>'free','policy_status'=>'connection_required','policy_reason'=>$reason];}
  private function verifiedPolicy(array $c):?array{
@@ -420,10 +510,38 @@ final class Client {
    if(($p['installation_id']??'')!==($c['installation_id']??'')||($data['canonical_site_url']??'')!==$site||($data['policy_protocol']??'')!=='signed-state-1'||$issued>time()+30||$issued<=0||$until===false||$until<$issued||$until>$issued+120)return null;
    if((int)($data['policy_revision']??0)<max(1,(int)($c['policy_revision']??0)))return null;
    if(($data['policy_status']??'')==='integrity_failed'&&in_array($data['owner_policy_status']??'',['active','warning'],true)&&\FavoriteCMS\Security\CoreIntegrity::report($this->root)['status']==='verified'){$data['policy_status']=$data['owner_policy_status'];$data['policy_reason']=$data['owner_policy_reason']??null;$data['core_repaired_offline']=true;}
+   // A domain-unverified site is limited to the signed verification window; this also holds while the control server is unreachable.
+   if(($data['verification']??'')==='unverified'&&(int)($data['verification_deadline']??0)>0&&time()>(int)$data['verification_deadline']&&in_array($data['policy_status']??'',['active','warning'],true)){$data['policy_status']='verification_required';$data['policy_reason']='This website was not verified within 3 days. Install the latest official Favorite CMS update and contact the Favorite CMS owner to verify it.';}
    return $data;
   }catch(\Throwable){return null;}
  }
+ /**
+  * True only on the CONTROL site itself: the Server package is installed here, its private vault is bound to THIS root and
+  * this connection is the Server's own owner installation. A copied folder or another installation never qualifies.
+  */
+ private function isControlSite(?array $c=null):bool{
+  $c??=$this->config();$id=(string)($c['installation_id']??'');$key=$this->root.'|'.$id;
+  if(isset(self::$controlSite[$key]))return self::$controlSite[$key];
+  $ok=false;
+  try{
+   if($id!==''&&is_file($this->root.'/favorite-server-license/bootstrap.php')){
+    require_once $this->root.'/favorite-server-license/bootstrap.php';
+    $cfg=(new \FavoriteCentral\Vault($this->root))->read();
+    $ok=is_array($cfg)&&!empty($cfg['installed'])&&hash_equals((string)$cfg['owner_installation_id'],$id)&&hash_equals((string)$cfg['cms_root_hash'],hash('sha256',(string)realpath($this->root)));
+   }
+  }catch(\Throwable){$ok=false;}
+  return self::$controlSite[$key]=$ok;
+ }
+ private static array $controlSite=[];
+ /** Read straight from the local Server database (no network); empty when it is not reachable. */
+ private function localServer(string $sql,array $args=[]):array{
+  try{return \FavoriteCentral\Runtime::store()->db->select($sql,$args);}catch(\Throwable){return [];}
+ }
  public function plugin(array $manifest,bool $force=false,bool $initialize=true):array{
+  if($this->isControlSite()){
+   $row=$this->localServer('SELECT features FROM fcp_products WHERE id=?',[(string)($manifest['id']??'')]);
+   return ['allowed'=>true,'mode'=>'owner','updates'=>true,'valid_until'=>null,'features'=>$row?(json_decode((string)$row[0]->features,true)?:[]):[]];
+  }
   $supported=($manifest['licensing']['supported']??false)===true;$managed=isset($this->policy()['managed_products'][(string)($manifest['id']??'')]);
   if(!$supported&&!$managed)return ['allowed'=>true,'mode'=>'legacy_free'];
   if($supported&&(int)($manifest['licensing']['api_version']??0)!==1)return ['allowed'=>false,'reason'=>'unsupported_licensing_api'];

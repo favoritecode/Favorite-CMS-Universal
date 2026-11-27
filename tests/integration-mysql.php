@@ -31,10 +31,10 @@ function check(string $name,callable $run): void { global $results; try {$run();
 function assertThat(bool $condition,string $message='Assertion failed'): void { if(!$condition)throw new RuntimeException($message); }
 function body($response):array {return json_decode($response->getContent(),true,512,JSON_THROW_ON_ERROR);}
 function status($response):int {return (new ReflectionProperty($response,'status'))->getValue($response);}
-check('actual installer and all 19 MySQL migrations',function() use($app,$config){
+check('actual installer and every MySQL migration',function() use($app,$config){
  $service=new FavoriteCMS\Installer\InstallationService($app,new FavoriteCMS\Installer\DatabaseProvisioner(),new FavoriteCMS\Installer\InstallationStateManager());
  $result=$service->install($config,['name'=>'CMS integration fixture','url'=>'http://127.0.0.1:8766'],['username'=>'qa_admin','name'=>'QA Admin','email'=>'qa@example.test','password'=>'Local-Testing-Only-2026!']);
- assertThat(count($result['applied_migrations'])===19); assertThat($result['admin_user_id']>0); assertThat(is_file(APP_ROOT.'/.env')); assertThat(is_file(APP_ROOT.'/storage/installed.lock'));
+ assertThat(count($result['applied_migrations'])===count(glob(APP_ROOT.'/database/migrations/*.php'))); assertThat($result['admin_user_id']>0); assertThat(is_file(APP_ROOT.'/.env')); assertThat(is_file(APP_ROOT.'/storage/installed.lock'));
 });
 $db=$app->make(Database::class);
 $_SESSION=['auth_user_id'=>1,'auth_user_role'=>'super-admin','_token'=>'integration-token'];
@@ -121,7 +121,7 @@ check('subdirectory responsive URLs remain correct',function()use($media){$GLOBA
 check('full backup/restore keeps content, private drafts, history and media',function()use($app,$db,$config,$restored,$media,$originalHash){
  $backup=(new FavoriteCMS\Services\BackupService(APP_ROOT.'/storage/qa-backups',APP_ROOT))->createBackup();assertThat(is_file($backup['path']));$service=new FavoriteCMS\Services\RestoreService(APP_ROOT.'/storage/restored-root');$inspection=$service->inspectBackup($backup['path']);assertThat(isset($inspection['manifest']['tables']['qa_content_history']));
  $target=$config;$target['database']=$restored;$target['prefix']='restored_';$result=$service->restoreBackup($backup['path'],$target,null,false);assertThat($result['success']);$copy=new Database($target);assertThat(count($copy->select('SELECT * FROM `content_history`'))===count($db->select('SELECT * FROM `content_history`')));assertThat(count($copy->select('SELECT * FROM `content_drafts`'))===count($db->select('SELECT * FROM `content_drafts`')));
- $row=$copy->selectOne('SELECT * FROM `media` WHERE id=?',[(int)$media->id]);assertThat($row!==null);assertThat(hash_file('sha256',APP_ROOT.'/storage/restored-root/public'.$media->url)===$originalHash);
+ $row=$copy->selectOne('SELECT * FROM `media` WHERE id=?',[(int)$media->id]);assertThat($row!==null);$restoredMedia=APP_ROOT.'/storage/restored-root/'.ltrim(substr(str_replace('\\','/',$media->path),strlen(str_replace('\\','/',APP_ROOT))),'/');assertThat(hash_file('sha256',$restoredMedia)===$originalHash);
 });
 check('deleting media removes derived copies and leaves neighboring files',function()use($media){$variants=FavoriteCMS\Services\ImageVariants::all($media);$neighbor=dirname($media->path).'/qa-neighbor.txt';file_put_contents($neighbor,'keep');$media->delete();assertThat(!is_file($media->path));foreach($variants as$v)assertThat(!is_file($v['path']));assertThat(file_get_contents($neighbor)==='keep');});
 file_put_contents(APP_ROOT.'/storage/integration-results.json',json_encode($results,JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES));

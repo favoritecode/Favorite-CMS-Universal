@@ -234,7 +234,7 @@
                                 <?php echo htmlspecialchars($badgeLabel, ENT_QUOTES, 'UTF-8'); ?>
                             </span>
                         </td>
-                        <td>
+                        <td style="white-space: nowrap;">
                             <div style="font-size: 13px;">
                                 <?php echo format_date(($post->status==='scheduled'?$post->scheduled_at:($post->published_at??$post->created_at)), 'Y/m/d'); ?>
                             </div>

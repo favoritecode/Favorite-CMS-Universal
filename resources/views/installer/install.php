@@ -304,6 +304,8 @@ $pageTitle = 'Install Favorite CMS';
                     <div class="fc-grid-2">
                         <?php echo $field(['id' => 'site_name', 'label' => 'Site name', 'value' => $value('site_name', 'Favorite CMS'), 'required' => true, 'hint' => 'Shown in the browser title, header and emails.', 'attrs' => ['data-error' => 'Enter a site name.']]); ?>
                         <?php echo $field(['id' => 'site_url', 'label' => 'Site URL', 'value' => $value('site_url', (string)$detectedUrl), 'required' => true, 'hint' => 'Detected from the address you used to open this installer, including any subdirectory.', 'attrs' => ['inputmode' => 'url', 'data-error' => 'Enter the full site address, for example https://example.com/.']]); ?>
+                        <input type="hidden" id="site_timezone" name="site_timezone" value="">
+                        <script>(function(){try{var z=Intl.DateTimeFormat().resolvedOptions().timeZone;var i=document.getElementById('site_timezone');if(z&&i)i.value=z;}catch(e){}})();</script>
                     </div>
 
                     <div class="fc-alert fc-alert--info" style="margin-top: 12px; font-size: 13px;">

@@ -169,7 +169,7 @@ $content = (string)($pageObj->content ?? '');
     <footer>
         <div class="container">
             
-            <p style="margin: 0;">&copy; <?php echo date('Y'); ?> <?php echo htmlspecialchars($siteName); ?>. All rights reserved.</p>
+            <p style="margin: 0;">&copy; <?php echo format_date(time(), 'Y'); ?> <?php echo htmlspecialchars($siteName); ?>. All rights reserved.</p>
         </div>
     </footer>
 </body>

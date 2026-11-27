@@ -125,7 +125,7 @@ $h = static fn ($val): string => htmlspecialchars((string)$val, ENT_QUOTES, 'UTF
                         <?php foreach ($bloggerPreview['sample_posts'] as $sp): ?>
                             <li>
                                 <strong><?php echo $h($sp['title'] ?: '(Untitled)'); ?></strong>
-                                <span style="color: var(--admin-text-muted);">(<?php echo $h($sp['date']); ?>, <?php echo $h($sp['status']); ?>)</span>
+                                <span style="color: var(--admin-text-muted);">(<?php echo $h(format_date($sp['date'], 'Y-m-d H:i')); ?>, <?php echo $h($sp['status']); ?>)</span>
                                 <?php if (!empty($sp['tags'])): ?>
                                     <span style="color: var(--admin-info-text); font-size: 11px;">[<?php echo $h(implode(', ', $sp['tags'])); ?>]</span>
                                 <?php endif; ?>
@@ -189,13 +189,34 @@ $h = static fn ($val): string => htmlspecialchars((string)$val, ENT_QUOTES, 'UTF
 </div>
 <div class="form-card" style="background: var(--admin-surface); border: 1px solid var(--admin-border); border-radius: 8px; padding: 24px; margin-bottom: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
     <h2 style="font-size: 17px; font-weight: 700; margin: 0 0 14px; color: var(--admin-text-heading);">Existing Site Backups (<code>storage/backups/</code>)</h2>
+    <?php $policy = $backupPolicy ?? ['keep_latest' => 3, 'max_age_days' => 30, 'enabled' => true]; $totalBytes = array_sum(array_map(static fn($x) => (int)$x['size'], $backups ?? [])); ?>
+    <div style="color: var(--admin-text-muted); font-size: 13px; margin: 0 0 14px;">
+        <?php echo count($backups ?? []); ?> backup<?php echo count($backups ?? []) === 1 ? '' : 's'; ?> · <?php echo round($totalBytes / 1048576, 1); ?> MB on this hosting.
+        <?php if (!empty($policy['enabled'])): ?>
+            Automatic cleanup is on: the newest <strong><?php echo (int)$policy['keep_latest']; ?></strong> backups are always kept; older ones are deleted after <strong><?php echo (int)$policy['max_age_days']; ?> days</strong>.
+        <?php else: ?>
+            Automatic cleanup is turned off.
+        <?php endif; ?>
+        <form method="POST" action="<?php echo htmlspecialchars(site_path('/admin/tools/backup/cleanup'), ENT_QUOTES, 'UTF-8'); ?>" style="display: inline;">
+            <input type="hidden" name="_token" value="<?php echo $h($csrfToken); ?>">
+            <button type="submit" class="btn" style="padding: 2px 8px; font-size: 12px;">Clean up now</button>
+        </form>
+    </div>
 
     <?php if (empty($backups)): ?>
         <p style="color: var(--admin-text-muted); font-size: 13px; margin: 0;">No backups generated yet. Click "Generate complete backup (.zip)" above to create your first snapshot.</p>
     <?php else: ?>
+        <form id="bk-bulk" method="POST" action="<?php echo htmlspecialchars(site_path('/admin/tools/backup/delete-selected'), ENT_QUOTES, 'UTF-8'); ?>">
+            <input type="hidden" name="_token" value="<?php echo $h($csrfToken); ?>">
+        </form>
+        <div style="margin: 0 0 10px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+            <button type="submit" form="bk-bulk" id="bk-delete-selected" disabled style="background: var(--admin-danger-solid); color: #fff; border: none; padding: 6px 12px; font-size: 12px; border-radius: 3px; cursor: pointer;">Delete selected (<span id="bk-count">0</span>)</button>
+            <span style="color: var(--admin-text-muted); font-size: 12px;">Tick the backups you no longer need, or use the box in the header to select all.</span>
+        </div>
         <table class="wp-table" style="width: 100%; border-collapse: collapse; font-size: 13px;">
             <thead>
                 <tr style="border-bottom: 2px solid var(--admin-border); text-align: left; color: var(--admin-text-muted);">
+                    <th style="padding: 10px; width: 32px;"><input type="checkbox" id="bk-all" aria-label="Select all backups"></th>
                     <th style="padding: 10px;">Archive File</th>
                     <th style="padding: 10px;">Date Created</th>
                     <th style="padding: 10px;">Size</th>
@@ -207,11 +228,12 @@ $h = static fn ($val): string => htmlspecialchars((string)$val, ENT_QUOTES, 'UTF
             <tbody>
                 <?php foreach ($backups as $b): ?>
                     <tr style="border-bottom: 1px solid var(--admin-border);">
+                        <td style="padding: 10px;"><input type="checkbox" class="bk-pick" name="files[]" form="bk-bulk" value="<?php echo $h($b['filename']); ?>" aria-label="Select <?php echo $h($b['filename']); ?>"></td>
                         <td style="padding: 10px; font-weight: 600; font-family: monospace;">
                             <?php echo $h($b['filename']); ?>
                         </td>
                         <td style="padding: 10px; color: var(--admin-text-muted);">
-                            <?php echo date('Y-m-d H:i:s', $b['date']); ?>
+                            <?php echo $h(format_date($b['date'], 'Y-m-d H:i:s')); ?>
                         </td>
                         <td style="padding: 10px; color: var(--admin-text-muted);">
                             <?php echo round($b['size'] / 1024 / 1024, 2); ?> MB
@@ -240,6 +262,23 @@ $h = static fn ($val): string => htmlspecialchars((string)$val, ENT_QUOTES, 'UTF
                 <?php endforeach; ?>
             </tbody>
         </table>
+        <script>
+        (function () {
+            var all = document.getElementById('bk-all'), btn = document.getElementById('bk-delete-selected'), cnt = document.getElementById('bk-count');
+            var picks = Array.prototype.slice.call(document.querySelectorAll('.bk-pick'));
+            function sync() {
+                var n = picks.filter(function (c) { return c.checked; }).length;
+                cnt.textContent = n; btn.disabled = n === 0; all.checked = n > 0 && n === picks.length; all.indeterminate = n > 0 && n < picks.length;
+            }
+            all.addEventListener('change', function () { picks.forEach(function (c) { c.checked = all.checked; }); sync(); });
+            picks.forEach(function (c) { c.addEventListener('change', sync); });
+            document.getElementById('bk-bulk').addEventListener('submit', function (e) {
+                var n = picks.filter(function (c) { return c.checked; }).length;
+                if (n === 0 || !confirm('Permanently delete ' + n + ' selected backup file' + (n === 1 ? '' : 's') + '? This cannot be undone.')) { e.preventDefault(); }
+            });
+            sync();
+        })();
+        </script>
     <?php endif; ?>
 </div>
 

@@ -131,6 +131,8 @@ class InstallationService
         Setting::clearCache();
         Setting::set('general', 'site_name', $site['name']);
         Setting::set('general', 'site_url', $site['url']);
+        $timezone = (string)($site['timezone'] ?? 'UTC');
+        Setting::set('general', 'timezone', \FavoriteCMS\Core\DateTime::isValidTimezone($timezone) ? $timezone : 'UTC');
         Setting::set('general', 'admin_email', $admin['email']);
         Setting::set('theme', 'active_theme', 'default');
 

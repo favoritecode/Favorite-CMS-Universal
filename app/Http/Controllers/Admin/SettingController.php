@@ -553,7 +553,7 @@ class SettingController
         $subject = "Test Email from {$senderName}";
         $message = "Hello,\n\n"
             . "This is a diagnostic test email sent from {$siteName}.\n\n"
-            . "Timestamp: " . date('Y-m-d H:i:s T') . "\n"
+            . "Timestamp: " . \FavoriteCMS\Core\DateTime::format(time(), 'Y-m-d H:i:s T') . "\n"
             . "Resolved Sender Name: {$senderName}\n"
             . "Resolved Sender Email: {$senderEmail}\n"
             . "Recipient: {$recipient}\n\n"

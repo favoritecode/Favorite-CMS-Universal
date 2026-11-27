@@ -1,3 +1,71 @@
+# 2.0.0 — Final
+
+First stable 2.0 release. Everything from 2.0.0-beta.1 to beta.9 is included.
+
+- **Automatic registration and free license.** A new installation registers itself, receives the Favorite CMS Free License and shows a congratulations message; no key, code or API address is entered. A site that cannot prove its domain at once runs for 3 days as "unverified" while the owner verifies it. A registered site keeps its last authenticated owner decision during an outage.
+- **Plugins and themes with a free trial and a price.** The Plugins / Themes pages and Site & add-ons show the trial days left, the price and a Buy button; buying opens a purchase page inside the active theme and pays through Favorite Pay; the license activates by itself after approval. The owner's own site never needs a license.
+- **Site time zone everywhere.** Dates and times in the admin and on the site follow the site time zone.
+- **Backups.** Backups survive the connection state changing while they are built; the newest 3 are always kept and older ones are removed after 30 days; several backups can be deleted at once.
+- **Update path.** Official 1.x releases and every 2.0.0 beta update to 2.0.0 and keep content, settings, extensions and registration. Same-version repair works.
+- **Polish.** Cleaner Site & add-ons page, dates in the Posts / Pages / Comments lists no longer wrap, and the installer package now contains exactly one document (README.md); the full developer documentation stays in the source repository.
+- **Packaging fix.** The release file list (`scripts/runtime-files.json`) now includes every runtime file; the previous list was missing several, so a package built from it would have been incomplete.
+
+# 2.0.0-beta.9 — Cleaner Site & add-ons
+
+- Site & add-ons redesigned without removing anything: one card per extension (identity, one badge such as "Free trial · 7 days left", then the note and the price with a Buy button, properly aligned); the stat tiles that only repeated the tab counts are gone; the Connection tab shows one status line and one fact list (website, access, CMS version, installation ID, last verified) with Manage actions (users, updates, signed update) beside it; the leftover checkout card is removed.
+- License badges no longer repeat the same words twice.
+- Connection tab: the header "Connected" pill shows only on the Plugins/Themes tabs (the card already states it), one "Software updates" entry plus a quick install instead of two, and "Last verified" uses the site time zone.
+
+# 2.0.0-beta.8 — Buy is one click: price + Buy, payment on a page that looks like your website
+
+- Site & add-ons shows, per extension, only its license state, its price and a **Buy** button (no key entry, no "trusted update" forms, no password step). Buy opens the purchase page directly.
+- New core helper `render_in_theme()`: customer-facing pages added by the Server/plugins are rendered inside the ACTIVE theme's header and footer (with a safe standalone fallback).
+
+# 2.0.0-beta.7 — Fix: "Buy a license" led to a 404
+
+- Fix: a website that the Owner (or a domain proof) had verified kept saying "not verified yet" in its admin. The notice now follows the publisher-signed verification state from the control server; a one-time "Verified" confirmation replaces it.
+- The Site & add-ons page (license state, Buy with Favorite Pay, license key activation, connection, updates) was unreachable since 1.2.1: its menu entry was removed together with its route, so every link to it gave "Page Not Found". It is registered again as a hidden admin page (opened from the Plugins/Themes pages and notices, not listed in the sidebar). Admin menu entries can now be registered as hidden.
+
+# 2.0.0-beta.6 — Trial and license state is visible, and unlicensed plugins are not "Active"
+
+- Plugins and Themes pages show each repository-managed extension's license state: free trial (days left and end date), "Free trial available", licensed until (or lifetime), "License needed" and expired, with a **Buy a license** link that opens Site & add-ons on that extension.
+- Activating a plugin whose trial has ended is refused with a clear message instead of showing "Active" while it silently does nothing; activating one with a trial available says that the free trial started and for how long.
+- An admin-wide notice lists extensions whose trial ends within 2 days or that need a license (from cached state, no network request).
+- Plugin boot messages are readable ("License needed. The free trial has ended...").
+
+# 2.0.0-beta.5 — The control site is exempt from licensing
+
+- The CMS that hosts the Server package (the control site) never needs a license: every plugin and theme is allowed with "Owner access", with no trial, no end date and no network request, and the site is never paused for connection or verification reasons. This holds only when the Server's private vault is bound to this very installation, so a copied Server folder or another site on the same hosting gets nothing.
+- A control site whose Server setup is not finished yet no longer runs out of the 3-day grace period.
+
+# 2.0.0-beta.4 — Welcome dialog polish, faster license activation after payment
+
+- The "Congratulations" dialog is now centred and follows the admin light/dark theme (it was pinned to the top-left and unreadable in dark mode).
+- After pressing "Buy" the site forgets its cached license state for that plugin/theme, so the paid license shows up on the next page view instead of up to 5 minutes later.
+
+# 2.0.0-beta.3 — Backups no longer fill the hosting
+
+- Automatic retention: the newest 3 backups are always kept; the others are deleted once they are older than 30 days. It runs after every new backup and when Tools is opened (at most every 12 hours), and removes abandoned temporary files from interrupted backups. Tunable in Settings group "backup" (keep_latest, max_age_days, auto_cleanup).
+- Tools & Backup Manager: tick several backups (or all) and delete them in one step; "Clean up now" button; total count and size shown.
+- Safe by design: never deletes the newest 3, never touches files outside the backup directory or unrelated files, and the new backup is published before anything old is removed.
+
+# 2.0.0-beta.2 — One time zone everywhere
+
+- Stored times are always UTC (the PHP default time zone is forced to UTC, independent of the hosting php.ini); every displayed time follows Settings -> Site Time Zone: backups (list and new file names), dashboard, updates, import previews, email delivery log, draft/revision labels, front-end post dates and copyright year, editor autosave clock.
+- New sites start in the installing administrator's own time zone (detected in the installer); the Settings page shows the current time in the selected zone.
+- No database migration; stored values are unchanged. If a host previously used a non-UTC php.ini time zone, values written by older versions on that host were stored in that zone.
+
+# 2.0.0-beta.1 — Always-available sites, automatic connection, 3-day verification
+
+- A website that has not yet completed its Central registration keeps serving visitors for a bounded 3-day grace period (hosting or network trouble); the clock is stored in both the connection file and the database, so deleting the file does not restart it. After 3 days without a verified connection the public site is restricted until it connects (administrator sign-in, backups and updates stay available). A site that holds a publisher-signed Owner decision (Suspend/Ban) is always restricted accordingly.
+- Automatic connection even when the hosting blocks server-to-server domain proof (browser challenges, read-only public directory): the site registers over an outbound, key-authenticated request as "domain unverified", stays fully controllable by the Owner (warn/suspend/ban), is shown to the Owner as unverified for 3 days and becomes permanently verified when the Owner verifies it (otherwise it is paused after 3 days and its administrator is told to install the official update and contact the Owner) and upgrades itself to a verified domain automatically when the proof starts working. No license key, code or manual step. Requires Server build 2026112701 or newer on the control server; without it the site simply stays on the 3-day grace clock.
+- Administrators see a clear notice with the exact reason while registration is pending, plus Connection recovery and Software updates links. Registration keeps retrying automatically.
+- One-time "Congratulations - Free License activated" dialog on the first administrator page after a successful registration.
+- Version is now increased for every release so Admin -> Updates can always offer the official fix. Official protected files remain publisher-signed; if protected files are modified the site asks the administrator to restore the official release through Updates.
+- Sites on any 1.0.x, 1.1.x (which report themselves as 1.1.0), 1.2.0 or 1.2.1 can now update to this release from Admin -> Updates (minimum core lowered to 1.0.0; each path is tested in CI with the installed release's own updater).
+- Fixed: "Core update failed: Backup file changed or was truncated: files/storage/favorite-central-client/client.json". The update backup now archives exactly the bytes it hashed for small, frequently rewritten connection-state files and ignores their transient .tmp files, so normal visitor requests during an update can no longer break the backup (tested with a writer rewriting the file every 0.3 ms: 6/6 backups, previously 0/6). Sites that are still on an older release run the older backup code for their first update to 1.2.2; see the update note.
+- No database migration. Existing connection identity, content, users, themes, plugins and settings are preserved.
+
 # 1.2.0 — Central control and plugin/theme catalog
 
 Free CMS/default theme; central policy client, signed updates, private SMTP/OAuth server integration and Owner-managed repository catalog. Legacy extensions remain Free until explicitly managed. Theme expiry preserves selection/settings and falls back to default. Existing migrations, content, orders, plugin state and historical releases are preserved.

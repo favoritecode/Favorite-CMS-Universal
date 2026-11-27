@@ -114,7 +114,7 @@
                                 </span>
                             </td>
                             <td><?php echo (int)($page->menu_order ?? 0); ?></td>
-                            <td><?php echo format_date($page->status==='scheduled'?$page->scheduled_at:$page->created_at, 'Y/m/d \a\t g:i a'); ?></td>
+                            <td style="white-space: nowrap;"><?php echo format_date($page->status==='scheduled'?$page->scheduled_at:$page->created_at, 'Y/m/d \a\t g:i a'); ?></td>
                         </tr>
                     <?php endforeach; ?>
                 <?php endif; ?>

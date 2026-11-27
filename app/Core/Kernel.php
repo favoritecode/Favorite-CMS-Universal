@@ -803,6 +803,8 @@ class Kernel
                 '/admin/tools/backup/create'   => $ctrl->createBackup($request),
                 '/admin/tools/backup/download'        => $ctrl->downloadBackup($request),
                 '/admin/tools/backup/delete'          => $ctrl->deleteBackup($request),
+                '/admin/tools/backup/delete-selected' => $ctrl->deleteSelectedBackups($request),
+                '/admin/tools/backup/cleanup'         => $ctrl->cleanupBackups($request),
                 '/admin/tools/restore'                => $ctrl->restoreBackup($request),
                 '/admin/tools/import'                 => $ctrl->importIndex($request),
                 '/admin/tools/import/preview'         => $ctrl->importPreview($request),

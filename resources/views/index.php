@@ -249,7 +249,7 @@ $currentVersion = defined('APP_VERSION') ? APP_VERSION : '1.0.0';
             <article class="post-card" style="margin-top: 24px;">
                 <h2 style="font-size: 26px; font-weight: 800; margin: 0 0 12px 0;"><?php echo htmlspecialchars((string)($post->title ?? '')); ?></h2>
                 <div class="post-meta">
-                    Published on <?php echo date('F j, Y', strtotime((string)($post->published_at ?? $post->created_at ?? 'now'))); ?>
+                    Published on <?php echo format_date((string)($post->published_at ?? $post->created_at ?? 'now'), 'F j, Y'); ?>
                 </div>
                 <div class="post-content" style="margin: 24px 0; line-height: 1.8; font-size: 15px;">
                     <?php echo (string)($post->content ?? ''); ?>
@@ -308,7 +308,7 @@ $currentVersion = defined('APP_VERSION') ? APP_VERSION : '1.0.0';
                                 </a>
                             </h4>
                             <div class="post-meta">
-                                Published on <?php echo date('F j, Y', strtotime((string)($postItem->published_at ?? $postItem->created_at ?? 'now'))); ?>
+                                Published on <?php echo format_date((string)($postItem->published_at ?? $postItem->created_at ?? 'now'), 'F j, Y'); ?>
                             </div>
                             <div class="post-excerpt">
                                 <?php echo htmlspecialchars((string)($postItem->excerpt ?? substr(strip_tags((string)($postItem->content ?? '')), 0, 160))); ?>
@@ -331,7 +331,7 @@ $currentVersion = defined('APP_VERSION') ? APP_VERSION : '1.0.0';
     <footer>
         <div class="container">
             
-            <p style="margin: 0;">&copy; <?php echo date('Y'); ?> <?php echo htmlspecialchars($siteName); ?>. All rights reserved.</p>
+            <p style="margin: 0;">&copy; <?php echo format_date(time(), 'Y'); ?> <?php echo htmlspecialchars($siteName); ?>. All rights reserved.</p>
         </div>
     </footer>
 </body>

@@ -180,7 +180,8 @@ class PluginManager
         if (class_exists(\FavoriteCMS\Central\Client::class)) {
             $entitlement = (new \FavoriteCMS\Central\Client())->plugin($meta);
             if (empty($entitlement['allowed'])) {
-                $this->bootErrors[$pluginId] = 'License access required: ' . ($entitlement['reason'] ?? 'unavailable');
+                $license = \FavoriteCMS\Central\Client::describeLicense($entitlement);
+                $this->bootErrors[$pluginId] = 'License access required: ' . trim(($license['label'] ?? '') . '. ' . ($license['detail'] ?? ''), '. ') . '. Open Site & add-ons to buy or renew the license.';
                 return;
             }
         }
@@ -244,6 +245,9 @@ class PluginManager
 
         // 2. Load plugin entry point into memory so its classes, services, and listeners are registered
         $this->loadPlugin($pluginId);
+        if (isset($this->bootErrors[$pluginId]) && str_starts_with($this->bootErrors[$pluginId], 'License access required')) {
+            throw new \RuntimeException("Plugin '{$pluginId}' needs a license and was not activated. " . substr($this->bootErrors[$pluginId], strlen('License access required: ')));
+        }
 
         // 3. Run database migrations if migrations directory exists
         $migrationsDir = $pluginDir . '/database/migrations';

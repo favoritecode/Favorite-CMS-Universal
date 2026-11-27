@@ -985,7 +985,7 @@ document.addEventListener('DOMContentLoaded', function() {
         draftField('_draft_snapshot', payload.revision);
         try {
             localStorage.setItem(draftStorageKey, JSON.stringify(payload));
-            autosaveStatus.textContent = 'Draft autosaved locally (' + new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) + ')';
+            autosaveStatus.textContent = 'Draft autosaved locally (' + new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', timeZone: <?php echo json_encode(site_timezone(), JSON_UNESCAPED_SLASHES); ?>}) + ')';
         } catch(e) { autosaveStatus.textContent = 'Browser draft storage is unavailable. Keep a copy until the server confirms saving.'; }
     }
     function triggerAutosave() {

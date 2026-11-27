@@ -158,7 +158,7 @@ $base = (string)($GLOBALS['favorite_cms_base_path'] ?? '');
                                 <?php if (!empty($discovery['repair_available']) && empty($discovery['update_available'])): ?>
                                 The current Core package can be re-applied to restore <?php echo count((array)($discovery['missing_core_files'] ?? [])); ?> missing Core file(s).
                             <?php else: ?>
-                                A newer version of site software is ready. Published on <?php echo htmlspecialchars(date('M j, Y', strtotime((string)$discovery['published_at']))); ?>.
+                                A newer version of site software is ready. Published on <?php echo htmlspecialchars(format_date((string)$discovery['published_at'], 'M j, Y')); ?>.
                             <?php endif; ?>
                             </p>
 
@@ -191,7 +191,7 @@ $base = (string)($GLOBALS['favorite_cms_base_path'] ?? '');
                     <?php endif; ?>
 
                     <div style="font-size: 12px; color: var(--admin-text-muted); border-top: 1px solid var(--admin-border); padding-top: 12px; display: flex; justify-content: space-between;">
-                        <span>Last checked: <?php echo !empty($discovery['checked_at']) ? htmlspecialchars(date('Y-m-d H:i:s', strtotime((string)$discovery['checked_at']))) : 'Just now'; ?></span>
+                        <span>Last checked: <?php echo !empty($discovery['checked_at']) ? htmlspecialchars(format_date((string)$discovery['checked_at'], 'Y-m-d H:i:s')) : 'Just now'; ?></span>
                         <a href="<?php echo htmlspecialchars((string)$discovery['release_url']); ?>" target="_blank" rel="noopener" style="color: var(--wp-blue);">GitHub Releases &rarr;</a>
                     </div>
                 </div>

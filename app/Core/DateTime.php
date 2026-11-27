@@ -58,7 +58,7 @@ class DateTime
         }
 
         if (self::$supportedIdentifiers === null) {
-            self::$supportedIdentifiers = array_fill_keys(DateTimeZone::listIdentifiers(), true);
+            self::$supportedIdentifiers = array_fill_keys(DateTimeZone::listIdentifiers(DateTimeZone::ALL_WITH_BC), true);
         }
 
         return isset(self::$supportedIdentifiers[$timezone]);
