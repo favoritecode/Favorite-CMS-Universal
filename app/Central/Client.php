@@ -381,13 +381,12 @@ final class Client {
  public function policy(bool $force=false):array{
   $c=$this->config();
   if(empty($c['secret'])||empty($c['installation_id'])){
-   if($this->offlineRegistrationPending($c))return ['cms_license'=>'free','policy_status'=>'registration_pending','policy_reason'=>'Registration is pending while the official service is temporarily unavailable. Automatic retries continue.'];
-   return $this->connectionDenied('Verified registration is required before this site can operate.');
+   return $this->registrationPending($c);
   }
-  if(!Authority::endpoint((string)($c['server_url']??'')))return $this->connectionDenied('The official service connection must be restored.');
+  if(!Authority::endpoint((string)($c['server_url']??''))){return empty($c['policy_envelope'])?$this->registrationPending($c,'The official service connection is being restored automatically.'):$this->connectionDenied('The official service connection must be restored.');}
   $cached=$this->verifiedPolicy($c);$now=time();
   if(!$force&&$cached!==null&&(int)($c['policy_checked_at']??0)>$now-30)return $cached;
-  if(!$force&&(int)($c['policy_retry_after']??0)>$now)return $cached??$this->connectionDenied('The central service could not verify this site. Retrying shortly.');
+  if(!$force&&(int)($c['policy_retry_after']??0)>$now)return $cached??(empty($c['policy_envelope'])?$this->registrationPending($c):$this->connectionDenied('The central service could not verify this site. Retrying shortly.'));
   try{
    $this->request(['action'=>'status']);$fresh=$this->config();$fresh['policy_checked_at']=$now;unset($fresh['policy_retry_after'],$fresh['policy_last_error'],$fresh['policy_error_code']);$this->save($fresh);
    $verified=$this->verifiedPolicy($fresh);
@@ -397,19 +396,29 @@ final class Client {
    $fresh=$this->config();$fresh['policy_retry_after']=$now+5;$fresh['policy_last_error']=mb_substr(strip_tags($e->getMessage()),0,300);$fresh['policy_error_code']=$e instanceof RemoteError?$e->errorCode:'verification_failure';$this->save($fresh);
    // Once registered, preserve the last verified action during a service outage.
    if($cached!==null)return $cached;
+   // A site that never received a publisher-signed decision keeps running; only a signed Owner action restricts it.
+   if(empty($fresh['policy_envelope']))return $this->registrationPending($fresh);
    return $this->connectionDenied('The central service could not verify this site. The administrator can sign in to restore the connection.');
   }
  }
- /** Outage-only first-use access; never overrides a previously registered or denied site. */
- private function offlineRegistrationPending(array $c):bool{
-  if(!empty($c['secret'])||!empty($c['connected_at'])||!empty($c['registration_verified_at'])||!empty($c['policy_envelope'])||is_file($this->root.'/favorite-server-license/bootstrap.php'))return false;
-  if(!in_array($c['registration_error_code']??'', ['temporary_network_failure','rate_limited'],true)||empty($c['registration_last_attempt']))return false;
-  if(!Authority::endpoint((string)($c['server_url']??''))||!preg_match('/^[a-f0-9]{32,64}$/D',(string)($c['installation_id']??'')))return false;
+ /** Unverified sites keep serving visitors. Only a publisher-signed Owner decision may restrict a site. */
+ private function registrationPending(array $c,string $fallback=''):array{
+  $reason=trim((string)($c['registration_last_error']??$c['policy_last_error']??''));
+  return ['cms_license'=>'free','policy_status'=>'registration_pending','policy_reason'=>$reason!==''?$reason:($fallback!==''?$fallback:'Registration is pending. Your website keeps running and the connection is retried automatically.'),'policy_error_code'=>(string)($c['registration_error_code']??$c['policy_error_code']??'')];
+ }
+ /** Local, network-free status for the administrator interface. Never throws. */
+ public function adminNotice():array{
   try{
-   $site=$this->canonicalBinding($c);
-   if(($c['site_url']??'')!==$site)return false;
-   return (string)\FavoriteCMS\Models\Setting::get('central','registered_'.hash('sha256',$site),'')!== '1';
-  }catch(\Throwable){return false;}
+   $c=$this->config();
+   if(is_file($this->root.'/favorite-server-license/bootstrap.php'))return ['pending'=>false,'welcome'=>false];
+   $registered=!empty($c['secret'])&&!empty($c['installation_id'])&&(!empty($c['registration_verified_at'])||!empty($c['connected_at'])||!empty($c['registry_verified_at'])||!empty($c['policy_envelope']));
+   $since=max((int)($c['registration_verified_at']??0),(int)($c['registry_verified_at']??0),(int)(strtotime((string)($c['connected_at']??''))?:0));
+   $reason=trim((string)($c['registration_last_error']??$c['registry_last_error']??$c['policy_last_error']??''));
+   return ['pending'=>!$registered,'reason'=>substr(strip_tags($reason),0,300),'code'=>(string)($c['registration_error_code']??$c['registry_error_code']??$c['policy_error_code']??''),'welcome'=>$registered&&empty($c['welcome_shown_at'])&&$since>time()-604800];
+  }catch(\Throwable){return ['pending'=>false,'welcome'=>false];}
+ }
+ public function markWelcomeShown():void{
+  try{$c=$this->config();if(empty($c['secret'])||!empty($c['welcome_shown_at']))return;$c['welcome_shown_at']=time();$this->save($c);}catch(\Throwable){}
  }
  private function connectionDenied(string $reason):array{return ['cms_license'=>'free','policy_status'=>'connection_required','policy_reason'=>$reason];}
  private function verifiedPolicy(array $c):?array{

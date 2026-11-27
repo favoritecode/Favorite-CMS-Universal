@@ -1,3 +1,12 @@
+# 1.2.2 — Always-available sites, clearer connection state
+
+- A website that has not completed its first Central registration now keeps serving visitors. Only a publisher-signed Owner decision (Suspend/Ban) can restrict a site; registration problems no longer show the public "Verified connection required" page.
+- Administrators see a clear notice with the exact reason while registration is pending, plus Connection recovery and Software updates links. Registration keeps retrying automatically.
+- One-time "Congratulations - Free License activated" dialog on the first administrator page after a successful registration.
+- Version is now increased for every release so Admin -> Updates can always offer the official fix. Official protected files remain publisher-signed; if protected files are modified the site asks the administrator to restore the official release through Updates.
+- Sites on any 1.0.x, 1.1.x (which report themselves as 1.1.0), 1.2.0 or 1.2.1 can now update to this release from Admin -> Updates (minimum core lowered to 1.0.0; each path is tested in CI with the installed release's own updater).
+- No database migration. Existing connection identity, content, users, themes, plugins and settings are preserved.
+
 # 1.2.0 — Central control and plugin/theme catalog
 
 Free CMS/default theme; central policy client, signed updates, private SMTP/OAuth server integration and Owner-managed repository catalog. Legacy extensions remain Free until explicitly managed. Theme expiry preserves selection/settings and falls back to default. Existing migrations, content, orders, plugin state and historical releases are preserved.

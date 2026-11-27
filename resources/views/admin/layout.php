@@ -1612,6 +1612,7 @@ $appearancePersist = true;
         </nav>
 
         <main class="wp-content">
+            <?php include __DIR__ . '/partials/central-notice.php'; ?>
             <?php if ($flashSuccess): ?>
                 <div class="notice notice-success"><?php echo htmlspecialchars($flashSuccess, ENT_QUOTES, 'UTF-8'); ?></div>
             <?php endif; ?>
