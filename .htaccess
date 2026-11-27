@@ -1,12 +1,25 @@
 <IfModule mod_rewrite.c>
     RewriteEngine On
 
-    # Prevent direct access to sensitive directories and configuration files
-    RewriteRule ^(app|config|database|resources|storage|tests)/ - [F,L,NC]
-    RewriteRule ^(\.env|composer\.(json|lock)|migrate\.php) - [F,L,NC]
+    # Protect CMS source and runtime files at the domain root.
+    RewriteRule ^(app|config|database|resources|storage|tests|vendor)(/|$) - [F,L,NC]
+    RewriteRule ^(\.env|composer\.(json|lock)|migrate\.php|release\.json)$ - [F,L,NC]
 
-    # Forward all requests to the public/ directory
-    RewriteCond %{REQUEST_URI} !^/public/
-    RewriteRule ^(.*)$ public/$1 [L]
+    # Allow the central challenge and live verification paths through dotfile protection.
+    RewriteCond %{REQUEST_URI} !^/(?:.*/)?(?:public/)?\.well-known/(?:favorite-central\.json|favorite-central-live)$ [NC]
+    RewriteRule (^|/)\. - [F,L]
+
+    # Do not allow uploaded or bundled PHP to execute as static content.
+    RewriteRule ^(assets|uploads|themes|plugins)/.*\.(php[0-9]?|phtml|phar|inc)$ - [F,L,NC]
+
+    # Serve public static files while routing clean application URLs through the root front controller.
+    RewriteRule ^(assets|uploads|themes|plugins)/(.*)$ public/$1/$2 [L,NC]
+    RewriteRule ^\.well-known/favorite-central\.json$ public/.well-known/favorite-central.json [L,NC]
+
+    # Skip rewriting the physical root entrypoint; send all other clean routes directly to it.
+    RewriteRule ^index\.php$ - [L]
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^ index.php [L]
 </IfModule>
 
