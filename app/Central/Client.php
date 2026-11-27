@@ -458,10 +458,10 @@ final class Client {
   if($mode==='legacy_free')return ['managed'=>false];
   $ts=$until!==''?strtotime($until.' UTC'):false;$days=$ts!==false?max(0,(int)ceil(($ts-time())/86400)):null;
   $end=$ts!==false?(function_exists('format_date')?format_date($until,'M j, Y g:i a'):$until.' UTC'):'';
-  $r=['managed'=>true,'blocked'=>empty($e['allowed']),'mode'=>$mode!==''?$mode:$reason,'days_left'=>$days,'ends'=>$end,'buy'=>false,'manage'=>false,'tone'=>'info','label'=>'','detail'=>''];
+  $r=['managed'=>true,'blocked'=>empty($e['allowed']),'mode'=>$mode!==''?$mode:$reason,'days_left'=>$days,'ends'=>$end,'buy'=>false,'manage'=>false,'tone'=>'info','label'=>'','short'=>'','detail'=>''];
   if($mode==='owner'){$r['tone']='ok';$r['label']='Owner access';$r['detail']='The control site never needs a license.';}
   elseif($mode==='free'){$r['tone']='ok';$r['label']='Free';$r['detail']='No license needed.';}
-  elseif($mode==='trial'){$r['tone']=($days!==null&&$days<=2)?'warn':'info';$r['buy']=true;$r['label']='Free trial';$r['detail']=($days!==null?$days.' day'.($days===1?'':'s').' left':'Running').($end!==''?' · ends '.$end:'').'. Buy a license before it ends to keep using it.';}
+  elseif($mode==='trial'){$r['tone']=($days!==null&&$days<=2)?'warn':'info';$r['buy']=true;$r['label']='Free trial';$r['short']='Free trial · '.($days!==null?$days.' day'.($days===1?'':'s').' left':'running');$r['detail']=($end!==''?'Ends '.$end.'. ':'').'Buy a license before it ends to keep using it.';}
   elseif($mode==='paid'){$r['tone']='ok';$r['manage']=true;$r['label']='Licensed';$r['detail']=$end!==''?'Valid until '.$end.'.':'Lifetime license.';}
   elseif($reason==='trial_not_started'){$r['buy']=true;$r['label']='Free trial available';$r['detail']='A free trial starts when you activate it. After the trial a license is required.';}
   elseif($reason==='purchase_required'){$r['tone']='bad';$r['buy']=true;$r['label']='License needed';$r['detail']='The free trial has ended. Buy a license to use this '.$kind.'.';}
@@ -470,6 +470,7 @@ final class Client {
   elseif($reason==='central_temporarily_unavailable'){$r['tone']='warn';$r['label']='License check unavailable';$r['detail']='The license server could not be reached; it will be checked again shortly.';}
   elseif($reason==='policy_suspension'){$r['tone']='bad';$r['label']='Restricted';$r['detail']='This site is restricted by the platform owner.';}
   else{$r['tone']='warn';$r['label']=ucfirst(str_replace('_',' ',$reason!==''?$reason:'License check'));$r['detail']='';}
+  if($r['short']==='')$r['short']=$r['label'];
   return $r;
  }
  /** License state for one extension (starts the trial only when $active). */

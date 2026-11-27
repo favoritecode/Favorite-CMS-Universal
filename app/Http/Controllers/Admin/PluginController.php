@@ -64,7 +64,7 @@ class PluginController
                 $meta = $manager->getInstalledPlugins()[$id] ?? [];
                 $lic = (new \FavoriteCMS\Central\Client())->licenseState(['id' => $id] + (array)$meta, true);
                 if (!empty($lic['managed']) && ($lic['mode'] ?? '') === 'trial') {
-                    $message .= ' Free trial started: ' . $lic['detail'];
+                    $message .= ' Free trial started (' . lcfirst(substr((string)$lic['short'], strlen('Free trial · '))) . '). ' . $lic['detail'];
                 }
             } catch (\Throwable) {}
             $_SESSION['flash_success'] = $message;

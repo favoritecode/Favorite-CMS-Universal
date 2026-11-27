@@ -1,3 +1,9 @@
+# 2.0.0-beta.9 — Cleaner Site & add-ons
+
+- Site & add-ons redesigned without removing anything: one card per extension (identity, one badge such as "Free trial · 7 days left", then the note and the price with a Buy button, properly aligned); the stat tiles that only repeated the tab counts are gone; the Connection tab shows one status line and one fact list (website, access, CMS version, installation ID, last verified) with Manage actions (users, updates, signed update) beside it; the leftover checkout card is removed.
+- License badges no longer repeat the same words twice.
+- Connection tab: the header "Connected" pill shows only on the Plugins/Themes tabs (the card already states it), one "Software updates" entry plus a quick install instead of two, and "Last verified" uses the site time zone.
+
 # 2.0.0-beta.8 — Buy is one click: price + Buy, payment on a page that looks like your website
 
 - Site & add-ons shows, per extension, only its license state, its price and a **Buy** button (no key entry, no "trusted update" forms, no password step). Buy opens the purchase page directly.

@@ -15,8 +15,8 @@ $in = fn(int $days) => gmdate('Y-m-d H:i:s', time() + $days * 86400 - 600);
 
 t('free trial: days left, end date, Buy link; turns amber in the last 2 days', function () use ($in) {
     $s = Client::describeLicense(['allowed' => true, 'mode' => 'trial', 'valid_until' => $in(5)]);
-    ok($s['managed'] && !$s['blocked'] && $s['label'] === 'Free trial' && $s['days_left'] === 5 && $s['buy'] === true && $s['tone'] === 'info' && str_contains($s['detail'], '5 days left'), json_encode($s));
-    $w = Client::describeLicense(['allowed' => true, 'mode' => 'trial', 'valid_until' => $in(1)]); ok($w['tone'] === 'warn' && str_contains($w['detail'], '1 day left'), json_encode($w));
+    ok($s['managed'] && !$s['blocked'] && $s['label'] === 'Free trial' && $s['short'] === 'Free trial · 5 days left' && $s['days_left'] === 5 && $s['buy'] === true && $s['tone'] === 'info' && str_starts_with($s['detail'], 'Ends ') && !str_contains($s['detail'], 'days left'), json_encode($s));
+    $w = Client::describeLicense(['allowed' => true, 'mode' => 'trial', 'valid_until' => $in(1)]); ok($w['tone'] === 'warn' && $w['short'] === 'Free trial · 1 day left', json_encode($w));
 });
 t('inactive managed extension: "free trial available" (trial not started yet)', function () { $s = Client::describeLicense(['allowed' => false, 'reason' => 'trial_not_started']); ok($s['managed'] && $s['blocked'] && $s['label'] === 'Free trial available' && $s['buy'] === true && str_contains($s['detail'], 'starts when you activate'), json_encode($s)); });
 t('trial ended: "License needed", blocked, Buy link, red', function () { $s = Client::describeLicense(['allowed' => false, 'reason' => 'purchase_required']); ok($s['blocked'] && $s['label'] === 'License needed' && $s['buy'] && $s['tone'] === 'bad' && str_contains($s['detail'], 'free trial has ended'), json_encode($s)); });
