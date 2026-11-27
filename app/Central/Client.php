@@ -401,10 +401,25 @@ final class Client {
    return $this->connectionDenied('The central service could not verify this site. The administrator can sign in to restore the connection.');
   }
  }
- /** Unverified sites keep serving visitors. Only a publisher-signed Owner decision may restrict a site. */
+ /** An unverified site may run for a bounded grace period (hosting/network trouble); afterwards it is restricted until it connects. */
+ private const PENDING_GRACE=86400;
+ /** Earliest moment this installation was seen without a verified connection. Kept in the connection file AND the database, so deleting one does not restart the clock. */
+ private function pendingSince(array $c):int{
+  $file=(int)($c['pending_since']??0);$db=0;
+  try{$db=(int)\FavoriteCMS\Models\Setting::get('central','pending_since','0');}catch(\Throwable){}
+  $known=array_values(array_filter([$file,$db],static fn(int $t):bool=>$t>0));
+  $since=$known?min($known):time();
+  if($file!==$since){try{$c['pending_since']=$since;$this->save($c);}catch(\Throwable){}}
+  if($db!==$since){try{\FavoriteCMS\Models\Setting::set('central','pending_since',(string)$since);}catch(\Throwable){}}
+  return $since;
+ }
  private function registrationPending(array $c,string $fallback=''):array{
   $reason=trim((string)($c['registration_last_error']??$c['policy_last_error']??''));
-  return ['cms_license'=>'free','policy_status'=>'registration_pending','policy_reason'=>$reason!==''?$reason:($fallback!==''?$fallback:'Registration is pending. Your website keeps running and the connection is retried automatically.'),'policy_error_code'=>(string)($c['registration_error_code']??$c['policy_error_code']??'')];
+  $detail=$reason!==''?$reason:($fallback!==''?$fallback:'Registration is pending. Your website keeps running while the connection is retried automatically.');
+  $left=$this->pendingSince($c)+self::PENDING_GRACE-time();
+  $code=(string)($c['registration_error_code']??$c['policy_error_code']??'');
+  if($left<=0)return ['cms_license'=>'free','policy_status'=>'connection_required','policy_reason'=>'Verified registration is required before this site can operate.','policy_detail'=>$detail,'policy_error_code'=>$code];
+  return ['cms_license'=>'free','policy_status'=>'registration_pending','policy_reason'=>$detail,'policy_error_code'=>$code,'grace_seconds_left'=>$left];
  }
  /** Local, network-free status for the administrator interface. Never throws. */
  public function adminNotice():array{
@@ -414,7 +429,8 @@ final class Client {
    $registered=!empty($c['secret'])&&!empty($c['installation_id'])&&(!empty($c['registration_verified_at'])||!empty($c['connected_at'])||!empty($c['registry_verified_at'])||!empty($c['policy_envelope']));
    $since=max((int)($c['registration_verified_at']??0),(int)($c['registry_verified_at']??0),(int)(strtotime((string)($c['connected_at']??''))?:0));
    $reason=trim((string)($c['registration_last_error']??$c['registry_last_error']??$c['policy_last_error']??''));
-   return ['pending'=>!$registered,'reason'=>substr(strip_tags($reason),0,300),'code'=>(string)($c['registration_error_code']??$c['registry_error_code']??$c['policy_error_code']??''),'welcome'=>$registered&&empty($c['welcome_shown_at'])&&$since>time()-604800];
+   $left=$registered?0:$this->pendingSince($c)+self::PENDING_GRACE-time();
+   return ['pending'=>!$registered,'reason'=>substr(strip_tags($reason),0,300),'code'=>(string)($c['registration_error_code']??$c['registry_error_code']??$c['policy_error_code']??''),'grace_hours_left'=>$registered?0:max(0,(int)ceil($left/3600)),'restricted'=>!$registered&&$left<=0,'welcome'=>$registered&&empty($c['welcome_shown_at'])&&$since>time()-604800];
   }catch(\Throwable){return ['pending'=>false,'welcome'=>false];}
  }
  public function markWelcomeShown():void{

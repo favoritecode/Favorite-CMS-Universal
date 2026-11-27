@@ -16,12 +16,20 @@ use FavoriteCMS\Core\Request;
 
 $dir = APP_ROOT . '/storage/favorite-central-client';
 if (!is_dir($dir)) mkdir($dir, 0700, true);
-file_put_contents($dir . '/client.json', json_encode([
+// CMS_TEST_AGE_HOURS: pretend the site has been unregistered for N hours (file + database clock).
+// CMS_TEST_DELETE_CLIENT=1: a customer deletes the connection file to restart the clock.
+$age = getenv('CMS_TEST_AGE_HOURS');
+$since = $age !== false && $age !== '' ? time() - (int)((float)$age * 3600) : null;
+if ($since !== null) FavoriteCMS\Models\Setting::set('central', 'pending_since', (string)$since);
+$record = [
     'installation_id' => str_repeat('a', 32),
     'registration_error_code' => getenv('CMS_TEST_ERROR_CODE') ?: 'authority_certificate_required',
     'registration_last_attempt' => time(),
     'registration_last_error' => 'simulated registration failure',
-]));
+];
+if ($since !== null) $record['pending_since'] = $since;
+if (getenv('CMS_TEST_DELETE_CLIENT') === '1') { @unlink($dir . '/client.json'); }
+else file_put_contents($dir . '/client.json', json_encode($record));
 $integrity = FavoriteCMS\Security\CoreIntegrity::report(APP_ROOT);
 $response = Bridge::policyResponse(Request::create('GET', '/'));
 $status = null;

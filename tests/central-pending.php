@@ -62,7 +62,33 @@ check('forged/invalid cached policy is still rejected (tamper protection kept)',
     ok($p['policy_status'] === 'connection_required', 'forged "active" must NOT be accepted, got ' . $p['policy_status']);
 });
 
-check('admin notice: pending shows reason, never welcome', function () {
+check('grace is bounded: still pending at 23h, restricted after 24h', function () {
+    $cfg = ['installation_id' => str_repeat('9', 32), 'registration_error_code' => 'hosting_browser_challenge', 'registration_last_error' => 'Hosting challenge detail'];
+    $p = (new Client(freshRoot($cfg + ['pending_since' => time() - 23 * 3600])))->policy();
+    ok($p['policy_status'] === 'registration_pending' && $p['grace_seconds_left'] > 0 && $p['grace_seconds_left'] <= 3600, 'at 23h: ' . json_encode($p));
+    $p = (new Client(freshRoot($cfg + ['pending_since' => time() - 24 * 3600 - 5])))->policy();
+    ok($p['policy_status'] === 'connection_required', 'after 24h must be restricted, got ' . $p['policy_status']);
+    ok(!str_contains($p['policy_reason'], 'Hosting challenge'), 'public reason must be generic');
+    ok(str_contains($p['policy_detail'], 'Hosting challenge'), 'admin detail kept');
+});
+
+check('first observation starts the clock and persists it', function () {
+    $root = freshRoot();
+    $c = new Client($root);
+    $c->policy();
+    $stored = (int)(($c->config())['pending_since'] ?? 0);
+    ok($stored > time() - 5 && $stored <= time(), 'pending_since must be stored on first observation');
+    sleep(1);
+    $c->policy();
+    ok((int)(($c->config())['pending_since']) === $stored, 'clock must not restart');
+});
+
+check('registered site with a verified signed state is never put on the grace clock', function () {
+    $n = (new Client(freshRoot(['installation_id' => str_repeat('3', 32), 'secret' => 'x', 'registration_verified_at' => time() - 90000, 'welcome_shown_at' => 1])))->adminNotice();
+    ok($n['pending'] === false && $n['restricted'] === false && $n['grace_hours_left'] === 0);
+});
+
+check('admin notice: pending shows reason and remaining grace, never welcome', function () {
     $n = (new Client(freshRoot(['installation_id' => str_repeat('e', 32), 'registration_error_code' => 'temporary_network_failure', 'registration_last_error' => '<b>Network</b> down'])))->adminNotice();
     ok($n['pending'] === true && $n['welcome'] === false);
     ok($n['code'] === 'temporary_network_failure');

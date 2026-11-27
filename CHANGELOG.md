@@ -1,6 +1,6 @@
 # 1.2.2 — Always-available sites, clearer connection state
 
-- A website that has not completed its first Central registration now keeps serving visitors. Only a publisher-signed Owner decision (Suspend/Ban) can restrict a site; registration problems no longer show the public "Verified connection required" page.
+- A website that has not yet completed its Central registration keeps serving visitors for a bounded 24-hour grace period (hosting or network trouble); the clock is stored in both the connection file and the database, so deleting the file does not restart it. After 24 hours without a verified connection the public site is restricted until it connects (administrator sign-in, backups and updates stay available). A site that holds a publisher-signed Owner decision (Suspend/Ban) is always restricted accordingly.
 - Administrators see a clear notice with the exact reason while registration is pending, plus Connection recovery and Software updates links. Registration keeps retrying automatically.
 - One-time "Congratulations - Free License activated" dialog on the first administrator page after a successful registration.
 - Version is now increased for every release so Admin -> Updates can always offer the official fix. Official protected files remain publisher-signed; if protected files are modified the site asks the administrator to restore the official release through Updates.
