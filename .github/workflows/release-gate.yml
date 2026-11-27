@@ -76,6 +76,11 @@ jobs:
           [ -f "$SBX/vendor/autoload.php" ] || cp -r vendor "$SBX/vendor"
           echo sandbox > "$SBX/.cms-test-sandbox"
           CMS_TEST_ROOT="$SBX" CMS_TEST_TO_VERSION="$TO" php tests/core-update-from.php
+      - name: Backup survives normal requests rewriting the connection state
+        run: |
+          set -e
+          SBX="$RUNNER_TEMP/old-${{ matrix.from }}"
+          CMS_TEST_ROOT="$SBX" php tests/backup-volatile-state.php
       - name: Updated site stays online when registration fails
         run: |
           set -e

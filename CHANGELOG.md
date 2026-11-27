@@ -6,6 +6,7 @@
 - One-time "Congratulations - Free License activated" dialog on the first administrator page after a successful registration.
 - Version is now increased for every release so Admin -> Updates can always offer the official fix. Official protected files remain publisher-signed; if protected files are modified the site asks the administrator to restore the official release through Updates.
 - Sites on any 1.0.x, 1.1.x (which report themselves as 1.1.0), 1.2.0 or 1.2.1 can now update to this release from Admin -> Updates (minimum core lowered to 1.0.0; each path is tested in CI with the installed release's own updater).
+- Fixed: "Core update failed: Backup file changed or was truncated: files/storage/favorite-central-client/client.json". The update backup now archives exactly the bytes it hashed for small, frequently rewritten connection-state files and ignores their transient .tmp files, so normal visitor requests during an update can no longer break the backup (tested with a writer rewriting the file every 0.3 ms: 6/6 backups, previously 0/6). Sites that are still on an older release run the older backup code for their first update to 1.2.2; see the update note.
 - No database migration. Existing connection identity, content, users, themes, plugins and settings are preserved.
 
 # 1.2.0 — Central control and plugin/theme catalog

@@ -56,13 +56,22 @@ class BackupService
             $files=$this->collectFiles($options);
             if($zip->open($working,ZipArchive::CREATE|ZipArchive::EXCL)!==true)throw new RuntimeException('Backup archive could not be created.');$opened=true;@chmod($working,0600);
             if(!$zip->addFile($sql,'database.sql'))throw new RuntimeException('Database dump could not be archived.');
-            $inventory=[];
+            $inventory=[];$snapshotBudget=16777216;
             foreach($files as$name=>$file){
                 if($file===null){if(!$zip->addEmptyDir('files/'.rtrim($name,'/')))throw new RuntimeException('Empty directory could not be archived: '.$name);continue;}
                 $source=$file;
                 if(preg_match('~^storage/favorite-central-private/oauth/database/gateway-[a-f0-9]{16}\.sqlite$~',$name)){
                     $snapshot=$this->backupDir.'/oauth-snapshot-'.bin2hex(random_bytes(12)).'.sqlite';$this->sqliteSnapshots[]=$snapshot;
                     $sqlite=new PDO('sqlite:file:'.str_replace('\\','/',$file).'?mode=ro',null,null,[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION]);$sqlite->exec('VACUUM INTO '.$sqlite->quote($snapshot));$sqlite=null;@chmod($snapshot,0600);$source=$snapshot;
+                }
+                // Connection state is rewritten by ordinary requests while the archive is built. addFile() reads at close(), so
+                // archive the very bytes that were hashed (bounded in size and total memory) instead of racing those writes.
+                if($source===$file&&$snapshotBudget>0&&preg_match('~^storage/favorite-central-(?:client|private)/~',$name)&&($probe=@filesize($source))!==false&&$probe<=262144){
+                    $bytes=@file_get_contents($source);
+                    if(is_string($bytes)&&strlen($bytes)<=$snapshotBudget){
+                        if(!$zip->addFromString('files/'.$name,$bytes))throw new RuntimeException('File could not be backed up: '.$name);
+                        $snapshotBudget-=strlen($bytes);$inventory['files/'.$name]=['size'=>strlen($bytes),'sha256'=>hash('sha256',$bytes)];continue;
+                    }
                 }
                 $hash=hash_file('sha256',$source);$size=filesize($source);if($hash===false||$size===false||!$zip->addFile($source,'files/'.$name))throw new RuntimeException('File could not be backed up: '.$name);
                 $inventory['files/'.$name]=['size'=>$size,'sha256'=>$hash];
@@ -96,7 +105,7 @@ class BackupService
                 foreach(['include_media'=>'public/uploads','include_themes'=>'themes','include_plugins'=>'plugins']as$flag=>$prefix)if(($options[$flag]??true)===false&&($rel===$prefix||str_starts_with($rel,$prefix.'/')))$omit=true;
                 if($omit)continue;
                 if(is_link($path))throw new RuntimeException('A symbolic link needs a separate backup plan: '.$rel);
-                if(in_array($rel,['storage/update.lock','storage/maintenance.lock'],true)||preg_match('~^storage/favorite-central-(?:client|private)/.*\.lock$~',$rel))continue;
+                if(in_array($rel,['storage/update.lock','storage/maintenance.lock'],true)||preg_match('~^storage/favorite-central-(?:client|private)/.*\.(?:lock|tmp)$~',$rel))continue;
                 if(preg_match('~^storage/favorite-central-private/oauth/database/gateway-[a-f0-9]{16}\.sqlite-(?:wal|shm)$~',$rel))continue;
                 if(is_dir($path)){$files[$rel.'/']=null;$walk($path,$rel);}elseif(is_file($path)&&is_readable($path)){$files[$rel]=$path;}else throw new RuntimeException('A website file cannot be read: '.$rel);
             }
