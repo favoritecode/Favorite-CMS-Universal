@@ -7,9 +7,9 @@ final class Bridge {
   require_once __DIR__.'/functions.php';
   $private=APP_ROOT.'/favorite-server-license/bootstrap.php';if(is_file($private)){require_once $private;\FavoriteCentral\Runtime::boot(app());}
   try{if($connect)(new Client())->autoConnect();}catch(\Throwable){}
-  // Customer licensing endpoint stays registered for existing links and activation flows.
-  // The separate Add-ons & access admin menu is intentionally hidden;
-  // Owner administration is presented in CMS Central Control (Server package).
+  // Site & add-ons (license state, Buy, activation, connection, updates). Reachable by URL from the Plugins/Themes pages and
+  // notices, deliberately not listed in the sidebar. Owner administration lives in CMS Central Control (Server package).
+  add_admin_menu('central-connection','Site & add-ons','🔑',static fn($r)=>(new self())->page($r),'manage_options',57,true);
  }
  /** Verified decisions govern registered sites; first-use service outages may defer enrollment. */
  public static function recoveryAllowed(string $path):bool{

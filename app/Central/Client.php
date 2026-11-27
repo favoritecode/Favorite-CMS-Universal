@@ -449,7 +449,7 @@ final class Client {
    $since=max((int)($c['registration_verified_at']??0),(int)($c['registry_verified_at']??0),(int)(strtotime((string)($c['connected_at']??''))?:0));
    $reason=trim((string)($c['registration_last_error']??$c['registry_last_error']??$c['policy_last_error']??''));
    $left=$registered?0:$this->pendingSince($c)+self::PENDING_GRACE-time();$vp=$registered&&!empty($c['public_unverified'])?$this->verifiedPolicy($c):null;$vd=(int)($vp['verification_deadline']??0);
-   return ['pending'=>!$registered,'reason'=>substr(strip_tags($reason),0,300),'code'=>(string)($c['registration_error_code']??$c['registry_error_code']??$c['policy_error_code']??''),'grace_hours_left'=>$registered?0:max(0,(int)ceil($left/3600)),'restricted'=>!$registered&&$left<=0,'unverified'=>$registered&&!empty($c['public_unverified']),'license_alerts'=>$this->licenseAlerts(),'verify_hours_left'=>($vp&&($vp['verification']??'')==='unverified'&&$vd>0)?max(0,(int)ceil(($vd-time())/3600)):null,'welcome'=>$registered&&empty($c['welcome_shown_at'])&&$since>time()-604800];
+   return ['pending'=>!$registered,'reason'=>substr(strip_tags($reason),0,300),'code'=>(string)($c['registration_error_code']??$c['registry_error_code']??$c['policy_error_code']??''),'grace_hours_left'=>$registered?0:max(0,(int)ceil($left/3600)),'restricted'=>!$registered&&$left<=0,'unverified'=>$registered&&!empty($c['public_unverified'])&&!($vp!==null&&($vp['verification']??'')==='verified'),'verified_notice'=>$registered&&!empty($c['public_unverified'])&&$vp!==null&&($vp['verification']??'')==='verified'&&empty($c['verified_notice_shown_at']),'license_alerts'=>$this->licenseAlerts(),'verify_hours_left'=>($vp&&($vp['verification']??'')==='unverified'&&$vd>0)?max(0,(int)ceil(($vd-time())/3600)):null,'welcome'=>$registered&&empty($c['welcome_shown_at'])&&$since>time()-604800];
   }catch(\Throwable){return ['pending'=>false,'welcome'=>false];}
  }
  /** Turns an entitlement answer into something an administrator can read. managed=false: nothing to show (a free, unmanaged extension). */
@@ -489,6 +489,9 @@ final class Client {
    }
    return array_slice($out,0,4);
   }catch(\Throwable){return [];}
+ }
+ public function markVerifiedNoticeShown():void{
+  try{$c=$this->config();if(empty($c['secret'])||!empty($c['verified_notice_shown_at']))return;$c['verified_notice_shown_at']=time();$this->save($c);}catch(\Throwable){}
  }
  public function markWelcomeShown():void{
   try{$c=$this->config();if(empty($c['secret'])||!empty($c['welcome_shown_at']))return;$c['welcome_shown_at']=time();$this->save($c);}catch(\Throwable){}

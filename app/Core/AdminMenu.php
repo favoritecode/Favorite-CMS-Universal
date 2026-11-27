@@ -20,7 +20,8 @@ class AdminMenu
         ?string $icon = '🔌',
         ?callable $handler = null,
         string $capability = 'manage_options',
-        int $position = 50
+        int $position = 50,
+        bool $hidden = false
     ): void {
         $slug = trim($slug, '/');
         static::$menus[$slug] = [
@@ -30,6 +31,7 @@ class AdminMenu
             'handler'    => $handler,
             'capability' => $capability,
             'position'   => $position,
+            'hidden'     => $hidden,
             'submenus'   => [],
         ];
     }
@@ -64,7 +66,8 @@ class AdminMenu
      */
     public static function getMenus(): array
     {
-        $menus = static::$menus;
+        // Hidden pages stay reachable by URL (findPage) but are not listed in the sidebar.
+        $menus = array_filter(static::$menus, static fn(array $m): bool => empty($m['hidden']));
         uasort($menus, fn($a, $b) => ($a['position'] ?? 50) <=> ($b['position'] ?? 50));
         return $menus;
     }

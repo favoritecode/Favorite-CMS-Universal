@@ -1,3 +1,8 @@
+# 2.0.0-beta.7 — Fix: "Buy a license" led to a 404
+
+- Fix: a website that the Owner (or a domain proof) had verified kept saying "not verified yet" in its admin. The notice now follows the publisher-signed verification state from the control server; a one-time "Verified" confirmation replaces it.
+- The Site & add-ons page (license state, Buy with Favorite Pay, license key activation, connection, updates) was unreachable since 1.2.1: its menu entry was removed together with its route, so every link to it gave "Page Not Found". It is registered again as a hidden admin page (opened from the Plugins/Themes pages and notices, not listed in the sidebar). Admin menu entries can now be registered as hidden.
+
 # 2.0.0-beta.6 — Trial and license state is visible, and unlicensed plugins are not "Active"
 
 - Plugins and Themes pages show each repository-managed extension's license state: free trial (days left and end date), "Free trial available", licensed until (or lifetime), "License needed" and expired, with a **Buy a license** link that opens Site & add-ons on that extension.

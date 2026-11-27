@@ -11,6 +11,9 @@ try {
     if (!empty($fcNotice['welcome'])) {
         $fcClient->markWelcomeShown();
     }
+    if (!empty($fcNotice['verified_notice'])) {
+        $fcClient->markVerifiedNoticeShown();
+    }
 } catch (\Throwable) {
     $fcNotice = null;
 }
@@ -46,6 +49,11 @@ if (is_array($fcNotice) && !empty($fcNotice['pending'])):
             <a href="<?php echo $fcEsc(site_path('/admin/page/central-connection') . '?tab=' . (!empty($fcAlert['theme']) ? 'themes' : 'plugins') . '&focus=' . rawurlencode((string)$fcAlert['id'])); ?>">Buy a license</a></li>
     <?php endforeach; ?>
     </ul>
+</div>
+<?php endif; ?>
+<?php if (is_array($fcNotice) && !empty($fcNotice['verified_notice'])): ?>
+<div class="notice notice-success" role="status">
+    <strong>Verified.</strong> The Favorite CMS owner has verified this website. Your Free license is permanent and nothing more is needed.
 </div>
 <?php endif; ?>
 <?php if (is_array($fcNotice) && !empty($fcNotice['unverified'])): ?>

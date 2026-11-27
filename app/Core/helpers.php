@@ -297,9 +297,10 @@ if (!function_exists('add_admin_menu')) {
         ?string $icon = '🔌',
         ?callable $handler = null,
         string $capability = 'manage_options',
-        int $position = 50
+        int $position = 50,
+        bool $hidden = false
     ): void {
-        \FavoriteCMS\Core\AdminMenu::addMenu($slug, $title, $icon, $handler, $capability, $position);
+        \FavoriteCMS\Core\AdminMenu::addMenu($slug, $title, $icon, $handler, $capability, $position, $hidden);
     }
 }
 
