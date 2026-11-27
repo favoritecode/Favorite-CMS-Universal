@@ -21,7 +21,7 @@ if (is_array($fcNotice) && !empty($fcNotice['pending'])):
 <div class="notice notice-warning" role="status">
     <?php if (!empty($fcNotice['restricted'])): ?>
         <strong>Public access is paused.</strong>
-        This website has not completed its automatic connection to Favorite CMS Central within the allowed 24 hours,
+        This website has not completed its automatic connection to Favorite CMS Central within the allowed 3 days,
         so visitors currently see a verification notice. Your content and settings are safe and administrator access stays available.
         The connection is retried automatically; open connection recovery to retry now.
     <?php else: ?>
@@ -39,7 +39,9 @@ if (is_array($fcNotice) && !empty($fcNotice['pending'])):
 <?php endif; ?>
 <?php if (is_array($fcNotice) && !empty($fcNotice['unverified'])): ?>
 <div class="notice notice-info" role="status">
-    Your website is connected to Favorite CMS Central. Automatic domain verification is not possible on this hosting right now; this does not affect your website and is retried automatically.
+    Your website is connected to Favorite CMS Central but is <strong>not verified yet</strong>.
+    <?php if (($fcNotice['verify_hours_left'] ?? null) !== null): ?>It stays active for about <?php echo (int)$fcNotice['verify_hours_left']; ?> more hour(s) while the Favorite CMS owner verifies it.<?php endif; ?>
+    If it is not verified in time, public access pauses. Install the latest official update (Software updates) and contact the Favorite CMS owner at favoriteweb.net if needed. Automatic domain verification is retried on its own.
 </div>
 <?php endif; ?>
 <?php if (is_array($fcNotice) && !empty($fcNotice['welcome'])): ?>

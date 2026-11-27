@@ -417,7 +417,7 @@ final class Client {
   }
  }
  /** An unverified site may run for a bounded grace period (hosting/network trouble); afterwards it is restricted until it connects. */
- private const PENDING_GRACE=86400;
+ private const PENDING_GRACE=259200;
  /** Earliest moment this installation was seen without a verified connection. Kept in the connection file AND the database, so deleting one does not restart the clock. */
  private function pendingSince(array $c):int{
   $file=(int)($c['pending_since']??0);$db=0;
@@ -444,8 +444,8 @@ final class Client {
    $registered=!empty($c['secret'])&&!empty($c['installation_id'])&&(!empty($c['registration_verified_at'])||!empty($c['connected_at'])||!empty($c['registry_verified_at'])||!empty($c['policy_envelope']));
    $since=max((int)($c['registration_verified_at']??0),(int)($c['registry_verified_at']??0),(int)(strtotime((string)($c['connected_at']??''))?:0));
    $reason=trim((string)($c['registration_last_error']??$c['registry_last_error']??$c['policy_last_error']??''));
-   $left=$registered?0:$this->pendingSince($c)+self::PENDING_GRACE-time();
-   return ['pending'=>!$registered,'reason'=>substr(strip_tags($reason),0,300),'code'=>(string)($c['registration_error_code']??$c['registry_error_code']??$c['policy_error_code']??''),'grace_hours_left'=>$registered?0:max(0,(int)ceil($left/3600)),'restricted'=>!$registered&&$left<=0,'unverified'=>$registered&&!empty($c['public_unverified']),'welcome'=>$registered&&empty($c['welcome_shown_at'])&&$since>time()-604800];
+   $left=$registered?0:$this->pendingSince($c)+self::PENDING_GRACE-time();$vp=$registered&&!empty($c['public_unverified'])?$this->verifiedPolicy($c):null;$vd=(int)($vp['verification_deadline']??0);
+   return ['pending'=>!$registered,'reason'=>substr(strip_tags($reason),0,300),'code'=>(string)($c['registration_error_code']??$c['registry_error_code']??$c['policy_error_code']??''),'grace_hours_left'=>$registered?0:max(0,(int)ceil($left/3600)),'restricted'=>!$registered&&$left<=0,'unverified'=>$registered&&!empty($c['public_unverified']),'verify_hours_left'=>($vp&&($vp['verification']??'')==='unverified'&&$vd>0)?max(0,(int)ceil(($vd-time())/3600)):null,'welcome'=>$registered&&empty($c['welcome_shown_at'])&&$since>time()-604800];
   }catch(\Throwable){return ['pending'=>false,'welcome'=>false];}
  }
  public function markWelcomeShown():void{
@@ -460,6 +460,8 @@ final class Client {
    if(($p['installation_id']??'')!==($c['installation_id']??'')||($data['canonical_site_url']??'')!==$site||($data['policy_protocol']??'')!=='signed-state-1'||$issued>time()+30||$issued<=0||$until===false||$until<$issued||$until>$issued+120)return null;
    if((int)($data['policy_revision']??0)<max(1,(int)($c['policy_revision']??0)))return null;
    if(($data['policy_status']??'')==='integrity_failed'&&in_array($data['owner_policy_status']??'',['active','warning'],true)&&\FavoriteCMS\Security\CoreIntegrity::report($this->root)['status']==='verified'){$data['policy_status']=$data['owner_policy_status'];$data['policy_reason']=$data['owner_policy_reason']??null;$data['core_repaired_offline']=true;}
+   // A domain-unverified site is limited to the signed verification window; this also holds while the control server is unreachable.
+   if(($data['verification']??'')==='unverified'&&(int)($data['verification_deadline']??0)>0&&time()>(int)$data['verification_deadline']&&in_array($data['policy_status']??'',['active','warning'],true)){$data['policy_status']='verification_required';$data['policy_reason']='This website was not verified within 3 days. Install the latest official Favorite CMS update and contact the Favorite CMS owner to verify it.';}
    return $data;
   }catch(\Throwable){return null;}
  }

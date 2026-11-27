@@ -62,11 +62,11 @@ check('forged/invalid cached policy is still rejected (tamper protection kept)',
     ok($p['policy_status'] === 'connection_required', 'forged "active" must NOT be accepted, got ' . $p['policy_status']);
 });
 
-check('grace is bounded: still pending at 23h, restricted after 24h', function () {
+check('grace is bounded: still pending at 71h, restricted after 72h', function () {
     $cfg = ['installation_id' => str_repeat('9', 32), 'registration_error_code' => 'hosting_browser_challenge', 'registration_last_error' => 'Hosting challenge detail'];
-    $p = (new Client(freshRoot($cfg + ['pending_since' => time() - 23 * 3600])))->policy();
+    $p = (new Client(freshRoot($cfg + ['pending_since' => time() - 71 * 3600])))->policy();
     ok($p['policy_status'] === 'registration_pending' && $p['grace_seconds_left'] > 0 && $p['grace_seconds_left'] <= 3600, 'at 23h: ' . json_encode($p));
-    $p = (new Client(freshRoot($cfg + ['pending_since' => time() - 24 * 3600 - 5])))->policy();
+    $p = (new Client(freshRoot($cfg + ['pending_since' => time() - 72 * 3600 - 5])))->policy();
     ok($p['policy_status'] === 'connection_required', 'after 24h must be restricted, got ' . $p['policy_status']);
     ok(!str_contains($p['policy_reason'], 'Hosting challenge'), 'public reason must be generic');
     ok(str_contains($p['policy_detail'], 'Hosting challenge'), 'admin detail kept');

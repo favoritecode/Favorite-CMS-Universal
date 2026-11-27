@@ -2,8 +2,8 @@
     "files": {
         "app/Central/AccountDirectory.php": "4367622a226734af60639c65fa7822c22117fd791b5e47c23178110d5b0d3d87",
         "app/Central/Authority.php": "93f30fc58326b71ed70b1f646cf0b733b8bb2bc27c0412ecb1b9ea975d1375b6",
-        "app/Central/Bridge.php": "ce01c8fa8c7f044504a1e172813fb56876397c269a18a15575ac8a4b352d39e8",
-        "app/Central/Client.php": "306ab380e6fa509f92a915b57e83ec6c53fad167f679360192ab68ecef41bc0d",
+        "app/Central/Bridge.php": "c993a059cad6fcf9c981d389db8ea238a7a5787ec057d8fa7c5e1a9bfc2b6b09",
+        "app/Central/Client.php": "e25ccc75b73165a7dd0605723110a499421f5c11477546addcb8780172e3bb4e",
         "app/Central/Crypto.php": "fdfbd1e2440143721fb98d6191fa429cb9bec0db5b1673353d75dce743c53c1e",
         "app/Central/LocalAddress.php": "bf4a8074bdf76751ba30e8a52ca35a4356b4252761a86be78d73e9163bf63bf9",
         "app/Central/LocalEnrollment.php": "5c788025166bf600196b78f144dd3844058c7bddff609e6c8d7817cf06f4e55a",
@@ -178,7 +178,7 @@
         "resources/views/admin/pages/index.php": "1b6f3977a206c4bb517cd811338a87e2f881d311adf1e2a84d02f63fff8f1f56",
         "resources/views/admin/partials/builder-backup.php": "83ddb647adb483f794ee8929909999be319b984ea30a7d9b394e60743621293b",
         "resources/views/admin/partials/builder-content.php": "d69bf6f19cd882a381b3f9512fcf6a8d77cc90aee8fab142ae2466d5b597f835",
-        "resources/views/admin/partials/central-notice.php": "6ebbc8870765900432d138ffd7c73d8393b70cd4b270bd91ca29a22b9da3308f",
+        "resources/views/admin/partials/central-notice.php": "938ecea2d5f0792797b11b105d47aaf35c37cd0615dafb5916b73c7b544bf7e4",
         "resources/views/admin/partials/content-layout.php": "9538e736fe6729cc77692539e1a80c3c633debc30e9a95bc33b0a6249ccdc20c",
         "resources/views/admin/partials/content-workspace.php": "d88068beee4a6039cd27cf362cf69ef7232c9b9972e64216e52f14b58eec280b",
         "resources/views/admin/partials/media-modal.php": "a8a6aed82121997337cf58f06029b33f10666132e7f1c866feac131e942c493d",
@@ -477,5 +477,5 @@
         "vendor/htmlpurifier/library/HTMLPurifier/VarParserException.php": "a52c919f7f25ebbcd6d60d662de5a5b03ccbc93dc68ca6dd9429d16137a162ea",
         "vendor/htmlpurifier/library/HTMLPurifier/Zipper.php": "12d156a8b5931e66c8c003979adce47bccd1a980adea4ec017f1a3a7adbdd9dc"
     },
-    "signature": "IWs89XzUpz6Jt5U0UZ/4o5TZ12+LHdtY4dVFRORLjMnkS8h4GoOmkCXDtlX70RxPQRIyo3KIxcF3VUTfbfROCA=="
+    "signature": "2KT99ndDxA2zn+uAj5zVFYkeKPhEcMS9eQfwYC9x62NwIpnp24Rd1x7WdB0gvqlWdkcWewq6YoWAGwKW8AHCBQ=="
 }
