@@ -20,6 +20,10 @@ final class Client {
   $boundary=str_replace('\\','/',(string)$base);$resolved=str_replace('\\','/',(string)$storage);
   if(DIRECTORY_SEPARATOR==='\\'){$boundary=strtolower($boundary);$resolved=strtolower($resolved);}
   if(!$base||!$storage||!str_starts_with($resolved.'/',$boundary.'/'))throw new RemoteError('shared_storage_path','Connection storage must belong to this installation root.',409);
+  if(!empty($config['pending_since'])&&!empty($config['secret'])&&!empty($config['installation_id'])&&!empty($config['policy_envelope'])){
+   // A publisher-signed decision exists: the "pending" clock is finished and must not restart a stale grace window later.
+   unset($config['pending_since']);try{\FavoriteCMS\Models\Setting::set('central','pending_since','0');}catch(\Throwable){}
+  }
   $raw=json_encode($config,JSON_THROW_ON_ERROR|JSON_UNESCAPED_SLASHES);$temp=$this->dir.'/'.bin2hex(random_bytes(12)).'.tmp';
   if(file_put_contents($temp,$raw,LOCK_EX)!==strlen($raw))throw new \RuntimeException('Central connection could not be saved.');
   @chmod($temp,0600);if(!rename($temp,$this->dir.'/client.json')){unlink($temp);throw new \RuntimeException('Central connection could not be activated.');}
@@ -446,7 +450,7 @@ final class Client {
    $c=$this->config();
    if(is_file($this->root.'/favorite-server-license/bootstrap.php'))return ['pending'=>false,'welcome'=>false];
    $registered=!empty($c['secret'])&&!empty($c['installation_id'])&&(!empty($c['registration_verified_at'])||!empty($c['connected_at'])||!empty($c['registry_verified_at'])||!empty($c['policy_envelope']));
-   $since=max((int)($c['registration_verified_at']??0),(int)($c['registry_verified_at']??0),(int)(strtotime((string)($c['connected_at']??''))?:0));
+   $since=max((int)($c['registration_verified_at']??0),(int)(strtotime((string)($c['connected_at']??''))?:0));
    $reason=trim((string)($c['registration_last_error']??$c['registry_last_error']??$c['policy_last_error']??''));
    $left=$registered?0:$this->pendingSince($c)+self::PENDING_GRACE-time();$vp=$registered&&!empty($c['public_unverified'])?$this->verifiedPolicy($c):null;$vd=(int)($vp['verification_deadline']??0);
    return ['pending'=>!$registered,'reason'=>substr(strip_tags($reason),0,300),'code'=>(string)($c['registration_error_code']??$c['registry_error_code']??$c['policy_error_code']??''),'grace_hours_left'=>$registered?0:max(0,(int)ceil($left/3600)),'restricted'=>!$registered&&$left<=0,'unverified'=>$registered&&!empty($c['public_unverified'])&&!($vp!==null&&($vp['verification']??'')==='verified'),'verified_notice'=>$registered&&!empty($c['public_unverified'])&&$vp!==null&&($vp['verification']??'')==='verified'&&empty($c['verified_notice_shown_at']),'license_alerts'=>$this->licenseAlerts(),'verify_hours_left'=>($vp&&($vp['verification']??'')==='unverified'&&$vd>0)?max(0,(int)ceil(($vd-time())/3600)):null,'welcome'=>$registered&&empty($c['welcome_shown_at'])&&$since>time()-604800];

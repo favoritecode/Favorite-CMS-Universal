@@ -13,7 +13,7 @@ final class Bridge {
  }
  /** Verified decisions govern registered sites; first-use service outages may defer enrollment. */
  public static function recoveryAllowed(string $path):bool{
-  if(in_array($path,['/admin','/admin/','/admin/tools','/admin/login','/admin/logout','/admin/two-step','/admin/connection-status','/admin/updates','/admin/tools/backup/create','/admin/tools/backup/download','/admin/tools/restore'],true)||str_starts_with($path,'/admin/updates/'))return true;
+  if(in_array($path,['/admin','/admin/','/admin/tools','/admin/login','/admin/logout','/admin/two-step','/admin/connection-status','/admin/updates','/admin/tools/backup/create','/admin/tools/backup/download','/admin/tools/backup/delete','/admin/tools/backup/delete-selected','/admin/tools/backup/cleanup','/admin/tools/restore'],true)||str_starts_with($path,'/admin/updates/'))return true;
   if(in_array($path,['/forgot-password','/reset-password','/admin/forgot-password','/admin/reset-password'],true))return true;
   if(str_starts_with($path,'/api/favorite-pay/webhook/')||in_array($path,['/favorite-central-verify','/favorite-central-live','/.well-known/favorite-central-live'],true))return true;
   if($path==='/admin/page/central-control'&&is_file(APP_ROOT.'/favorite-server-license/bootstrap.php'))try{return (new \FavoriteCentral\Owner(\FavoriteCentral\Runtime::store()->config))->candidate(current_user());}catch(\Throwable){}

@@ -213,7 +213,7 @@ $h = static fn ($val): string => htmlspecialchars((string)$val, ENT_QUOTES, 'UTF
             <button type="submit" form="bk-bulk" id="bk-delete-selected" disabled style="background: var(--admin-danger-solid); color: #fff; border: none; padding: 6px 12px; font-size: 12px; border-radius: 3px; cursor: pointer;">Delete selected (<span id="bk-count">0</span>)</button>
             <span style="color: var(--admin-text-muted); font-size: 12px;">Tick the backups you no longer need, or use the box in the header to select all.</span>
         </div>
-        <table class="wp-table\" style="width: 100%; border-collapse: collapse; font-size: 13px;">
+        <table class="wp-table" style="width: 100%; border-collapse: collapse; font-size: 13px;">
             <thead>
                 <tr style="border-bottom: 2px solid var(--admin-border); text-align: left; color: var(--admin-text-muted);">
                     <th style="padding: 10px; width: 32px;"><input type="checkbox" id="bk-all" aria-label="Select all backups"></th>

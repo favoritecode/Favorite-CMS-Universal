@@ -153,7 +153,7 @@
                             </td>
                             <td style="text-align: center;">
                                 <?php if (!empty($plugin['active']) && !empty($licenses[$id]['blocked'])): ?>
-                                    <span class="badge" style="display: inline-flex; align-items: center; gap: 5px; background: var(--admin-warning-bg); color: var(--admin-warning-text); border: 1px solid var(--admin-warning-border);">License needed</span>
+                                    <span class="badge" style="display: inline-flex; align-items: center; gap: 5px; background: var(--admin-warning-bg); color: var(--admin-warning-text); border: 1px solid var(--admin-warning-border);"><?php echo htmlspecialchars((string)($licenses[$id]['label'] ?? 'License needed'), ENT_QUOTES, 'UTF-8'); ?></span>
                                 <?php elseif (!empty($plugin['active'])): ?>
                                     <span class="badge badge-success" style="display: inline-flex; align-items: center; gap: 5px;">
                                         <span style="width: 6px; height: 6px; border-radius: 50%; background: var(--admin-success-solid);"></span>

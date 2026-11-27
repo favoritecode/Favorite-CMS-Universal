@@ -97,7 +97,7 @@
                                     <span style="color: var(--wp-text-muted);">&mdash;</span>
                                 <?php endif; ?>
                             </td>
-                            <td>
+                            <td style="white-space: nowrap;">
                                 <?php echo format_date($comment->created_at, 'Y/m/d \a\t g:i a'); ?>
                             </td>
                         </tr>

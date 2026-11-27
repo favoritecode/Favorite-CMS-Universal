@@ -4,6 +4,9 @@ declare(strict_types=1);
  * Connection notice and one-time welcome dialog for administrators.
  * Local-only (no network request) and must never interrupt an admin page.
  */
+if (function_exists('current_user_can') && !current_user_can('manage_options')) {
+    return; // connection and license notices are for administrators only
+}
 $fcNotice = null;
 try {
     $fcClient = new \FavoriteCMS\Central\Client();
@@ -59,8 +62,8 @@ if (is_array($fcNotice) && !empty($fcNotice['pending'])):
 <?php if (is_array($fcNotice) && !empty($fcNotice['unverified'])): ?>
 <div class="notice notice-info" role="status">
     Your website is connected to Favorite CMS Central but is <strong>not verified yet</strong>.
-    <?php if (($fcNotice['verify_hours_left'] ?? null) !== null): ?>It stays active for about <?php echo (int)$fcNotice['verify_hours_left']; ?> more hour(s) while the Favorite CMS owner verifies it.<?php endif; ?>
-    If it is not verified in time, public access pauses. Install the latest official update (Software updates) and contact the Favorite CMS owner at favoriteweb.net if needed. Automatic domain verification is retried on its own.
+    <?php if (($fcNotice['verify_hours_left'] ?? null) !== null && (int)$fcNotice['verify_hours_left'] > 0): ?>It stays active for about <?php echo (int)$fcNotice['verify_hours_left']; ?> more hour(s) while the Favorite CMS owner verifies it.
+    If it is not verified in time, public access pauses.<?php elseif (($fcNotice['verify_hours_left'] ?? null) !== null): ?>The verification time has ended, so public access is paused until the Favorite CMS owner verifies this site.<?php else: ?>If it is not verified in time, public access pauses.<?php endif; ?> Install the latest official update (Software updates) and contact the Favorite CMS owner at favoriteweb.net if needed. Automatic domain verification is retried on its own.
 </div>
 <?php endif; ?>
 <?php if (is_array($fcNotice) && !empty($fcNotice['welcome'])): ?>

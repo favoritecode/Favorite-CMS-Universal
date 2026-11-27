@@ -1,3 +1,15 @@
+# 2.0.0 — Final
+
+First stable 2.0 release. Everything from 2.0.0-beta.1 to beta.9 is included.
+
+- **Automatic registration and free license.** A new installation registers itself, receives the Favorite CMS Free License and shows a congratulations message; no key, code or API address is entered. A site that cannot prove its domain at once runs for 3 days as "unverified" while the owner verifies it. A registered site keeps its last authenticated owner decision during an outage.
+- **Plugins and themes with a free trial and a price.** The Plugins / Themes pages and Site & add-ons show the trial days left, the price and a Buy button; buying opens a purchase page inside the active theme and pays through Favorite Pay; the license activates by itself after approval. The owner's own site never needs a license.
+- **Site time zone everywhere.** Dates and times in the admin and on the site follow the site time zone.
+- **Backups.** Backups survive the connection state changing while they are built; the newest 3 are always kept and older ones are removed after 30 days; several backups can be deleted at once.
+- **Update path.** Official 1.x releases and every 2.0.0 beta update to 2.0.0 and keep content, settings, extensions and registration. Same-version repair works.
+- **Polish.** Cleaner Site & add-ons page, dates in the Posts / Pages / Comments lists no longer wrap, and the installer package now contains exactly one document (README.md); the full developer documentation stays in the source repository.
+- **Packaging fix.** The release file list (`scripts/runtime-files.json`) now includes every runtime file; the previous list was missing several, so a package built from it would have been incomplete.
+
 # 2.0.0-beta.9 — Cleaner Site & add-ons
 
 - Site & add-ons redesigned without removing anything: one card per extension (identity, one badge such as "Free trial · 7 days left", then the note and the price with a Buy button, properly aligned); the stat tiles that only repeated the tab counts are gone; the Connection tab shows one status line and one fact list (website, access, CMS version, installation ID, last verified) with Manage actions (users, updates, signed update) beside it; the leftover checkout card is removed.
