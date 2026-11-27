@@ -36,12 +36,12 @@ final class Bridge {
   $html='<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>'.Ui::e($title).' | Favorite CMS</title><style>*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px;font:16px/1.6 system-ui,-apple-system,Segoe UI,sans-serif;color:#192b48;background:radial-gradient(circle at 20% 15%,#dbeafe,transparent 42%),linear-gradient(135deg,#fafcff,#edf4ff)}main{width:min(100%,610px);padding:clamp(26px,6vw,55px);border:1px solid #dce7f7;border-radius:24px;background:#fff;box-shadow:0 26px 85px #123f771b}.brand{font-weight:800;letter-spacing:.01em;color:#185ac3}.icon{display:grid;place-items:center;margin:28px 0 20px;width:60px;height:60px;border-radius:17px;background:#fff3e5;color:#a76219;font-size:29px}h1{font-size:clamp(24px,5vw,34px);line-height:1.18;margin:0 0 16px}p{color:#51647e;margin:0 0 16px}.note{margin-top:24px;padding:19px 20px;border-radius:14px;background:#f5f8fe;border:1px solid #e5eefa}.note strong{display:block;color:#1c3556;margin-bottom:6px}a{color:#145bc8;font-weight:700;text-decoration:none}a:focus-visible{outline:3px solid #3b82f6;outline-offset:3px}footer{margin-top:26px;font-size:12px;color:#8a9ab0}</style></head><body><main><div class="brand">◆ Favorite CMS <span style="font-weight:500;color:#75869e">Official Edition</span></div><div class="icon" aria-hidden="true">!</div><h1>'.Ui::e($heading).'</h1><p>'.Ui::e($reason).'</p>'.(in_array($state,['connection_required','verification_required'],true)?'<p>If this site was installed from an official Favorite CMS package, the administrator should open <strong>Software updates</strong> to install the latest official version, and then contact the Favorite CMS owner at <a href="https://favoriteweb.net" rel="noopener noreferrer">favoriteweb.net</a> to verify the site.</p>':'').'<div class="note"><strong>For the website administrator</strong><p>Your website content, database, users, themes, and plugins remain preserved. Sign in to the administrator panel to review license status, appeal, or restore service.</p><a href="'.Ui::e($loginUrl).'">Administrator sign in</a> &nbsp;·&nbsp; <a href="'.Ui::e(site_path('/admin/connection-status')).'">Connection recovery</a> &nbsp;·&nbsp; <a href="'.Ui::e(site_path('/admin/updates')).'">Software updates</a> &nbsp;·&nbsp; <a href="https://favoriteweb.net" rel="noopener noreferrer">Official Favorite CMS</a></div><footer>Favorite CMS · License &amp; policy notice</footer></main></body></html>';
   return Response::make($html,503,['Content-Type'=>'text/html; charset=utf-8','Cache-Control'=>'no-store, private','Retry-After'=>'300','X-Robots-Tag'=>'noindex, nofollow']);
  }
- private function page(Request $r):string{
+ private function page(Request $r):string|Response{
   if(!current_user_can('manage_options'))return '<h1>403 — Administrator access required</h1>';
   $client=new Client();$message='';$error='';$checkout=null;
   if($r->isPost())try{
    if(!hash_equals(csrf_token(),(string)$r->post('_token','')))throw new \RuntimeException('Session expired. Refresh this page.');
-   $user=current_user();if(!$user||!$user->verifyPassword((string)$r->post('password','')))throw new \RuntimeException('Confirm your current password.');
+   $user=current_user();if((string)$r->post('action','')!=='checkout'&&(!$user||!$user->verifyPassword((string)$r->post('password',''))))throw new \RuntimeException('Confirm your current password.');
    switch((string)$r->post('action','')){
     case 'connect':
      if(!is_file(APP_ROOT.'/favorite-server-license/bootstrap.php'))throw new \RuntimeException('Site registration is automatic. No server selection is needed.');
@@ -52,7 +52,10 @@ final class Bridge {
     case 'refresh':$client->policy(true);foreach($this->manifests()as$m)$client->plugin($m,true,$this->active((string)$m['id']));$message='Connection and license status refreshed.';break;
     case 'activate':$client->request(['action'=>'activate','product_id'=>(string)$r->post('product_id'),'license_key'=>trim((string)$r->post('license_key'))]);$this->invalidate((string)$r->post('product_id'));$message='License activated.';break;
     case 'deactivate':$client->request(['action'=>'deactivate','purchase_id'=>(string)$r->post('purchase_id')]);$this->invalidate((string)$r->post('product_id'));$message='This installation was deactivated. Other installations are unchanged.';break;
-    case 'checkout':$checkout=$client->request(['action'=>'checkout_ticket','package_id'=>(string)$r->post('package_id')]);$this->invalidate((string)$r->post('product_id'));break;
+    case 'checkout':
+     $checkout=$client->request(['action'=>'checkout_ticket','package_id'=>(string)$r->post('package_id')]);$this->invalidate((string)$r->post('product_id'));
+     $go=(string)($checkout['checkout_url']??'');if(!str_starts_with($go,Authority::ORIGIN.'/')&&!(is_file(APP_ROOT.'/favorite-server-license/bootstrap.php')&&str_starts_with($go,rtrim((string)config('app.url'),'/').'/')))throw new \RuntimeException('The checkout address is not trusted.');
+     return Response::redirect($go);
     case 'plugin_update':
     case 'theme_update':
      $product=(string)$r->post('product_id');$theme=str_starts_with($product,'theme--');$native=$theme?substr($product,7):$product;$type=$theme?'theme':'plugin';$base=APP_ROOT.($theme?'/themes':'/plugins');
@@ -80,7 +83,7 @@ final class Bridge {
    if($tab==='themes')$h.='<div class="default-theme"><span class="extension-symbol">T</span><div><strong>Default theme</strong><p>Included with your site · Always Free</p></div><span class="badge">Free</span></div>';
    if(!$items)$h.='<div class="license-empty"><h3>'.($query!==''?'No matching extensions':'No additional '.Ui::e($tab).' installed').'</h3><p>'.($query!==''?'Try a different name or clear your search.':'Installed extensions will appear here.').'</p></div>';
    foreach($items as$m)$h.=$this->extension($client,$m,$connected,(string)$r->get('focus','')===(string)$m['id']);
-   $h.='<p class="license-footnote">Free extensions need no license key. Open an item to manage available actions.</p></section>';
+   $h.='<p class="license-footnote">Extensions marked Free need no license. Press Buy to pay with Favorite Pay; the license activates by itself once the payment is approved.</p></section>';
   }
   return $h.'</section>';
  }
@@ -93,19 +96,30 @@ final class Bridge {
   if(class_exists(\FavoriteCentral\Runtime::class))try{$s=\FavoriteCentral\Runtime::store();if((new \FavoriteCentral\Owner($s->config))->candidate(current_user()))$h.='<div class="owner-control-link"><h3>Central Owner controls</h3><p>Manage connected sites and policy actions in your private Owner panel.</p><a class="button primary" href="'.Ui::e(site_path('/admin/page/central-control?section=installations')).'">Manage sites ↗</a></div>';}catch(\Throwable){}
   $h.='</aside></div>';if($connected)$h.='<details class="card"><summary>Site software update</summary><p>The existing Update Manager creates a backup before installing a signed release.</p>'.$this->form('core_update','','Install latest signed update').'</details>';return $h;
  }
+ /** Packages (price, term) for one extension, cached for 10 minutes. */
+ private function packages(Client $client,string $id):array{
+  try{
+   $c=$client->config();$hit=$c['packages_cache'][$id]??null;if(is_array($hit)&&(int)($hit['at']??0)>time()-600)return (array)$hit['list'];
+   $res=$client->request(['action'=>'packages','product_id'=>$id]);$list=array_values(array_filter((array)($res['packages']??[]),'is_array'));
+   $c=$client->config();$c['packages_cache'][$id]=['at'=>time(),'list'=>$list];$client->save($c);return $list;
+  }catch(\Throwable){return [];}
+ }
+ private function term(int $days):string{return $days===0?'lifetime':($days%365===0?($days/365===1?'1 year':($days/365).' years'):($days===30?'1 month':$days.' days'));}
+ /** One extension: its license state, its price and a single Buy button. Nothing else. */
  private function extension(Client $client,array $m,bool $connected,bool $open=false):string{
-  $id=$m['id'];$theme=str_starts_with($id,'theme--');$state=$client->plugin($m,false,$this->active($id));$mode=(string)($state['mode']??$state['reason']??'unknown');
-  $labels=['legacy_free'=>'Free','free'=>'Free','owner'=>'Owner access','paid'=>'Licensed','trial'=>'Trial','trial_not_started'=>'Trial available','purchase_required'=>'License needed','central_connection_required'=>'Connect to manage','central_temporarily_unavailable'=>'Check connection','license_expired'=>'Expired','policy_suspension'=>'Restricted'];$label=$labels[$mode]??ucfirst(str_replace('_',' ',$mode));
-  $h='<details class="license-item" id="ext-'.Ui::e($id).'"'.($open?' open':'').'><summary><span class="extension-symbol">'.($theme?'T':'P').'</span><span class="extension-title"><strong>'.Ui::e($m['name']??$id).'</strong><small>'.($theme?'Theme':'Plugin').' · v'.Ui::e($m['version']??'—').' · '.($this->active($id)?'Active':'Inactive').'</small></span><span class="badge '.(!empty($state['allowed'])?'access-ok':'').'">'.Ui::e($label).'</span><span class="manage-label">Details <span aria-hidden="true">⌄</span></span></summary><div class="license-details">';
-  if($mode==='legacy_free')$h.='<p>This extension currently has Free access. A license key is not required.</p>';
-  if($mode==='trial_not_started')$h.='<p>Your trial has not started. Activate this '.($theme?'theme':'plugin').' when you are ready.</p>';
-  if(!empty($state['valid_until']))$h.='<p>Access ends: '.Ui::e($state['valid_until']).' UTC</p>';
-  if($mode!=='legacy_free'&&$connected){
-   $h.='<div class="license-action-grid"><details><summary>Activate purchased license</summary>'.$this->form('activate','<input type="hidden" name="product_id" value="'.Ui::e($id).'">'.Ui::field('license_key','License key'),'Activate license').'</details>';
-   if(!empty($state['purchase_id']))$h.='<details><summary>Deactivate this installation</summary>'.$this->form('deactivate','<input type="hidden" name="product_id" value="'.Ui::e($id).'"><input type="hidden" name="purchase_id" value="'.Ui::e($state['purchase_id']).'">','Deactivate installation').'</details>';
-   $h.='</div>';try{$packages=$client->request(['action'=>'packages','product_id'=>$id]);foreach($packages['packages']??[]as$p){$p=(array)$p;$h.='<details><summary>'.Ui::e($p['name'].' · '.number_format($p['amount_minor']/100,2).' '.$p['currency']).'</summary>'.$this->form('checkout','<input type="hidden" name="package_id" value="'.Ui::e($p['id']).'"><input type="hidden" name="product_id" value="'.Ui::e($id).'"><p>'.((int)$p['days']===0?'Lifetime':(int)$p['days'].' days').'</p>','Continue to checkout').'</details>';}}catch(\Throwable){$h.='<p>Packages are temporarily unavailable.</p>';}
-  }elseif($mode!=='legacy_free')$h.='<p><a href="'.Ui::e($this->pageUrl('cms')).'">Connect your site</a> to manage this license.</p>';
-  if($connected)$h.='<details><summary>Trusted '.($theme?'theme':'plugin').' update</summary>'.$this->form($theme?'theme_update':'plugin_update','<input type="hidden" name="product_id" value="'.Ui::e($id).'">','Install latest signed '.($theme?'theme':'plugin')).'</details>';
+  $id=(string)$m['id'];$theme=str_starts_with($id,'theme--');$active=$this->active($id);$state=$client->plugin($m,false,$active);$s=Client::describeLicense($state,$theme?'theme':'plugin');
+  $h='<details class="license-item" id="ext-'.Ui::e($id).'"'.(($open||!empty($s['managed']))?' open':'').'><summary><span class="extension-symbol">'.($theme?'T':'P').'</span><span class="extension-title"><strong>'.Ui::e($m['name']??$id).'</strong><small>'.($theme?'Theme':'Plugin').' · v'.Ui::e($m['version']??'—').' · '.($active?'Active':'Inactive').'</small></span><span class="badge '.(!empty($state['allowed'])?'access-ok':'').'">'.Ui::e(empty($s['managed'])?'Free':(string)$s['label']).'</span><span class="manage">Details</span></summary><div class="license-actions">';
+  if(empty($s['managed']))return $h.'<p>This '.($theme?'theme':'plugin').' is free. No license is needed.</p></div></details>';
+  $h.='<p><strong>'.Ui::e((string)$s['label']).'</strong>'.($s['detail']!==''?' — '.Ui::e((string)$s['detail']):'').'</p>';
+  if(!$connected)return $h.'<p><a href="'.Ui::e($this->pageUrl('cms')).'">Connect your site</a> to buy a license.</p></div></details>';
+  if(!empty($s['buy'])||!empty($s['manage'])){
+   $pkgs=$this->packages($client,$id);
+   if(!$pkgs)$h.='<p>The price could not be loaded right now. Please try again in a moment.</p>';
+   foreach($pkgs as$p){
+    $p=(array)$p;$price=number_format(((int)($p['amount_minor']??0))/100,2).' '.Ui::e((string)($p['currency']??''));$term=$this->term((int)($p['days']??0));
+    $h.='<form method="post" class="buy-form" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:10px 0">'.Ui::token('checkout').'<input type="hidden" name="package_id" value="'.Ui::e((string)$p['id']).'"><input type="hidden" name="product_id" value="'.Ui::e($id).'"><div><strong style="font-size:1.25em">'.$price.'</strong> <span>/ '.Ui::e($term).'</span>'.(count($pkgs)>1?'<br><small>'.Ui::e((string)($p['name']??'')).'</small>':'').'</div><button class="primary">'.(!empty($s['manage'])?'Renew':'Buy').'</button></form>';
+   }
+  }
   return $h.'</div></details>';
  }
  private function form(string $action,string $body,string $button='Continue'):string{return '<form method="post">'.Ui::token($action).$body.Ui::field('password','Confirm current password','','password').'<div class="actions"><button class="primary">'.Ui::e($button).'</button></div></form>';}

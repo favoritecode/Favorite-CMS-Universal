@@ -1,3 +1,8 @@
+# 2.0.0-beta.8 — Buy is one click: price + Buy, payment on a page that looks like your website
+
+- Site & add-ons shows, per extension, only its license state, its price and a **Buy** button (no key entry, no "trusted update" forms, no password step). Buy opens the purchase page directly.
+- New core helper `render_in_theme()`: customer-facing pages added by the Server/plugins are rendered inside the ACTIVE theme's header and footer (with a safe standalone fallback).
+
 # 2.0.0-beta.7 — Fix: "Buy a license" led to a 404
 
 - Fix: a website that the Owner (or a domain proof) had verified kept saying "not verified yet" in its admin. The notice now follows the publisher-signed verification state from the control server; a one-time "Verified" confirmation replaces it.

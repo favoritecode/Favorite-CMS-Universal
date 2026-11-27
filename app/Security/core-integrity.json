@@ -2,7 +2,7 @@
     "files": {
         "app/Central/AccountDirectory.php": "4367622a226734af60639c65fa7822c22117fd791b5e47c23178110d5b0d3d87",
         "app/Central/Authority.php": "93f30fc58326b71ed70b1f646cf0b733b8bb2bc27c0412ecb1b9ea975d1375b6",
-        "app/Central/Bridge.php": "dd73a929378d4d969693c5924442e666891ddf3ba3e6df19ddf809b3f7037643",
+        "app/Central/Bridge.php": "faa6bd05620042307ce1a923b68ce070705d4a30a67867fb93630666889343e1",
         "app/Central/Client.php": "545a55c72662f1bd59185b5cd7fd341d25285c416aa0c27c28e9d6e89b125ff3",
         "app/Central/Crypto.php": "fdfbd1e2440143721fb98d6191fa429cb9bec0db5b1673353d75dce743c53c1e",
         "app/Central/LocalAddress.php": "bf4a8074bdf76751ba30e8a52ca35a4356b4252761a86be78d73e9163bf63bf9",
@@ -35,7 +35,7 @@
         "app/Core/Router.php": "827c18c53fe7662dfd33c03ec0a1dd0be2edfae8f5cea58685f4f01a46451d61",
         "app/Core/SafeRedirect.php": "827ee8e2897296800d77d9bef2b5ffd909a4c83df7a3f1800a6ebffbae2a585c",
         "app/Core/Url.php": "05d7fff7a43453f31a524646b13a0283f2de0f256be51d0cb90af437d1c6a7fb",
-        "app/Core/helpers.php": "7ece3d40d9a474c84943b2394c2c88452d481252440d1d24901dbee08d9597d5",
+        "app/Core/helpers.php": "be80cf9cd7c24ed2e0834367e661c96e5ead39a5b8ccb91a1f281ca66cc5b816",
         "app/Http/Controllers/Admin/AccountSecurityController.php": "4d1f930bbcac96918138e1e8c2ca7a3611e9e2fddd68c1cba0f1aca435a9ecf9",
         "app/Http/Controllers/Admin/CommentController.php": "250b794e93ea329548e5416692a7da9ca517a8295706896f48f8075251fb0780",
         "app/Http/Controllers/Admin/ContentWorkspaceController.php": "d42abb4e2bdff4b34ea56e5639e8ed36ccf2b2c444f2bf57166c3ee7c1cffde2",
@@ -84,7 +84,7 @@
         "app/Services/Appearance.php": "bfd170d0c7704a3d2cfcf93a3ce5fe6c7d0f8d490c66141b02c68a8119ad56f2",
         "app/Services/AuthRateLimiter.php": "eaf0e9f7d2055bd0ffeb3b5439eaa002ec2d52db137ae435f76e32873124060e",
         "app/Services/AvatarService.php": "ac426cec2955c348f344c580cc85f9545396f74b6a605b287e7143d26cb87ef3",
-        "app/Services/BackupService.php": "499c35ac791c122c15fb32a37159bc8ac6686ad62215cdd4e29971a0e9406908",
+        "app/Services/BackupService.php": "9e618b8c922208856c8e58f5673910200bd7afb2793b4804384a9d649bcdaefe",
         "app/Services/BloggerImportService.php": "bde3415196088d4bf265b24bb7c5bcf7b5c79f84d510e5a0c4ba78b32b185f96",
         "app/Services/BuilderContent.php": "243d34ccd6f1c15883a89f80fd5391a38e43c2076f9329cb1b1944f809a162ad",
         "app/Services/ContentEditorOwner.php": "20f53c806a04daae0e4fe8d2381381f972910d6fbd0a95ec888db1da44a46d5a",
@@ -162,7 +162,7 @@
         "app/Widgets/WidgetInstanceManager.php": "efdf886887f65b6cbc23aded8a38eb73b52eb188c19f5d7871ac6ede9a54562b",
         "app/Widgets/WidgetInterface.php": "dc9f3777cb588d446be69f5cc6d2fa00f47b697852341f094bee3ea126f51576",
         "app/Widgets/WidgetRegistry.php": "12a8c9436ca60867440a26982f4b192722ff5c8f5e29a0de548dd9b1f7a19a54",
-        "bootstrap.php": "dd24909539f8f00d27ae5b13319d19fa6b3f2257096058d9f60139127c80e102",
+        "bootstrap.php": "d7a6dafd705037640400f42d400101d5db21d2902ce0061036a03e73d280af8e",
         "index.php": "4e40a78c2e34c6170d870b0c8ef89d1ffad454aa7cfe291605710a5d0682bc14",
         "migrate.php": "df479ba6689cccdaaa3ce0eb830e2a81d36819476400a6e44fba0ec34491ccbe",
         "public/index.php": "4b9cc58bf10038b5f3f5304d7246d4a426a518340c34399e4a5a71106e37edc7",
@@ -478,5 +478,5 @@
         "vendor/htmlpurifier/library/HTMLPurifier/VarParserException.php": "a52c919f7f25ebbcd6d60d662de5a5b03ccbc93dc68ca6dd9429d16137a162ea",
         "vendor/htmlpurifier/library/HTMLPurifier/Zipper.php": "12d156a8b5931e66c8c003979adce47bccd1a980adea4ec017f1a3a7adbdd9dc"
     },
-    "signature": "XDfVSSls2m7x5LXiDWltxKzJnfijWtq9m4okMTb38ohx1+L3uf/Kd3eTGttmmYdOec7Uqia/M9Lxn84/iQNkDg=="
+    "signature": "9XYuFVnS/yC/aeoDXP+vZILYbvaEnRxwOKRkYuX0GEg4hBU6IAnAHzL7C0S2jzRaRYux07bqENp95adS4npWCA=="
 }

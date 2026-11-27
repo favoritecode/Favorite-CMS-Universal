@@ -290,6 +290,40 @@ if (!function_exists('add_route')) {
     }
 }
 
+if (!function_exists('render_in_theme')) {
+    /**
+     * Render arbitrary content inside the ACTIVE theme's header and footer (so customer-facing pages added by plugins or the
+     * Server look like the website). Returns null when the theme has no header/footer pair or anything goes wrong, so the
+     * caller can fall back to its own standalone page.
+     */
+    function render_in_theme(string $title, string $contentHtml, bool $noindex = true): ?string
+    {
+        try {
+            $active = (new \FavoriteCMS\Rendering\Engine(app()))->getActiveTheme();
+            $dir = APP_ROOT . '/themes/' . $active;
+            if (!preg_match('/^[A-Za-z0-9_-]{1,80}$/', (string)$active) || !is_file($dir . '/header.php') || !is_file($dir . '/footer.php')) {
+                return null;
+            }
+            $siteTitle = (string)\FavoriteCMS\Models\Setting::get('general', 'site_name', 'Website');
+            $metaTitle = $title . ' — ' . $siteTitle;
+            $fcdHasSidebar = false;
+            $robots = $noindex ? 'noindex,nofollow' : null;
+            ob_start();
+            try {
+                require $dir . '/header.php';
+                echo '<main class="site-main site-main--narrow" id="main-content" tabindex="-1">' . $contentHtml . '</main>';
+                require $dir . '/footer.php';
+                return (string)ob_get_clean();
+            } catch (\Throwable) {
+                ob_end_clean();
+                return null;
+            }
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+}
+
 if (!function_exists('add_admin_menu')) {
     function add_admin_menu(
         string $slug,
