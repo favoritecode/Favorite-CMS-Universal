@@ -49,6 +49,7 @@ class ToolController
             'JSON Extension'       => extension_loaded('json') ? 'Enabled' : 'Disabled',
         ];
 
+        $this->backupService->maybeApplyRetention();
         $backups = $this->backupService->getBackups();
 
         // Flash message handling
@@ -61,6 +62,7 @@ class ToolController
             'activeMenu'  => 'tools',
             'diagnostics' => $diagnostics,
             'backups'        => $backups,
+            'backupPolicy'   => $this->backupService->retentionPolicy(),
             'notice'         => $notice,
             'error'          => $error,
             'bloggerPreview' => $_SESSION['blogger_import_preview'] ?? null,
@@ -133,6 +135,38 @@ class ToolController
             $_SESSION['_flash_error'] = "Delete failed: " . $e->getMessage();
         }
 
+        return Response::redirect('/admin/tools');
+    }
+
+    public function deleteSelectedBackups(Request $request): Response
+    {
+        $this->validateCsrf($request);
+
+        $files = $request->post('files', []);
+        if (!is_array($files) || $files === []) {
+            $_SESSION['_flash_error'] = 'Select at least one backup to delete.';
+            return Response::redirect('/admin/tools');
+        }
+        $result = $this->backupService->deleteBackups($files);
+        if ($result['deleted'] !== []) {
+            $_SESSION['_flash_notice'] = 'Deleted ' . count($result['deleted']) . ' backup' . (count($result['deleted']) === 1 ? '' : 's') . '.';
+        }
+        if ($result['failed'] !== []) {
+            $_SESSION['_flash_error'] = count($result['failed']) . ' selected file(s) could not be deleted.';
+        }
+        return Response::redirect('/admin/tools');
+    }
+
+    public function cleanupBackups(Request $request): Response
+    {
+        $this->validateCsrf($request);
+
+        $policy = $this->backupService->retentionPolicy();
+        $result = $this->backupService->applyRetention();
+        \FavoriteCMS\Models\Setting::set('backup', 'last_cleanup_at', time(), 'int');
+        $_SESSION['_flash_notice'] = count($result['deleted']) === 0
+            ? 'Nothing to clean up: the newest ' . $policy['keep_latest'] . ' backups are always kept and the others are not older than ' . $policy['max_age_days'] . ' days.'
+            : 'Removed ' . count($result['deleted']) . ' old backup file(s) and freed ' . round($result['freed'] / 1048576, 1) . ' MB.';
         return Response::redirect('/admin/tools');
     }
 

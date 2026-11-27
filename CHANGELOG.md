@@ -1,3 +1,9 @@
+# 2.0.0-beta.3 — Backups no longer fill the hosting
+
+- Automatic retention: the newest 3 backups are always kept; the others are deleted once they are older than 30 days. It runs after every new backup and when Tools is opened (at most every 12 hours), and removes abandoned temporary files from interrupted backups. Tunable in Settings group "backup" (keep_latest, max_age_days, auto_cleanup).
+- Tools & Backup Manager: tick several backups (or all) and delete them in one step; "Clean up now" button; total count and size shown.
+- Safe by design: never deletes the newest 3, never touches files outside the backup directory or unrelated files, and the new backup is published before anything old is removed.
+
 # 2.0.0-beta.2 — One time zone everywhere
 
 - Stored times are always UTC (the PHP default time zone is forced to UTC, independent of the hosting php.ini); every displayed time follows Settings -> Site Time Zone: backups (list and new file names), dashboard, updates, import previews, email delivery log, draft/revision labels, front-end post dates and copyright year, editor autosave clock.
