@@ -7,7 +7,7 @@ declare(strict_types=1);
 date_default_timezone_set('UTC');
 
 if (!defined('APP_VERSION')) {
-    define('APP_VERSION', '2.0.0-beta.5');
+    define('APP_VERSION', '2.0.0-beta.6');
 }
 if (!defined('CMS_NAME')) {
     define('CMS_NAME', 'Favorite CMS');

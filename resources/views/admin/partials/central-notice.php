@@ -37,6 +37,17 @@ if (is_array($fcNotice) && !empty($fcNotice['pending'])):
     &middot; <a href="<?php echo $fcEsc(function_exists('site_path') ? site_path('/admin/updates') : '/admin/updates'); ?>">Software updates</a>
 </div>
 <?php endif; ?>
+<?php if (is_array($fcNotice) && !empty($fcNotice['license_alerts'])): ?>
+<div class="notice notice-warning" role="status">
+    <strong>License attention needed</strong>
+    <ul style="margin: 6px 0 0 18px;">
+    <?php foreach ($fcNotice['license_alerts'] as $fcAlert): ?>
+        <li><code><?php echo $fcEsc((string)$fcAlert['id']); ?></code> &mdash; <?php echo $fcEsc((string)$fcAlert['label']); ?>. <?php echo $fcEsc((string)$fcAlert['detail']); ?>
+            <a href="<?php echo $fcEsc(site_path('/admin/page/central-connection') . '?tab=' . (!empty($fcAlert['theme']) ? 'themes' : 'plugins') . '&focus=' . rawurlencode((string)$fcAlert['id'])); ?>">Buy a license</a></li>
+    <?php endforeach; ?>
+    </ul>
+</div>
+<?php endif; ?>
 <?php if (is_array($fcNotice) && !empty($fcNotice['unverified'])): ?>
 <div class="notice notice-info" role="status">
     Your website is connected to Favorite CMS Central but is <strong>not verified yet</strong>.

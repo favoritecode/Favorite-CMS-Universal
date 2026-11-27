@@ -35,6 +35,7 @@
             <p style="font-size: 13px; color: var(--admin-text-muted); margin-bottom: 16px; flex: 1;">
                 <?php echo htmlspecialchars($theme['description'] ?? '', ENT_QUOTES, 'UTF-8'); ?>
             </p>
+            <?php $lic = $licenses[$id] ?? null; if ($lic) { $buyUrl = site_path('/admin/page/central-connection') . '?tab=themes&focus=' . rawurlencode('theme--' . $id); include APP_ROOT . '/resources/views/admin/partials/license-badge.php'; } ?>
 
             <div style="margin-top: auto; display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--admin-border); padding-top: 12px;">
                 <?php if ($theme['active']): ?>

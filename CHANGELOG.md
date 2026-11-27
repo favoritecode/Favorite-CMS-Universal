@@ -1,3 +1,10 @@
+# 2.0.0-beta.6 — Trial and license state is visible, and unlicensed plugins are not "Active"
+
+- Plugins and Themes pages show each repository-managed extension's license state: free trial (days left and end date), "Free trial available", licensed until (or lifetime), "License needed" and expired, with a **Buy a license** link that opens Site & add-ons on that extension.
+- Activating a plugin whose trial has ended is refused with a clear message instead of showing "Active" while it silently does nothing; activating one with a trial available says that the free trial started and for how long.
+- An admin-wide notice lists extensions whose trial ends within 2 days or that need a license (from cached state, no network request).
+- Plugin boot messages are readable ("License needed. The free trial has ended...").
+
 # 2.0.0-beta.5 — The control site is exempt from licensing
 
 - The CMS that hosts the Server package (the control site) never needs a license: every plugin and theme is allowed with "Owner access", with no trial, no end date and no network request, and the site is never paused for connection or verification reasons. This holds only when the Server's private vault is bound to this very installation, so a copied Server folder or another site on the same hosting gets nothing.

@@ -23,11 +23,20 @@ class ThemeController
         $manager = new ThemeManager($this->app);
         $themes = $manager->getInstalledThemes();
         $activeTheme = $manager->getActiveTheme();
+        $licenses = [];
+        if (class_exists(\FavoriteCMS\Central\Client::class)) {
+            $client = new \FavoriteCMS\Central\Client();
+            foreach ($themes as $tid => $t) {
+                if ($tid === 'default') continue;
+                try { $licenses[$tid] = $client->licenseState(['id' => (string)$tid] + (array)$t, !empty($t['active']), 'theme'); } catch (\Throwable) {}
+            }
+        }
 
         $viewData = [
             'pageTitle'   => 'Themes',
             'activeMenu'  => 'themes',
             'themes'      => $themes,
+            'licenses'    => $licenses,
             'activeTheme' => $activeTheme,
             'contentView' => APP_ROOT . '/resources/views/admin/themes/index.php',
         ];

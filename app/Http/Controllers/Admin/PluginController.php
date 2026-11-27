@@ -24,12 +24,20 @@ class PluginController
         $manager = new PluginManager($this->app);
         $plugins = $manager->getInstalledPlugins();
         $bootErrors = $manager->getBootErrors();
+        $licenses = [];
+        if (class_exists(\FavoriteCMS\Central\Client::class)) {
+            $client = new \FavoriteCMS\Central\Client();
+            foreach ($plugins as $pid => $p) {
+                try { $licenses[$pid] = $client->licenseState(['id' => (string)$pid] + (array)$p, !empty($p['active'])); } catch (\Throwable) {}
+            }
+        }
 
         $viewData = [
             'pageTitle'   => 'Plugins',
             'activeMenu'  => 'plugins',
             'plugins'     => $plugins,
             'bootErrors'  => $bootErrors,
+            'licenses'    => $licenses,
             'contentView' => APP_ROOT . '/resources/views/admin/plugins/index.php',
         ];
 
@@ -51,7 +59,15 @@ class PluginController
 
         try {
             $manager->activatePlugin($id);
-            $_SESSION['flash_success'] = "Plugin '{$id}' activated successfully.";
+            $message = "Plugin '{$id}' activated successfully.";
+            try {
+                $meta = $manager->getInstalledPlugins()[$id] ?? [];
+                $lic = (new \FavoriteCMS\Central\Client())->licenseState(['id' => $id] + (array)$meta, true);
+                if (!empty($lic['managed']) && ($lic['mode'] ?? '') === 'trial') {
+                    $message .= ' Free trial started: ' . $lic['detail'];
+                }
+            } catch (\Throwable) {}
+            $_SESSION['flash_success'] = $message;
         } catch (\Throwable $e) {
             $_SESSION['flash_error'] = $e->getMessage();
         }

@@ -449,8 +449,46 @@ final class Client {
    $since=max((int)($c['registration_verified_at']??0),(int)($c['registry_verified_at']??0),(int)(strtotime((string)($c['connected_at']??''))?:0));
    $reason=trim((string)($c['registration_last_error']??$c['registry_last_error']??$c['policy_last_error']??''));
    $left=$registered?0:$this->pendingSince($c)+self::PENDING_GRACE-time();$vp=$registered&&!empty($c['public_unverified'])?$this->verifiedPolicy($c):null;$vd=(int)($vp['verification_deadline']??0);
-   return ['pending'=>!$registered,'reason'=>substr(strip_tags($reason),0,300),'code'=>(string)($c['registration_error_code']??$c['registry_error_code']??$c['policy_error_code']??''),'grace_hours_left'=>$registered?0:max(0,(int)ceil($left/3600)),'restricted'=>!$registered&&$left<=0,'unverified'=>$registered&&!empty($c['public_unverified']),'verify_hours_left'=>($vp&&($vp['verification']??'')==='unverified'&&$vd>0)?max(0,(int)ceil(($vd-time())/3600)):null,'welcome'=>$registered&&empty($c['welcome_shown_at'])&&$since>time()-604800];
+   return ['pending'=>!$registered,'reason'=>substr(strip_tags($reason),0,300),'code'=>(string)($c['registration_error_code']??$c['registry_error_code']??$c['policy_error_code']??''),'grace_hours_left'=>$registered?0:max(0,(int)ceil($left/3600)),'restricted'=>!$registered&&$left<=0,'unverified'=>$registered&&!empty($c['public_unverified']),'license_alerts'=>$this->licenseAlerts(),'verify_hours_left'=>($vp&&($vp['verification']??'')==='unverified'&&$vd>0)?max(0,(int)ceil(($vd-time())/3600)):null,'welcome'=>$registered&&empty($c['welcome_shown_at'])&&$since>time()-604800];
   }catch(\Throwable){return ['pending'=>false,'welcome'=>false];}
+ }
+ /** Turns an entitlement answer into something an administrator can read. managed=false: nothing to show (a free, unmanaged extension). */
+ public static function describeLicense(array $e,string $kind='plugin'):array{
+  $mode=(string)($e['mode']??'');$reason=(string)($e['reason']??'');$until=(string)($e['valid_until']??'');
+  if($mode==='legacy_free')return ['managed'=>false];
+  $ts=$until!==''?strtotime($until.' UTC'):false;$days=$ts!==false?max(0,(int)ceil(($ts-time())/86400)):null;
+  $end=$ts!==false?(function_exists('format_date')?format_date($until,'M j, Y g:i a'):$until.' UTC'):'';
+  $r=['managed'=>true,'blocked'=>empty($e['allowed']),'mode'=>$mode!==''?$mode:$reason,'days_left'=>$days,'ends'=>$end,'buy'=>false,'manage'=>false,'tone'=>'info','label'=>'','detail'=>''];
+  if($mode==='owner'){$r['tone']='ok';$r['label']='Owner access';$r['detail']='The control site never needs a license.';}
+  elseif($mode==='free'){$r['tone']='ok';$r['label']='Free';$r['detail']='No license needed.';}
+  elseif($mode==='trial'){$r['tone']=($days!==null&&$days<=2)?'warn':'info';$r['buy']=true;$r['label']='Free trial';$r['detail']=($days!==null?$days.' day'.($days===1?'':'s').' left':'Running').($end!==''?' · ends '.$end:'').'. Buy a license before it ends to keep using it.';}
+  elseif($mode==='paid'){$r['tone']='ok';$r['manage']=true;$r['label']='Licensed';$r['detail']=$end!==''?'Valid until '.$end.'.':'Lifetime license.';}
+  elseif($reason==='trial_not_started'){$r['buy']=true;$r['label']='Free trial available';$r['detail']='A free trial starts when you activate it. After the trial a license is required.';}
+  elseif($reason==='purchase_required'){$r['tone']='bad';$r['buy']=true;$r['label']='License needed';$r['detail']='The free trial has ended. Buy a license to use this '.$kind.'.';}
+  elseif($reason==='license_expired'){$r['tone']='bad';$r['buy']=true;$r['label']='License expired';$r['detail']='Renew the license to keep using this '.$kind.'.';}
+  elseif($reason==='central_connection_required'){$r['tone']='warn';$r['label']='Connect to manage license';$r['detail']='This site is not connected to Favorite CMS Central yet.';}
+  elseif($reason==='central_temporarily_unavailable'){$r['tone']='warn';$r['label']='License check unavailable';$r['detail']='The license server could not be reached; it will be checked again shortly.';}
+  elseif($reason==='policy_suspension'){$r['tone']='bad';$r['label']='Restricted';$r['detail']='This site is restricted by the platform owner.';}
+  else{$r['tone']='warn';$r['label']=ucfirst(str_replace('_',' ',$reason!==''?$reason:'License check'));$r['detail']='';}
+  return $r;
+ }
+ /** License state for one extension (starts the trial only when $active). */
+ public function licenseState(array $manifest,bool $active,string $kind='plugin'):array{
+  return self::describeLicense($kind==='theme'?$this->theme($manifest,false,$active):$this->plugin($manifest,false,$active),$kind);
+ }
+ /** Cached license states needing attention (no network): trials ending within 2 days and blocked extensions. */
+ public function licenseAlerts():array{
+  try{
+   if($this->isControlSite())return [];
+   $out=[];
+   foreach((array)($this->config()['entitlements']??[])as$id=>$row){
+    $id=(string)$id;$theme=str_starts_with($id,'theme--');
+    if(!is_dir($this->root.($theme?'/themes/'.substr($id,7):'/plugins/'.$id)))continue;
+    $s=self::describeLicense((array)($row['data']??[]),$theme?'theme':'plugin');if(empty($s['managed']))continue;
+    if(($s['mode']==='trial'&&$s['days_left']!==null&&$s['days_left']<=2)||in_array($s['mode'],['purchase_required','license_expired'],true))$out[]=['id'=>$id,'theme'=>$theme,'label'=>$s['label'],'detail'=>$s['detail']];
+   }
+   return array_slice($out,0,4);
+  }catch(\Throwable){return [];}
  }
  public function markWelcomeShown():void{
   try{$c=$this->config();if(empty($c['secret'])||!empty($c['welcome_shown_at']))return;$c['welcome_shown_at']=time();$this->save($c);}catch(\Throwable){}
