@@ -125,7 +125,7 @@ $h = static fn ($val): string => htmlspecialchars((string)$val, ENT_QUOTES, 'UTF
                         <?php foreach ($bloggerPreview['sample_posts'] as $sp): ?>
                             <li>
                                 <strong><?php echo $h($sp['title'] ?: '(Untitled)'); ?></strong>
-                                <span style="color: var(--admin-text-muted);">(<?php echo $h($sp['date']); ?>, <?php echo $h($sp['status']); ?>)</span>
+                                <span style="color: var(--admin-text-muted);">(<?php echo $h(format_date($sp['date'], 'Y-m-d H:i')); ?>, <?php echo $h($sp['status']); ?>)</span>
                                 <?php if (!empty($sp['tags'])): ?>
                                     <span style="color: var(--admin-info-text); font-size: 11px;">[<?php echo $h(implode(', ', $sp['tags'])); ?>]</span>
                                 <?php endif; ?>
@@ -211,7 +211,7 @@ $h = static fn ($val): string => htmlspecialchars((string)$val, ENT_QUOTES, 'UTF
                             <?php echo $h($b['filename']); ?>
                         </td>
                         <td style="padding: 10px; color: var(--admin-text-muted);">
-                            <?php echo date('Y-m-d H:i:s', $b['date']); ?>
+                            <?php echo $h(format_date($b['date'], 'Y-m-d H:i:s')); ?>
                         </td>
                         <td style="padding: 10px; color: var(--admin-text-muted);">
                             <?php echo round($b['size'] / 1024 / 1024, 2); ?> MB

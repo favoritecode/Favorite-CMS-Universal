@@ -197,7 +197,7 @@ if (!empty($_SESSION['comment_error'])) {
         <article class="post-card">
             <h1 style="font-size: 28px; font-weight: 800; margin: 0 0 12px 0;"><?php echo htmlspecialchars($title); ?></h1>
             <div style="font-size: 13px; color: var(--text-muted); margin-bottom: 20px;">
-                Published on <?php echo date('F j, Y', strtotime($date)); ?>
+                Published on <?php echo format_date($date, 'F j, Y'); ?>
             </div>
             <div class="post-content" style="margin: 24px 0; line-height: 1.8; font-size: 15px;">
                 <?php echo $content; ?>
@@ -277,7 +277,7 @@ if (!empty($_SESSION['comment_error'])) {
     <footer>
         <div class="container">
             
-            <p style="margin: 0;">&copy; <?php echo date('Y'); ?> <?php echo htmlspecialchars($siteName); ?>. All rights reserved.</p>
+            <p style="margin: 0;">&copy; <?php echo format_date(time(), 'Y'); ?> <?php echo htmlspecialchars($siteName); ?>. All rights reserved.</p>
         </div>
     </footer>
 </body>

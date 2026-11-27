@@ -185,6 +185,7 @@
                 <?php endif; ?>
             </select>
             <span class="description">Select the standard IANA timezone for this site (e.g. UTC, Asia/Dhaka, America/New_York). Content timestamps and admin activities will display in this timezone.</span>
+            <span class="description">Current time in this time zone: <strong><?php echo htmlspecialchars(format_date(time(), 'Y-m-d H:i:s (T, P)'), ENT_QUOTES, 'UTF-8'); ?></strong></span>
         </div>
 
         <div class="form-group">

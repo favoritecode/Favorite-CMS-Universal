@@ -187,7 +187,7 @@ class ToolController
         try{
             if(function_exists('set_time_limit'))@set_time_limit(300);
             $db=$this->app->make(Database::class);$this->backupService->dumpDatabase($db->getPdo(),$db->prefix(),$path);
-            return new \FavoriteCMS\Core\FileDownloadResponse($path,'favorite_cms_database_'.date('Y-m-d_His').'.sql','application/sql',true);
+            return new \FavoriteCMS\Core\FileDownloadResponse($path,'favorite_cms_database_'.\FavoriteCMS\Core\DateTime::format(time(), 'Y-m-d_His').'.sql','application/sql',true);
         }catch(Throwable $e){if(is_file($path))@unlink($path);$_SESSION['_flash_error']='Database export failed; no incomplete dump was offered. '.mb_substr(strip_tags($e->getMessage()),0,350);return Response::redirect('/admin/tools');}
     }
 

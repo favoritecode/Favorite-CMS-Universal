@@ -344,7 +344,9 @@ class InstallerController
             $errors[] = 'Please provide a valid site URL.';
         }
 
-        return ['errors' => $errors, 'data' => ['name' => $name, 'url' => $url]];
+        $timezone = trim((string)$request->post('site_timezone', ''));
+        if (!\FavoriteCMS\Core\DateTime::isValidTimezone($timezone)) { $timezone = 'UTC'; }
+        return ['errors' => $errors, 'data' => ['name' => $name, 'url' => $url, 'timezone' => $timezone]];
     }
 
     protected function validateAdmin(Request $request): array

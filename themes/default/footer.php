@@ -33,7 +33,7 @@ $scriptUrl = function_exists('theme_asset_url') ? theme_asset_url('assets/js/mai
         <div class="footer-brand-block">
             <a class="footer-brand" href="<?php echo fcd_e(fcd_url('/')); ?>"><?php echo fcd_e(\FavoriteCMS\Models\Setting::get('general', 'site_name', 'Website')); ?></a>
             <p class="footer-copyright">
-                &copy; <?php echo date('Y'); ?> <?php echo $customCopyright !== '' ? fcd_e($customCopyright) : 'All rights reserved.'; ?> 
+                &copy; <?php echo format_date(time(), 'Y'); ?> <?php echo $customCopyright !== '' ? fcd_e($customCopyright) : 'All rights reserved.'; ?> 
             </p>
         </div>
 

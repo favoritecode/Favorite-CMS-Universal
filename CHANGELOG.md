@@ -1,3 +1,9 @@
+# 2.0.0-beta.2 — One time zone everywhere
+
+- Stored times are always UTC (the PHP default time zone is forced to UTC, independent of the hosting php.ini); every displayed time follows Settings -> Site Time Zone: backups (list and new file names), dashboard, updates, import previews, email delivery log, draft/revision labels, front-end post dates and copyright year, editor autosave clock.
+- New sites start in the installing administrator's own time zone (detected in the installer); the Settings page shows the current time in the selected zone.
+- No database migration; stored values are unchanged. If a host previously used a non-UTC php.ini time zone, values written by older versions on that host were stored in that zone.
+
 # 2.0.0-beta.1 — Always-available sites, automatic connection, 3-day verification
 
 - A website that has not yet completed its Central registration keeps serving visitors for a bounded 3-day grace period (hosting or network trouble); the clock is stored in both the connection file and the database, so deleting the file does not restart it. After 3 days without a verified connection the public site is restricted until it connects (administrator sign-in, backups and updates stay available). A site that holds a publisher-signed Owner decision (Suspend/Ban) is always restricted accordingly.

@@ -2,8 +2,12 @@
 
 declare(strict_types=1);
 
+// Every stored timestamp is UTC (the database session is UTC as well). The Site Time Zone setting is applied only when
+// times are displayed or entered; never depend on the hosting php.ini date.timezone.
+date_default_timezone_set('UTC');
+
 if (!defined('APP_VERSION')) {
-    define('APP_VERSION', '2.0.0-beta.1');
+    define('APP_VERSION', '2.0.0-beta.2');
 }
 if (!defined('CMS_NAME')) {
     define('CMS_NAME', 'Favorite CMS');

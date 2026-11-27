@@ -38,11 +38,13 @@ final class ContentWorkspaceController
                 // At most ten recoverable tabs/new drafts per user and type. Never prune another account's drafts.
                 $old=$db->select('SELECT id FROM `content_drafts` WHERE user_id=? AND content_type=? ORDER BY updated_at DESC,id DESC LIMIT 1000 OFFSET 10',[(int)$actor->id,$type]);
                 foreach($old as $item) $db->delete('content_drafts',['id'=>$item->id]);
-                return Response::json(['success'=>true,'hash'=>hash('sha256',$payload),'saved_at'=>$data['updated_at']]);
+                return Response::json(['success'=>true,'hash'=>hash('sha256',$payload),'saved_at'=>$data['updated_at'],'saved_at_local'=>format_date($data['updated_at'],'Y-m-d H:i')]);
             }
             if ($action === 'workspace') {
                 $drafts=$db->select('SELECT id,updated_at,baseline FROM `content_drafts` WHERE user_id=? AND content_type=? AND content_id=? ORDER BY updated_at DESC,id DESC LIMIT 10',[(int)$actor->id,$type,$id]);
                 $history=$id>0?$db->select('SELECT id,created_at FROM `content_history` WHERE content_type=? AND content_id=? ORDER BY id DESC LIMIT 30',[$type,$id]):[];
+                $drafts=array_map(static function($d){$d->updated_at_local=format_date($d->updated_at,'Y-m-d H:i');return $d;},$drafts);
+                $history=array_map(static function($h){$h->created_at_local=format_date($h->created_at,'Y-m-d H:i');return $h;},$history);
                 return Response::json(['success'=>true,'baseline'=>$baseline,'drafts'=>$drafts,'history'=>$history]);
             }
             if ($action === 'snapshot') {

@@ -35,8 +35,8 @@ document.addEventListener('DOMContentLoaded', function () {
         var previous = select.value;
         select.replaceChildren(new Option('Choose a saved version',''));
         if (localDraft) select.add(new Option('Browser draft — ' + localDraft.time, 'local'));
-        body.drafts.forEach(function(d) { select.add(new Option('Server draft — ' + d.updated_at, 'draft:' + d.id)); });
-        body.history.forEach(function(h) { select.add(new Option('Revision — ' + h.created_at + ' (#' + h.id + ')', 'history:' + h.id)); });
+        body.drafts.forEach(function(d) { select.add(new Option('Server draft — ' + (d.updated_at_local || d.updated_at), 'draft:' + d.id)); });
+        body.history.forEach(function(h) { select.add(new Option('Revision — ' + (h.created_at_local || h.created_at) + ' (#' + h.id + ')', 'history:' + h.id)); });
         if (Array.from(select.options).some(function(o) { return o.value === previous; })) select.value = previous;
         restore.disabled = !select.value;
     }
@@ -53,7 +53,7 @@ document.addEventListener('DOMContentLoaded', function () {
         data.append('id', config.id); data.append('client_id', client); data.append('baseline', config.baseline);
         data.append('_token', form.elements.namedItem('_token').value); data.append('_content_revision', form.elements.namedItem('_content_revision').value);
         request('autosave', data).then(function(body) {
-            lastSaved = serialized; hidden('_workspace_hash', body.hash); message('Server draft saved — ' + body.saved_at);
+            lastSaved = serialized; hidden('_workspace_hash', body.hash); message('Server draft saved — ' + (body.saved_at_local || body.saved_at));
             return refresh();
         }).catch(function(error) {
             if (error.status === 409 || error.status === 403 || error.status === 503) serverEnabled = false;
