@@ -1,3 +1,8 @@
+# 2.0.0-beta.5 — The control site is exempt from licensing
+
+- The CMS that hosts the Server package (the control site) never needs a license: every plugin and theme is allowed with "Owner access", with no trial, no end date and no network request, and the site is never paused for connection or verification reasons. This holds only when the Server's private vault is bound to this very installation, so a copied Server folder or another site on the same hosting gets nothing.
+- A control site whose Server setup is not finished yet no longer runs out of the 3-day grace period.
+
 # 2.0.0-beta.4 — Welcome dialog polish, faster license activation after payment
 
 - The "Congratulations" dialog is now centred and follows the admin light/dark theme (it was pinned to the top-left and unreadable in dark mode).

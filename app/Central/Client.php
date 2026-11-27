@@ -395,6 +395,10 @@ final class Client {
  }
  public function policy(bool $force=false):array{
   $c=$this->config();
+  if($this->isControlSite($c)){
+   $managed=[];foreach($this->localServer('SELECT DISTINCT product_id,kind FROM fcp_catalog WHERE product_id IS NOT NULL')as$r)$managed[(string)$r->product_id]=(string)$r->kind;
+   return ['cms_license'=>'free','license_type'=>'owner','license_status'=>'active','policy_status'=>'active','policy_reason'=>null,'owner_policy_status'=>'active','managed_products'=>$managed];
+  }
   if(empty($c['secret'])||empty($c['installation_id'])){
    return $this->registrationPending($c);
   }
@@ -431,7 +435,7 @@ final class Client {
  private function registrationPending(array $c,string $fallback=''):array{
   $reason=trim((string)($c['registration_last_error']??$c['policy_last_error']??''));
   $detail=$reason!==''?$reason:($fallback!==''?$fallback:'Registration is pending. Your website keeps running while the connection is retried automatically.');
-  $left=$this->pendingSince($c)+self::PENDING_GRACE-time();
+  $left=is_file($this->root.'/favorite-server-license/bootstrap.php')?PHP_INT_MAX:$this->pendingSince($c)+self::PENDING_GRACE-time();
   $code=(string)($c['registration_error_code']??$c['policy_error_code']??'');
   if($left<=0)return ['cms_license'=>'free','policy_status'=>'connection_required','policy_reason'=>'Verified registration is required before this site can operate.','policy_detail'=>$detail,'policy_error_code'=>$code];
   return ['cms_license'=>'free','policy_status'=>'registration_pending','policy_reason'=>$detail,'policy_error_code'=>$code,'grace_seconds_left'=>$left];
@@ -465,7 +469,33 @@ final class Client {
    return $data;
   }catch(\Throwable){return null;}
  }
+ /**
+  * True only on the CONTROL site itself: the Server package is installed here, its private vault is bound to THIS root and
+  * this connection is the Server's own owner installation. A copied folder or another installation never qualifies.
+  */
+ private function isControlSite(?array $c=null):bool{
+  $c??=$this->config();$id=(string)($c['installation_id']??'');$key=$this->root.'|'.$id;
+  if(isset(self::$controlSite[$key]))return self::$controlSite[$key];
+  $ok=false;
+  try{
+   if($id!==''&&is_file($this->root.'/favorite-server-license/bootstrap.php')){
+    require_once $this->root.'/favorite-server-license/bootstrap.php';
+    $cfg=(new \FavoriteCentral\Vault($this->root))->read();
+    $ok=is_array($cfg)&&!empty($cfg['installed'])&&hash_equals((string)$cfg['owner_installation_id'],$id)&&hash_equals((string)$cfg['cms_root_hash'],hash('sha256',(string)realpath($this->root)));
+   }
+  }catch(\Throwable){$ok=false;}
+  return self::$controlSite[$key]=$ok;
+ }
+ private static array $controlSite=[];
+ /** Read straight from the local Server database (no network); empty when it is not reachable. */
+ private function localServer(string $sql,array $args=[]):array{
+  try{return \FavoriteCentral\Runtime::store()->db->select($sql,$args);}catch(\Throwable){return [];}
+ }
  public function plugin(array $manifest,bool $force=false,bool $initialize=true):array{
+  if($this->isControlSite()){
+   $row=$this->localServer('SELECT features FROM fcp_products WHERE id=?',[(string)($manifest['id']??'')]);
+   return ['allowed'=>true,'mode'=>'owner','updates'=>true,'valid_until'=>null,'features'=>$row?(json_decode((string)$row[0]->features,true)?:[]):[]];
+  }
   $supported=($manifest['licensing']['supported']??false)===true;$managed=isset($this->policy()['managed_products'][(string)($manifest['id']??'')]);
   if(!$supported&&!$managed)return ['allowed'=>true,'mode'=>'legacy_free'];
   if($supported&&(int)($manifest['licensing']['api_version']??0)!==1)return ['allowed'=>false,'reason'=>'unsupported_licensing_api'];
