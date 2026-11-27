@@ -1,3 +1,7 @@
+## Owner-authorized plugin/theme source & releases (2026-11-27)
+
+The repository owner explicitly authorized official plugin and theme source under `plugins/` and `themes/`, as well as plugin/theme GitHub releases and tags (e.g., `v1.0.0-favorite-pay` with `Favorite-Pay-v1.0.0.zip`, `v1.4.0-favorite-web-tools`, `v1.0.9-favorite-multimedia`) in `Favorite-CMS-Universal`. This owner-authorized update supersedes the core-only and non-core redirect restrictions below for official plugins, themes, and their release assets. Historical releases/tags remain immutable, and `.env`, credentials, runtime logs, caches, and installer locks must remain excluded from git.
+
 ## Owner-authorized repository catalog (2026-11-21)
 
 The repository owner explicitly authorized plugin/theme distribution ZIPs in **extensions/plugins/** and **extensions/themes/** for Favorite Server and License's repository catalog. This scoped exception supersedes conflicting core-only/asset redirect statements below only for those two folders. Do not place extension source in core app/plugins/themes runtime paths or bundle catalog ZIPs in the CMS installer. Preserve existing core source, developer documentation and historical releases. Server private source/keys/SMTP secrets still belong only in Favorite-Server-and-License. Official CMS release assets remain core-only.
