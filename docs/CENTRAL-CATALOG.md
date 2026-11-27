@@ -17,3 +17,4 @@ Favorite Server and License → Repository catalog automatically checks main whe
 
 Public repository ZIPs are publicly downloadable. For paid-source confidentiality use a private CMS repository and a read-only Contents token in Server → Repository catalog → Private repository access. The protected server signs imported releases and enforces download entitlements; a public source archive itself cannot be made private by licensing.
 
+GitHub Releases also work: tag a release `v<version>-<extension-id>` (for example `v1.0.0-favorite-pay`) and attach the package as a `.zip` asset; the id and version inside `plugin.json`/`theme.json` must match the tag. Refresh the catalog in Central Control and use Validate & import. ZIPs written by Windows tools (backslash paths, UTF-8 BOM) are cleaned automatically on import; still save source files as UTF-8 without BOM.
