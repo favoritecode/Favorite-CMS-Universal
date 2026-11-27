@@ -37,6 +37,11 @@ if (is_array($fcNotice) && !empty($fcNotice['pending'])):
     &middot; <a href="<?php echo $fcEsc(function_exists('site_path') ? site_path('/admin/updates') : '/admin/updates'); ?>">Software updates</a>
 </div>
 <?php endif; ?>
+<?php if (is_array($fcNotice) && !empty($fcNotice['unverified'])): ?>
+<div class="notice notice-info" role="status">
+    Your website is connected to Favorite CMS Central. Automatic domain verification is not possible on this hosting right now; this does not affect your website and is retried automatically.
+</div>
+<?php endif; ?>
 <?php if (is_array($fcNotice) && !empty($fcNotice['welcome'])): ?>
 <dialog id="fc-welcome-dialog" aria-labelledby="fc-welcome-title" style="max-width:30rem;width:calc(100% - 2rem);border:0;border-radius:14px;padding:1.75rem;box-shadow:0 20px 60px rgba(0,0,0,.35);background:var(--admin-card-bg,#fff);color:var(--admin-text,#192b48)">
     <div style="font-size:2.25rem;line-height:1" aria-hidden="true">&#127881;</div>

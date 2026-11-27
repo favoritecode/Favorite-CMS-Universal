@@ -45,6 +45,7 @@ final class Client {
   $c=$this->config();
   if(LocalAddress::canonical((string)config('app.url'))!==null){(new LocalEnrollment($this,$this->root))->sync($force);return;}
   if(($c['installation_kind']??'')==='local'){
+   if(!empty($c['public_unverified'])){if(!empty($c['secret']))$this->maintainUnverified($c,$force);else(new LocalEnrollment($this,$this->root))->syncPublic($force);return;}
    if(!empty($c['secret'])){try{$this->transfer();$c=$this->config();}catch(\Throwable $e){$c['registry_last_error']=substr(strip_tags($e->getMessage()),0,240);$this->save($c);return;}}
    else{$this->save(['previous_local_id'=>$c['installation_id']??'']);$c=$this->config();}
   }
@@ -123,8 +124,21 @@ final class Client {
    $this->save($connected);
    $this->logDiagnostic('info','Central automatic registration succeeded',['installation_id'=>$connected['installation_id']??'','site_url'=>$connected['site_url']??'']);
   }catch(\Throwable $e){
-   $this->recordRegistrationFailure($e->getMessage(),$e instanceof RemoteError?$e->errorCode:'verification_failure');
+   $code=$e instanceof RemoteError?$e->errorCode:'verification_failure';
+   $this->recordRegistrationFailure($e->getMessage(),$code);
+   // Hosting blocks the domain proof (browser challenge, read-only public directory ...): connect automatically by key possession instead.
+   if(!in_array($code,self::NO_UNVERIFIED_FALLBACK,true)){try{(new LocalEnrollment($this,$this->root))->syncPublic(true);}catch(\Throwable){}}
   }
+ }
+ /** Failures that are not a domain-proof problem: server/network trouble or a delegation problem that a key-possession registration cannot fix either. */
+ private const NO_UNVERIFIED_FALLBACK=['temporary_network_failure','rate_limited','authority_certificate_required','untrusted_authority','verification_in_progress','suspended_license'];
+ /** Public site connected without domain proof: keep outbound heartbeats and periodically try to upgrade to a verified domain. */
+ private function maintainUnverified(array $c,bool $force):void{
+  if($force||(int)($c['transfer_retry_after']??0)<=time()){
+   $c['transfer_retry_after']=time()+21600;try{$this->save($c);}catch(\Throwable){}
+   try{$this->transfer();return;}catch(\Throwable $e){$c=$this->config();$c['transfer_last_error']=substr(strip_tags($e->getMessage()),0,240);try{$this->save($c);}catch(\Throwable){}}
+  }
+  (new LocalEnrollment($this,$this->root))->syncPublic($force);
  }
  /** Non-secret diagnostic for the site owner's hosting support/administrator. */
  private function recordRegistrationFailure(string $reason,string $code='temporary_network_failure'):void{
@@ -209,7 +223,7 @@ final class Client {
   if(!is_dir(dirname($path))&&!mkdir(dirname($path),0755,true))throw new \RuntimeException('Verification directory is not writable.');
   $raw=Crypto::canonical(['installation_id'=>$id,'site_url'=>$site,'proof'=>$proof,'timestamp'=>time()]);
   $h=fopen($path,'x');if(!$h)throw new \RuntimeException('Ownership proof cannot be created.');fwrite($h,$raw);fclose($h);
-  try{$this->request(['action'=>'transfer','site_url'=>$site,'proof'=>$proof]);$fresh=$this->config();$fresh['site_url']=$site;$fresh['installation_kind']='public';unset($fresh['local_url'],$fresh['local_root'],$fresh['local_private'],$fresh['local_public'],$fresh['policy']);$this->save($fresh);}
+  try{$this->request(['action'=>'transfer','site_url'=>$site,'proof'=>$proof]);$fresh=$this->config();$fresh['site_url']=$site;$fresh['installation_kind']='public';unset($fresh['local_url'],$fresh['local_root'],$fresh['local_private'],$fresh['local_public'],$fresh['policy'],$fresh['public_unverified'],$fresh['transfer_retry_after'],$fresh['transfer_last_error']);$this->save($fresh);}
   finally{if(is_file($path)&&hash_equals($raw,(string)file_get_contents($path)))unlink($path);}
  }
  public function connect(string $server,bool $recoverMissing=false):void{
@@ -348,6 +362,7 @@ final class Client {
   try{
    $this->save($working);
    if(LocalAddress::canonical((string)config('app.url'))!==null){$working['local_rebind_pending']=true;$this->save($working);(new LocalEnrollment($this,$this->root))->sync(true);$fresh=$this->config();if(!empty($fresh['local_rebind_pending'])||empty($fresh['secret']))throw new \RuntimeException('The local installation key could not be reverified. Restore its original connection backup.');}
+   elseif(!empty($working['public_unverified'])){$working['local_rebind_pending']=true;$this->save($working);(new LocalEnrollment($this,$this->root))->syncPublic(true);$fresh=$this->config();if(!empty($fresh['local_rebind_pending'])||empty($fresh['secret']))throw new \RuntimeException('The installation key could not be reverified. Restore its original connection backup.');}
    else $this->connect(Authority::ORIGIN,!empty($working['secret']));
    $this->policy(true);
   }catch(\Throwable $e){$this->save($original);throw $e;}
@@ -355,7 +370,7 @@ final class Client {
  public function registrationRequest(array $input):array{return $this->http(Authority::ENDPOINT,Crypto::canonical($input),[]);}
  private function canonicalBinding(array $c):string{
   if(($c['installation_kind']??'')==='local'){
-   $url=LocalAddress::canonical((string)config('app.url'));
+   $url=!empty($c['public_unverified'])?Transport::site((string)config('app.url')):LocalAddress::canonical((string)config('app.url'));
    if($url===null||($c['local_url']??'')!==$url||($c['local_root']??'')!==hash('sha256',(string)realpath($this->root)."\0".php_uname('n')))throw new RemoteError('domain_mismatch','Local installation identity belongs to another site root.',409);
    return 'local://'.(string)($c['installation_id']??'');
   }
@@ -430,7 +445,7 @@ final class Client {
    $since=max((int)($c['registration_verified_at']??0),(int)($c['registry_verified_at']??0),(int)(strtotime((string)($c['connected_at']??''))?:0));
    $reason=trim((string)($c['registration_last_error']??$c['registry_last_error']??$c['policy_last_error']??''));
    $left=$registered?0:$this->pendingSince($c)+self::PENDING_GRACE-time();
-   return ['pending'=>!$registered,'reason'=>substr(strip_tags($reason),0,300),'code'=>(string)($c['registration_error_code']??$c['registry_error_code']??$c['policy_error_code']??''),'grace_hours_left'=>$registered?0:max(0,(int)ceil($left/3600)),'restricted'=>!$registered&&$left<=0,'welcome'=>$registered&&empty($c['welcome_shown_at'])&&$since>time()-604800];
+   return ['pending'=>!$registered,'reason'=>substr(strip_tags($reason),0,300),'code'=>(string)($c['registration_error_code']??$c['registry_error_code']??$c['policy_error_code']??''),'grace_hours_left'=>$registered?0:max(0,(int)ceil($left/3600)),'restricted'=>!$registered&&$left<=0,'unverified'=>$registered&&!empty($c['public_unverified']),'welcome'=>$registered&&empty($c['welcome_shown_at'])&&$since>time()-604800];
   }catch(\Throwable){return ['pending'=>false,'welcome'=>false];}
  }
  public function markWelcomeShown():void{
