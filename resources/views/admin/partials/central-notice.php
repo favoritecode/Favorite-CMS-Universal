@@ -45,17 +45,29 @@ if (is_array($fcNotice) && !empty($fcNotice['pending'])):
 </div>
 <?php endif; ?>
 <?php if (is_array($fcNotice) && !empty($fcNotice['welcome'])): ?>
-<dialog id="fc-welcome-dialog" aria-labelledby="fc-welcome-title" style="max-width:30rem;width:calc(100% - 2rem);border:0;border-radius:14px;padding:1.75rem;box-shadow:0 20px 60px rgba(0,0,0,.35);background:var(--admin-card-bg,#fff);color:var(--admin-text,#192b48)">
-    <div style="font-size:2.25rem;line-height:1" aria-hidden="true">&#127881;</div>
-    <h2 id="fc-welcome-title" style="margin:.5rem 0 .25rem;font-size:1.35rem">Congratulations!</h2>
-    <p style="margin:.25rem 0 1rem">Your <strong>Favorite CMS Free License</strong> has been activated successfully. Your website is connected to CMS Central Control and no extra setup is needed.</p>
-    <form method="dialog"><button class="button button-primary" autofocus>Continue</button></form>
+<style>
+/* The admin layout resets every margin, which would pin a dialog to the top-left corner: centre it explicitly and follow the admin light/dark variables. */
+.fc-welcome{position:fixed;inset:0;margin:auto;width:min(30rem,calc(100% - 2rem));height:fit-content;max-height:calc(100vh - 2rem);overflow:auto;padding:1.75rem 1.75rem 1.5rem;border:1px solid var(--admin-border,#e2e8f0);border-radius:16px;background:var(--admin-surface-elevated,var(--admin-surface,#fff));color:var(--admin-text,#0f172a);box-shadow:0 24px 70px rgba(2,6,23,.45);text-align:center}
+.fc-welcome::backdrop{background:rgba(2,6,23,.62)}
+.fc-welcome__icon{font-size:2.6rem;line-height:1}
+.fc-welcome h2{margin:.6rem 0 .4rem;font-size:1.4rem;color:var(--admin-text-heading,var(--admin-text,#0f172a))}
+.fc-welcome p{margin:0 0 1.2rem;line-height:1.6;color:var(--admin-text,#0f172a)}
+.fc-welcome button{min-width:9rem;padding:.65rem 1.4rem;border:0;border-radius:10px;font:inherit;font-weight:700;cursor:pointer;background:var(--admin-primary,#2563eb);color:#fff}
+.fc-welcome button:hover{background:var(--admin-primary-hover,#1d4ed8)}
+.fc-welcome button:focus-visible{outline:3px solid var(--admin-border-focus,#3b82f6);outline-offset:3px}
+</style>
+<dialog id="fc-welcome-dialog" class="fc-welcome" aria-labelledby="fc-welcome-title">
+    <div class="fc-welcome__icon" aria-hidden="true">&#127881;</div>
+    <h2 id="fc-welcome-title">Congratulations!</h2>
+    <p>Your <strong>Favorite CMS Free License</strong> has been activated successfully. Your website is connected to CMS Central Control and no extra setup is needed.</p>
+    <form method="dialog"><button type="submit" autofocus>Continue</button></form>
 </dialog>
 <script>
 (function () {
     var d = document.getElementById('fc-welcome-dialog');
     if (!d) { return; }
     try { if (typeof d.showModal === 'function') { d.showModal(); } else { d.setAttribute('open', ''); } } catch (e) { d.setAttribute('open', ''); }
+    d.addEventListener('click', function (e) { if (e.target === d) { d.close ? d.close() : d.removeAttribute('open'); } });
 })();
 </script>
 <?php endif; ?>

@@ -52,7 +52,7 @@ final class Bridge {
     case 'refresh':$client->policy(true);foreach($this->manifests()as$m)$client->plugin($m,true,$this->active((string)$m['id']));$message='Connection and license status refreshed.';break;
     case 'activate':$client->request(['action'=>'activate','product_id'=>(string)$r->post('product_id'),'license_key'=>trim((string)$r->post('license_key'))]);$this->invalidate((string)$r->post('product_id'));$message='License activated.';break;
     case 'deactivate':$client->request(['action'=>'deactivate','purchase_id'=>(string)$r->post('purchase_id')]);$this->invalidate((string)$r->post('product_id'));$message='This installation was deactivated. Other installations are unchanged.';break;
-    case 'checkout':$checkout=$client->request(['action'=>'checkout_ticket','package_id'=>(string)$r->post('package_id')]);break;
+    case 'checkout':$checkout=$client->request(['action'=>'checkout_ticket','package_id'=>(string)$r->post('package_id')]);$this->invalidate((string)$r->post('product_id'));break;
     case 'plugin_update':
     case 'theme_update':
      $product=(string)$r->post('product_id');$theme=str_starts_with($product,'theme--');$native=$theme?substr($product,7):$product;$type=$theme?'theme':'plugin';$base=APP_ROOT.($theme?'/themes':'/plugins');
@@ -103,7 +103,7 @@ final class Bridge {
   if($mode!=='legacy_free'&&$connected){
    $h.='<div class="license-action-grid"><details><summary>Activate purchased license</summary>'.$this->form('activate','<input type="hidden" name="product_id" value="'.Ui::e($id).'">'.Ui::field('license_key','License key'),'Activate license').'</details>';
    if(!empty($state['purchase_id']))$h.='<details><summary>Deactivate this installation</summary>'.$this->form('deactivate','<input type="hidden" name="product_id" value="'.Ui::e($id).'"><input type="hidden" name="purchase_id" value="'.Ui::e($state['purchase_id']).'">','Deactivate installation').'</details>';
-   $h.='</div>';try{$packages=$client->request(['action'=>'packages','product_id'=>$id]);foreach($packages['packages']??[]as$p){$p=(array)$p;$h.='<details><summary>'.Ui::e($p['name'].' · '.number_format($p['amount_minor']/100,2).' '.$p['currency']).'</summary>'.$this->form('checkout','<input type="hidden" name="package_id" value="'.Ui::e($p['id']).'"><p>'.((int)$p['days']===0?'Lifetime':(int)$p['days'].' days').'</p>','Continue to checkout').'</details>';}}catch(\Throwable){$h.='<p>Packages are temporarily unavailable.</p>';}
+   $h.='</div>';try{$packages=$client->request(['action'=>'packages','product_id'=>$id]);foreach($packages['packages']??[]as$p){$p=(array)$p;$h.='<details><summary>'.Ui::e($p['name'].' · '.number_format($p['amount_minor']/100,2).' '.$p['currency']).'</summary>'.$this->form('checkout','<input type="hidden" name="package_id" value="'.Ui::e($p['id']).'"><input type="hidden" name="product_id" value="'.Ui::e($id).'"><p>'.((int)$p['days']===0?'Lifetime':(int)$p['days'].' days').'</p>','Continue to checkout').'</details>';}}catch(\Throwable){$h.='<p>Packages are temporarily unavailable.</p>';}
   }elseif($mode!=='legacy_free')$h.='<p><a href="'.Ui::e($this->pageUrl('cms')).'">Connect your site</a> to manage this license.</p>';
   if($connected)$h.='<details><summary>Trusted '.($theme?'theme':'plugin').' update</summary>'.$this->form($theme?'theme_update':'plugin_update','<input type="hidden" name="product_id" value="'.Ui::e($id).'">','Install latest signed '.($theme?'theme':'plugin')).'</details>';
   return $h.'</div></details>';
@@ -114,5 +114,5 @@ final class Bridge {
   $raw=\FavoriteCMS\Models\Setting::get('plugins','active','[]');$list=is_array($raw)?$raw:json_decode((string)$raw,true);return in_array($id,(array)$list,true);
  }
  private function manifests():array{$list=[];foreach(glob(APP_ROOT.'/plugins/*/plugin.json')?:[]as$f){$m=json_decode((string)file_get_contents($f),true);if(!is_array($m))continue;$m['id']=basename(dirname($f));$list[]=$m;}foreach(glob(APP_ROOT.'/themes/*/theme.json')?:[]as$f){$native=basename(dirname($f));if($native==='default')continue;$m=json_decode((string)file_get_contents($f),true);if(!is_array($m))continue;$m['id']='theme--'.$native;$list[]=$m;}return $list;}
- private function invalidate(string $id):void{$client=new Client();$c=$client->config();unset($c['entitlements'][$id]);$client->save($c);}
+ private function invalidate(string $id):void{$client=new Client();$c=$client->config();unset($c['entitlements'][$id],$c['plugin_next_attempt'][$id]);$client->save($c);}
 }

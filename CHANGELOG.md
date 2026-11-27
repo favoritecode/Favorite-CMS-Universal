@@ -1,3 +1,8 @@
+# 2.0.0-beta.4 — Welcome dialog polish, faster license activation after payment
+
+- The "Congratulations" dialog is now centred and follows the admin light/dark theme (it was pinned to the top-left and unreadable in dark mode).
+- After pressing "Buy" the site forgets its cached license state for that plugin/theme, so the paid license shows up on the next page view instead of up to 5 minutes later.
+
 # 2.0.0-beta.3 — Backups no longer fill the hosting
 
 - Automatic retention: the newest 3 backups are always kept; the others are deleted once they are older than 30 days. It runs after every new backup and when Tools is opened (at most every 12 hours), and removes abandoned temporary files from interrupted backups. Tunable in Settings group "backup" (keep_latest, max_age_days, auto_cleanup).
