@@ -112,11 +112,55 @@ jobs:
           <meta name="viewport" content="width=device-width,initial-scale=1">
           <meta name="robots" content="noindex"><meta name="referrer" content="no-referrer">
           <title>Downloading Favorite CMS</title>
-          <style>body{{font:16px/1.6 system-ui,sans-serif;margin:0;min-height:100vh;display:grid;place-items:center;background:#0c1322;color:#e6edf7}}main{{padding:28px;max-width:480px}}h1{{font-size:24px;margin:0 0 12px}}p{{color:#aebbd0}}a{{color:#77b0ff}}iframe{{display:none}}</style>
-          </head><body><main><h1>Your download is starting</h1>
-          <p>{html.escape(asset['name'])}</p>
-          <p>If it does not start, <a href="{url}" target="download-frame">download again</a>.</p>
+          <meta name="color-scheme" content="dark light">
+          <style>
+          :root{{color-scheme:dark;--bg:#0a1020;--panel:#111c30;--ink:#eef4ff;--muted:#a8b8d1;--line:#293950;--soft:#17253d;--blue:#447eff}}
+          *{{box-sizing:border-box}}body{{margin:0;min-height:100vh;min-height:100svh;display:grid;place-items:center;padding:24px;font:15px/1.6 system-ui,-apple-system,sans-serif;color:var(--ink);background:radial-gradient(ellipse at 50% 0%,#213d6838,transparent 65%),var(--bg)}}
+          main{{width:100%;max-width:540px;background:var(--panel);border:1px solid var(--line);border-radius:24px;padding:36px;box-shadow:0 28px 90px #0003}}
+          .brand{{display:flex;align-items:center;gap:10px;font-size:12px;font-weight:750;letter-spacing:.12em;color:var(--muted)}}.brand-mark{{display:grid;place-items:center;width:30px;height:30px;border-radius:9px;background:var(--blue);color:white;font-size:18px;letter-spacing:0}}
+          .download-icon{{display:grid;place-items:center;width:64px;height:64px;border-radius:20px;background:#447eff1a;color:#80a7ff;margin:30px 0 20px}}svg{{width:28px;height:28px;flex-shrink:0}}
+          h1{{font-size:clamp(25px,5vw,30px);letter-spacing:-.035em;line-height:1.2;margin:0 0 12px}}p{{margin:0;color:var(--muted)}}.file{{display:flex;align-items:center;gap:14px;padding:16px;margin:26px 0;background:var(--soft);border:1px solid var(--line);border-radius:14px}}.file svg{{color:#83a9ff}}.file-info{{min-width:0}}.filename{{font-size:13px;font-weight:650;overflow-wrap:anywhere}}.file-meta{{font-size:12px;color:var(--muted);margin-top:3px}}
+          .actions{{display:flex;gap:10px}}.button{{display:flex;justify-content:center;align-items:center;text-align:center;min-height:46px;padding:10px 18px;border-radius:11px;text-decoration:none;font-weight:650;flex:1;color:var(--ink);border:1px solid var(--line)}}.primary{{background:var(--blue);border-color:var(--blue);color:#fff}}a:hover{{filter:brightness(1.12)}}a:focus-visible,button:focus-visible{{outline:3px solid #8db6ff;outline-offset:4px}}
+          .return{{margin-top:26px;padding-top:22px;border-top:1px solid var(--line)}}.return-row{{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:12px}}button{{font:inherit;color:#8eb3ff;border:0;background:transparent;padding:6px 0;cursor:pointer;white-space:nowrap}}progress{{display:block;width:100%;height:4px;margin-top:12px;accent-color:var(--blue);border:0;border-radius:4px;overflow:hidden}}progress::-webkit-progress-bar{{background:var(--soft)}}progress::-webkit-progress-value{{background:var(--blue)}}.footer{{margin-top:20px;font-size:11px;text-align:center;color:var(--muted)}}iframe{{display:none}}
+          @media(max-width:480px){{body{{padding:16px}}main{{padding:26px 22px;border-radius:20px}}.actions{{flex-direction:column}}.return-row{{align-items:flex-start}}}}
+          @media(prefers-color-scheme:light){{:root{{color-scheme:light;--bg:#f2f6fc;--panel:#fff;--ink:#182742;--muted:#5e6f88;--line:#dde5f0;--soft:#f5f8fd}}.download-icon,.file svg{{color:#386de0}}button{{color:#3267d9}}}}
+          </style></head><body><main>
+          <div class="brand"><span class="brand-mark" aria-hidden="true">F</span> FAVORITE CMS</div>
+          <div class="download-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m-5-5 5 5 5-5M5 16v4h14v-4"/></svg></div>
+          <h1>Your download is starting</h1>
+          <p>The latest stable release, ready for your website.</p>
+          <div class="file"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M14 2H5v20h14V7zM14 2v6h5M10 3v3m0 2v3m0 2v3m-2 1h4v3H8z"/></svg><div class="file-info"><div class="filename">{html.escape(asset['name'])}</div><div class="file-meta">{html.escape(asset['tag'])} &middot; ZIP archive &middot; Official release</div></div></div>
+          <div class="actions"><a class="button primary" href="https://favoriteweb.net/">Return to website <span aria-hidden="true">&nbsp;&rarr;</span></a><a id="retry" class="button" href="{url}" target="download-frame">Download again</a></div>
+          <div class="return"><div class="return-row"><p id="countdown" aria-live="polite">Returning to favoriteweb.net in 5 seconds.</p><button id="stay" type="button">Stay here</button></div><progress id="progress" max="5" value="5" aria-label="Time before returning to website"></progress></div>
+          <p class="footer">Download not started? Choose &ldquo;Download again&rdquo;.</p>
+          <noscript><p>Use &ldquo;Return to website&rdquo; when you are ready.</p></noscript>
           </main><iframe name="download-frame" title="File download" src="start.html"></iframe>
+          <script>
+          (() => {{
+            const status = document.getElementById('countdown');
+            const progress = document.getElementById('progress');
+            const stay = document.getElementById('stay');
+            let remaining = 5;
+            const timer = window.setInterval(() => {{
+              remaining -= 1;
+              progress.value = remaining;
+              if (remaining <= 0) {{
+                window.clearInterval(timer);
+                window.location.replace('https://favoriteweb.net/');
+                return;
+              }}
+              status.textContent = 'Returning to favoriteweb.net in ' + remaining + (remaining === 1 ? ' second.' : ' seconds.');
+            }}, 1000);
+            const pause = () => {{
+              window.clearInterval(timer);
+              status.textContent = 'Auto-return paused. You can return whenever you are ready.';
+              progress.hidden = true;
+              stay.hidden = true;
+            }};
+            stay.addEventListener('click', pause);
+            document.getElementById('retry').addEventListener('click', pause);
+          }})();
+          </script></body></html>
           </body></html>
           '''
 
@@ -158,10 +202,16 @@ jobs:
                   self.assertIn('target="download-frame"', page)
               def test_download_does_not_navigate_main_page(self):
                   page = render(select(fixture()))
-                  self.assertNotIn('window.location', page)
+                  self.assertNotIn('window.location.replace("https://github.com', page)
                   self.assertNotIn('http-equiv="refresh"', page)
                   self.assertIn('name="download-frame"', page)
                   self.assertIn('src="start.html"', page)
+              def test_five_second_return_and_pause_controls(self):
+                  page = render(select(fixture()))
+                  self.assertIn("window.location.replace('https://favoriteweb.net/')", page)
+                  self.assertIn('let remaining = 5;', page)
+                  self.assertIn('id="stay"', page)
+                  self.assertIn("getElementById('retry').addEventListener('click', pause)", page)
               def test_no_stable_release_removes_stale_redirect(self):
                   self.assertIsNone(select(None))
                   self.assertNotIn('window.location.replace', render(None))
@@ -179,7 +229,7 @@ jobs:
           (output / 'release.json').write_text(json.dumps(selected, indent=2) + '\n', encoding='utf-8')
           print(json.dumps(selected, indent=2))
           with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as summary:
-              summary.write('## Latest stable download\n\n7 selection/rendering tests passed. Main page stays open; only the download frame redirects.\n\n```json\n' + json.dumps(selected, indent=2) + '\n```\n')
+              summary.write('## Latest stable download\n\n8 selection/rendering tests passed. Download frame starts the ZIP; the main page returns to favoriteweb.net after 5 seconds unless paused.\n\n```json\n' + json.dumps(selected, indent=2) + '\n```\n')
       - name: Upload static redirect only
         uses: actions/upload-pages-artifact@v3
         with:
