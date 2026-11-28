@@ -115,7 +115,7 @@ jobs:
           <meta name="color-scheme" content="dark light">
           <style>
           :root{{color-scheme:dark;--bg:#0a1020;--panel:#111c30;--ink:#eef4ff;--muted:#a8b8d1;--line:#293950;--soft:#17253d;--blue:#447eff}}
-          *{{box-sizing:border-box}}body{{margin:0;min-height:100vh;min-height:100svh;display:grid;place-items:center;padding:24px;font:15px/1.6 system-ui,-apple-system,sans-serif;color:var(--ink);background:radial-gradient(ellipse at 50% 0%,#213d6838,transparent 65%),var(--bg)}}
+          *{{box-sizing:border-box}}[hidden]{{display:none!important}}body{{margin:0;min-height:100vh;min-height:100svh;display:grid;place-items:center;padding:24px;font:15px/1.6 system-ui,-apple-system,sans-serif;color:var(--ink);background:radial-gradient(ellipse at 50% 0%,#213d6838,transparent 65%),var(--bg)}}
           main{{width:100%;max-width:540px;background:var(--panel);border:1px solid var(--line);border-radius:24px;padding:36px;box-shadow:0 28px 90px #0003}}
           .brand{{display:flex;align-items:center;gap:10px;font-size:12px;font-weight:750;letter-spacing:.12em;color:var(--muted)}}.brand-mark{{display:grid;place-items:center;width:30px;height:30px;border-radius:9px;background:var(--blue);color:white;font-size:18px;letter-spacing:0}}
           .download-icon{{display:grid;place-items:center;width:64px;height:64px;border-radius:20px;background:#447eff1a;color:#80a7ff;margin:30px 0 20px}}svg{{width:28px;height:28px;flex-shrink:0}}
