@@ -1,0 +1,164 @@
+name: Latest stable download (Pages)
+
+on:
+  release:
+    types: [published, edited, deleted, unpublished, released, prereleased]
+  workflow_dispatch:
+  # Reconcile releases created by GITHUB_TOKEN, which do not emit new workflow runs.
+  schedule:
+    - cron: '17 * * * *'
+  push:
+    branches: [main]
+    paths: ['.github/workflows/latest-download-pages.yml']
+
+permissions:
+  contents: read
+
+# Serialize deployments. Every queued run resolves live API state, never its event tag.
+# Do not cancel an in-flight Pages deployment and leave a detached older deployment.
+concurrency:
+  group: latest-download-pages
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.repository == 'favoritecode/Favorite-CMS-Universal'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}download/
+    steps:
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+      - name: Test selection and build immediate redirect
+        shell: python
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          import copy, html, json, os, re, time, unittest
+          from pathlib import Path
+          from urllib.request import Request, urlopen
+          from urllib.error import HTTPError, URLError
+          from urllib.parse import quote
+
+          REPO = os.environ['GH_REPO']
+          def api(path):
+              for attempt in range(4):
+                  try:
+                      request = Request('https://api.github.com/repos/' + REPO + path, headers={
+                          'Authorization': 'Bearer ' + os.environ['GH_TOKEN'],
+                          'Accept': 'application/vnd.github+json',
+                          'X-GitHub-Api-Version': '2022-11-28',
+                          'User-Agent': 'Favorite-CMS-Latest-Download',
+                          'Cache-Control': 'no-cache'})
+                      with urlopen(request, timeout=30) as response:
+                          return json.load(response)
+                  except HTTPError as error:
+                      if error.code == 404:
+                          return None
+                      if error.code not in (429, 500, 502, 503, 504) or attempt == 3:
+                          raise
+                  except URLError:
+                      if attempt == 3:
+                          raise
+                  time.sleep(2 ** attempt)
+
+          def select(release):
+              if release is None:
+                  return None
+              if release.get('draft') or release.get('prerelease') or not release.get('published_at'):
+                  raise ValueError('The API did not return a published stable release')
+              tag = release['tag_name']
+              if not re.fullmatch(r'v?\d+\.\d+\.\d+', tag):
+                  raise ValueError('Unsupported stable release tag: ' + tag)
+              expected = 'Favorite-CMS-Universal-v' + tag.removeprefix('v') + '.zip'
+              assets = [a for a in release['assets'] if a['name'] == expected and a.get('state') == 'uploaded']
+              if len(assets) != 1 or assets[0].get('size', 0) <= 0:
+                  raise ValueError('Expected exactly one complete official ZIP asset: ' + expected)
+              asset = assets[0]
+              url = 'https://github.com/' + REPO + '/releases/download/' + quote(tag, safe='') + '/' + expected
+              if asset['browser_download_url'] != url:
+                  raise ValueError('Unexpected download host or release path')
+              return {'release_id': release['id'], 'tag': tag, 'asset_id': asset['id'],
+                      'name': expected, 'url': url, 'size': asset['size'], 'digest': asset.get('digest')}
+
+          def render(asset):
+              if asset is None:
+                  return '<!doctype html><html lang="en"><meta charset="utf-8"><title>Download unavailable</title><p>No stable release is currently published.</p><a href="https://github.com/' + REPO + '/releases">View releases</a></html>'
+              url = html.escape(asset['url'], quote=True)
+              js = json.dumps(asset['url']).replace('<', '\\u003c')
+              return f'''<!doctype html>
+          <html lang="en"><head><meta charset="utf-8">
+          <meta name="viewport" content="width=device-width,initial-scale=1">
+          <meta name="robots" content="noindex"><meta name="referrer" content="no-referrer">
+          <meta http-equiv="refresh" content="0;url={url}">
+          <title>Downloading Favorite CMS</title>
+          <script>window.location.replace({js});</script></head>
+          <body><p>Your download is starting. If it does not start, <a href="{url}">download {html.escape(asset['name'])}</a>.</p></body></html>
+          '''
+
+          def fixture(tag='v2.0.0'):
+              name = 'Favorite-CMS-Universal-v' + tag.removeprefix('v') + '.zip'
+              return {'id': 1, 'tag_name': tag, 'draft': False, 'prerelease': False,
+                      'published_at': '2026-11-28T00:00:00Z', 'assets': [
+                      {'id': 2, 'name': name, 'state': 'uploaded', 'size': 100,
+                       'browser_download_url': 'https://github.com/' + REPO + '/releases/download/' + tag + '/' + name}]}
+
+          class SelectionTests(unittest.TestCase):
+              def test_future_stable_versions(self):
+                  for tag in ('v2.0.0', 'v2.0.1', 'v2.0.2', 'v3.0.0'):
+                      self.assertEqual(select(fixture(tag))['tag'], tag)
+              def test_draft_prerelease_unpublished_rejected(self):
+                  for key, value in [('draft', True), ('prerelease', True), ('published_at', None)]:
+                      release = fixture(); release[key] = value
+                      with self.assertRaises(ValueError): select(release)
+              def test_source_archives_and_other_assets_ignored(self):
+                  release = fixture(); release['zipball_url'] = 'https://api.github.com/source.zip'
+                  for name in ('Source code.zip', 'Favorite-CMS-Universal-v2.0.0-test.zip', 'Favorite-CMS-Universal-v1.2.1.zip'):
+                      asset = copy.deepcopy(release['assets'][0]); asset['name'] = name
+                      release['assets'].append(asset)
+                  self.assertEqual(select(release)['asset_id'], 2)
+              def test_missing_duplicate_incomplete_or_hostile_assets_rejected(self):
+                  for mode in ('missing', 'duplicate', 'uploading', 'empty', 'hostile'):
+                      release = fixture()
+                      if mode == 'missing': release['assets'] = []
+                      if mode == 'duplicate': release['assets'] *= 2
+                      if mode == 'uploading': release['assets'][0]['state'] = 'new'
+                      if mode == 'empty': release['assets'][0]['size'] = 0
+                      if mode == 'hostile': release['assets'][0]['browser_download_url'] = 'https://example.com/file.zip'
+                      with self.assertRaises(ValueError): select(release)
+              def test_redirect_and_fallback(self):
+                  asset = select(fixture()); page = render(asset)
+                  self.assertIn('window.location.replace(', page)
+                  self.assertIn('content="0;url=', page)
+                  self.assertIn('href="' + asset['url'] + '"', page)
+              def test_no_stable_release_removes_stale_redirect(self):
+                  self.assertIsNone(select(None))
+                  self.assertNotIn('window.location.replace', render(None))
+
+          result = unittest.TextTestRunner(verbosity=2).run(unittest.defaultTestLoader.loadTestsFromTestCase(SelectionTests))
+          if not result.wasSuccessful(): raise SystemExit(1)
+          # Detect an asset edit/replacement while resolving the current release.
+          for attempt in range(4):
+              selected = select(api('/releases/latest'))
+              if selected == select(api('/releases/latest')): break
+          else: raise RuntimeError('Release changed repeatedly; retry deployment')
+          output = Path('_site/download'); output.mkdir(parents=True)
+          (output / 'index.html').write_text(render(selected), encoding='utf-8')
+          (output / 'release.json').write_text(json.dumps(selected, indent=2) + '\n', encoding='utf-8')
+          print(json.dumps(selected, indent=2))
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as summary:
+              summary.write('## Latest stable download\n\n6 selection/rendering tests passed.\n\n```json\n' + json.dumps(selected, indent=2) + '\n```\n')
+      - name: Upload static redirect only
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - name: Deploy Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
