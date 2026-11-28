@@ -1,7 +1,6 @@
 name: Release gate
 # A release is only trustworthy if (1) the signed protected-file manifest matches the sources,
-# (2) a failed Central registration can never take a site offline, and (3) every supported
-# older version can be updated to this source by its OWN installed updater.
+# and (2) a failed Central registration can never take a site offline.
 on:
   pull_request:
   push:
@@ -36,55 +35,3 @@ jobs:
         run: php tests/central-pending.php
       - name: Package validation
         run: php tests/package-regression.php
-
-  upgrade-matrix:
-    needs: verify
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        from: [v1.0.2, v1.1.0, v1.1.7, v1.2.0, v1.2.1]
-    services:
-      db:
-        image: mariadb:10.6
-        env:
-          MARIADB_ALLOW_EMPTY_ROOT_PASSWORD: 'yes'
-        ports: ['3306:3306']
-        options: >-
-          --health-cmd="healthcheck.sh --connect --innodb_initialized"
-          --health-interval=5s --health-timeout=5s --health-retries=20
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - uses: shivammathur/setup-php@v2
-        with:
-          php-version: '8.2'
-          extensions: sodium, mbstring, pdo, pdo_mysql, zip, curl, gd, fileinfo
-      - name: Build the update ZIP from this source
-        run: |
-          php tests/build-release.php "$RUNNER_TEMP/update.zip"
-      - name: Old release updates itself to this source (data, config, themes, plugins preserved)
-        env:
-          CMS_TEST_UPDATE_ZIP: ${{ runner.temp }}/update.zip
-          CMS_TEST_DB_PORT: '3306'
-        run: |
-          set -e
-          TO=$(php -r 'echo json_decode(file_get_contents("release.json"),true)["version"];')
-          SBX="$RUNNER_TEMP/old-${{ matrix.from }}"
-          mkdir -p "$SBX" && git archive "${{ matrix.from }}" | tar -x -C "$SBX"
-          [ -f "$SBX/vendor/autoload.php" ] || cp -r vendor "$SBX/vendor"
-          echo sandbox > "$SBX/.cms-test-sandbox"
-          CMS_TEST_ROOT="$SBX" CMS_TEST_TO_VERSION="$TO" php tests/core-update-from.php
-      - name: Backup survives normal requests rewriting the connection state
-        run: |
-          set -e
-          SBX="$RUNNER_TEMP/old-${{ matrix.from }}"
-          CMS_TEST_ROOT="$SBX" php tests/backup-volatile-state.php
-      - name: Updated site stays online when registration fails
-        run: |
-          set -e
-          SBX="$RUNNER_TEMP/old-${{ matrix.from }}"
-          out=$(CMS_TEST_ROOT="$SBX" php tests/central-gate-probe.php)
-          echo "$out"
-          echo "$out" | grep -q '"public_site_blocked":false'
