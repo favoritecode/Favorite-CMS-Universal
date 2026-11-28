@@ -88,7 +88,7 @@ jobs:
               return {'release_id': release['id'], 'tag': tag, 'asset_id': asset['id'],
                       'name': expected, 'url': url, 'size': asset['size'], 'digest': asset.get('digest')}
 
-          def render(asset):
+          def render_start(asset):
               if asset is None:
                   return '<!doctype html><html lang="en"><meta charset="utf-8"><title>Download unavailable</title><p>No stable release is currently published.</p><a href="https://github.com/' + REPO + '/releases">View releases</a></html>'
               url = html.escape(asset['url'], quote=True)
@@ -101,6 +101,23 @@ jobs:
           <title>Downloading Favorite CMS</title>
           <script>window.location.replace({js});</script></head>
           <body><p>Your download is starting. If it does not start, <a href="{url}">download {html.escape(asset['name'])}</a>.</p></body></html>
+          '''
+
+          def render(asset):
+              if asset is None:
+                  return render_start(None)
+              url = html.escape(asset['url'], quote=True)
+              return f'''<!doctype html>
+          <html lang="en"><head><meta charset="utf-8">
+          <meta name="viewport" content="width=device-width,initial-scale=1">
+          <meta name="robots" content="noindex"><meta name="referrer" content="no-referrer">
+          <title>Downloading Favorite CMS</title>
+          <style>body{{font:16px/1.6 system-ui,sans-serif;margin:0;min-height:100vh;display:grid;place-items:center;background:#0c1322;color:#e6edf7}}main{{padding:28px;max-width:480px}}h1{{font-size:24px;margin:0 0 12px}}p{{color:#aebbd0}}a{{color:#77b0ff}}iframe{{display:none}}</style>
+          </head><body><main><h1>Your download is starting</h1>
+          <p>{html.escape(asset['name'])}</p>
+          <p>If it does not start, <a href="{url}" target="download-frame">download again</a>.</p>
+          </main><iframe name="download-frame" title="File download" src="start.html"></iframe>
+          </body></html>
           '''
 
           def fixture(tag='v2.0.0'):
@@ -134,10 +151,17 @@ jobs:
                       if mode == 'hostile': release['assets'][0]['browser_download_url'] = 'https://example.com/file.zip'
                       with self.assertRaises(ValueError): select(release)
               def test_redirect_and_fallback(self):
-                  asset = select(fixture()); page = render(asset)
-                  self.assertIn('window.location.replace(', page)
-                  self.assertIn('content="0;url=', page)
+                  asset = select(fixture()); page = render(asset); start = render_start(asset)
+                  self.assertIn('window.location.replace(', start)
+                  self.assertIn('content="0;url=', start)
                   self.assertIn('href="' + asset['url'] + '"', page)
+                  self.assertIn('target="download-frame"', page)
+              def test_download_does_not_navigate_main_page(self):
+                  page = render(select(fixture()))
+                  self.assertNotIn('window.location', page)
+                  self.assertNotIn('http-equiv="refresh"', page)
+                  self.assertIn('name="download-frame"', page)
+                  self.assertIn('src="start.html"', page)
               def test_no_stable_release_removes_stale_redirect(self):
                   self.assertIsNone(select(None))
                   self.assertNotIn('window.location.replace', render(None))
@@ -151,10 +175,11 @@ jobs:
           else: raise RuntimeError('Release changed repeatedly; retry deployment')
           output = Path('_site/download'); output.mkdir(parents=True)
           (output / 'index.html').write_text(render(selected), encoding='utf-8')
+          (output / 'start.html').write_text(render_start(selected), encoding='utf-8')
           (output / 'release.json').write_text(json.dumps(selected, indent=2) + '\n', encoding='utf-8')
           print(json.dumps(selected, indent=2))
           with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as summary:
-              summary.write('## Latest stable download\n\n6 selection/rendering tests passed.\n\n```json\n' + json.dumps(selected, indent=2) + '\n```\n')
+              summary.write('## Latest stable download\n\n7 selection/rendering tests passed. Main page stays open; only the download frame redirects.\n\n```json\n' + json.dumps(selected, indent=2) + '\n```\n')
       - name: Upload static redirect only
         uses: actions/upload-pages-artifact@v3
         with:
